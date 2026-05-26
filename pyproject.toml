@@ -1,0 +1,9 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "scryfall-enhancer"
+version = "1.0.0"
+description = "Enrich ManaBox MTG collection exports with Scryfall data"
+requires-python = ">=3.9"
