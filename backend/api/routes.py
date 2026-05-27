@@ -1,4 +1,6 @@
 import asyncio
+import re
+from pathlib import Path
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
 from fastapi.responses import StreamingResponse, FileResponse
 from typing import AsyncIterator
@@ -34,18 +36,27 @@ async def download_cache(
     """Download bulk data with SSE progress updates."""
 
     async def generate_progress():
-        progress = {"percentage": 0}
+        progress_updates = []
 
         def progress_callback(percentage: int):
-            progress["percentage"] = percentage
+            progress_updates.append(percentage)
 
-        # Start download
-        success = await bulk_data_manager.download_bulk_data(progress_callback)
+        # Start download as background task
+        async def download_task():
+            return await bulk_data_manager.download_bulk_data(progress_callback)
 
-        # Yield progress events
-        while progress["percentage"] < 100:
-            yield f"data: {json.dumps({'percentage': progress['percentage']})}\n\n"
+        task = asyncio.create_task(download_task())
+        last_percentage = 0
+
+        # Stream progress while download is running
+        while not task.done():
+            if progress_updates and progress_updates[-1] != last_percentage:
+                last_percentage = progress_updates[-1]
+                yield f"data: {json.dumps({'percentage': last_percentage})}\n\n"
             await asyncio.sleep(0.5)
+
+        # Get final result
+        success = await task
 
         if success:
             yield f"data: {json.dumps({'percentage': 100, 'status': 'complete'})}\n\n"
@@ -97,9 +108,18 @@ async def process_csv(
 @router.get("/download/{job_id}")
 async def download_result(job_id: str):
     """Download processed CSV file."""
-    from pathlib import Path
+    # Validate job_id format (UUID or safe alphanumeric)
+    if not re.match(r'^[a-f0-9-]+$', job_id):
+        raise HTTPException(status_code=400, detail="Invalid job ID format")
 
-    output_file = Path(f".scryfall_cache/progress/{job_id}.csv")
+    progress_dir = Path(".scryfall_cache/progress").resolve()
+    output_file = (progress_dir / f"{job_id}.csv").resolve()
+
+    # Ensure the resolved path is within the expected directory
+    try:
+        output_file.relative_to(progress_dir)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid job ID")
 
     if not output_file.exists():
         raise HTTPException(status_code=404, detail="Job not found")
