@@ -77,6 +77,11 @@ body {
     color: white;
 }
 
+.nav-item:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
 /* Main Content */
 .main {
     padding: 2rem 0;
@@ -223,6 +228,11 @@ body {
     cursor: not-allowed;
 }
 
+.btn:focus-visible {
+    outline: 3px solid var(--primary);
+    outline-offset: 2px;
+}
+
 /* Upload Zone */
 .upload-zone {
     border: 3px dashed var(--border);
@@ -242,6 +252,12 @@ body {
 .upload-zone.dragover {
     border-color: var(--primary);
     background: rgba(107, 70, 193, 0.1);
+}
+
+.upload-zone:focus-within {
+    border-color: var(--primary);
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
 }
 
 .upload-icon {
@@ -374,6 +390,23 @@ body {
 
 .settings-section a:hover {
     text-decoration: underline;
+}
+
+.settings-section a:focus-visible {
+    outline: 2px solid var(--secondary);
+    outline-offset: 2px;
+    text-decoration: underline;
+}
+
+/* Respect user's motion preferences */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
 }
 
 /* Responsive */
