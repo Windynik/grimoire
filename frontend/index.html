@@ -18,11 +18,11 @@
 
         <!-- Navigation -->
         <nav class="nav">
-            <div class="container">
-                <button class="nav-item active" data-view="dashboard">Dashboard</button>
-                <button class="nav-item" data-view="cache">Cache Management</button>
-                <button class="nav-item" data-view="process">Process CSV</button>
-                <button class="nav-item" data-view="settings">Settings</button>
+            <div class="container" role="tablist">
+                <button class="nav-item active" data-view="dashboard" role="tab" aria-selected="true">Dashboard</button>
+                <button class="nav-item" data-view="cache" role="tab" aria-selected="false">Cache Management</button>
+                <button class="nav-item" data-view="process" role="tab" aria-selected="false">Process CSV</button>
+                <button class="nav-item" data-view="settings" role="tab" aria-selected="false">Settings</button>
             </div>
         </nav>
 
@@ -68,7 +68,7 @@
                             <button id="clear-cache" class="btn btn-danger">Clear Cache</button>
                         </div>
                         <div id="download-progress" class="progress-container" style="display: none;">
-                            <div class="progress-bar">
+                            <div class="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-label="Download progress">
                                 <div class="progress-fill" id="download-progress-fill"></div>
                             </div>
                             <p class="progress-text" id="download-progress-text">0%</p>
@@ -83,7 +83,7 @@
 
                         <!-- Upload Zone -->
                         <div id="upload-zone" class="upload-zone">
-                            <input type="file" id="file-input" accept=".csv" hidden>
+                            <input type="file" id="file-input" accept=".csv" aria-label="Choose CSV file to process" hidden>
                             <div class="upload-content">
                                 <span class="upload-icon">📂</span>
                                 <p>Drag and drop your CSV file here</p>
@@ -94,7 +94,7 @@
                         <!-- Processing Display -->
                         <div id="processing-display" style="display: none;">
                             <div class="progress-container">
-                                <div class="progress-bar">
+                                <div class="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-label="Processing progress">
                                     <div class="progress-fill" id="process-progress-fill"></div>
                                 </div>
                                 <p class="progress-text" id="process-progress-text">0%</p>
@@ -129,7 +129,7 @@
                         <div class="settings-section">
                             <h3>About</h3>
                             <p><strong>Version:</strong> 1.0.0</p>
-                            <p><strong>Powered by:</strong> <a href="https://scryfall.com" target="_blank">Scryfall API</a></p>
+                            <p><strong>Powered by:</strong> <a href="https://scryfall.com" target="_blank" rel="noopener noreferrer">Scryfall API</a></p>
                         </div>
                         <div class="settings-section">
                             <h3>Data Management</h3>
