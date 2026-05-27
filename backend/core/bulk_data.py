@@ -1,6 +1,8 @@
 import json
 import httpx
 import hashlib
+import ssl
+import certifi
 from pathlib import Path
 from typing import Dict, Optional, Callable
 from datetime import datetime
@@ -61,8 +63,11 @@ class BulkDataManager:
             # Create cache directory
             self.cache_dir.mkdir(parents=True, exist_ok=True)
 
+            # Create SSL context with certifi certificates
+            ssl_context = ssl.create_default_context(cafile=certifi.where())
+
             # Get bulk data info
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=30.0, verify=ssl_context) as client:
                 response = await client.get(self.BULK_DATA_API)
                 response.raise_for_status()
                 bulk_info = response.json()
@@ -70,7 +75,7 @@ class BulkDataManager:
             download_url = bulk_info["download_uri"]
 
             # Download bulk data with progress
-            async with httpx.AsyncClient(timeout=300.0) as client:
+            async with httpx.AsyncClient(timeout=300.0, verify=ssl_context) as client:
                 async with client.stream("GET", download_url) as response:
                     response.raise_for_status()
 

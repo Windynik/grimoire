@@ -16,7 +16,7 @@ app = FastAPI(
 # CORS middleware (localhost only)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8000", "http://127.0.0.1:8000"],
+    allow_origins=["http://localhost:8133", "http://127.0.0.1:8133"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -40,7 +40,7 @@ def run():
     def open_browser():
         import time
         time.sleep(1.5)
-        webbrowser.open("http://localhost:8000")
+        webbrowser.open("http://localhost:8133")
 
     threading.Thread(target=open_browser, daemon=True).start()
 
@@ -48,7 +48,7 @@ def run():
     uvicorn.run(
         app,
         host="0.0.0.0",
-        port=8000,
+        port=8133,
         log_level="info"
     )
 
