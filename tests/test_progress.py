@@ -25,3 +25,12 @@ def test_progress_tracker_complete():
 
     assert tracker.status == "complete"
     assert tracker.success_count == 98
+
+
+def test_progress_tracker_error():
+    """Test marking job as failed with error message."""
+    tracker = ProgressTracker(job_id="test-123")
+    tracker.mark_error("Connection timeout")
+
+    assert tracker.status == "error"
+    assert tracker.error_message == "Connection timeout"

@@ -25,6 +25,7 @@ class ProgressTracker:
         self.errors = 0
         self.success_count = 0
         self.error_count = 0
+        self.error_message = ""
         self.start_time = datetime.now(timezone.utc)
 
     def update_progress(
@@ -69,6 +70,7 @@ class ProgressTracker:
             error_message: Error description
         """
         self.status = "error"
+        self.error_message = error_message
         self._save_progress()
 
     def _save_progress(self):
@@ -84,7 +86,8 @@ class ProgressTracker:
             "errors": self.errors,
             "success_count": self.success_count,
             "error_count": self.error_count,
-            "start_time": self.start_time.isoformat()
+            "start_time": self.start_time.isoformat(),
+            "error_message": self.error_message
         }
 
         with open(progress_file, 'w') as f:
