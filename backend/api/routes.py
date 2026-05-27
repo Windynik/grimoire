@@ -8,6 +8,7 @@ from backend.api.dependencies import get_bulk_data_manager, get_csv_processor
 from backend.core.bulk_data import BulkDataManager
 from backend.core.csv_processor import CSVProcessor
 from backend.core.progress import ProgressTracker
+from backend.core.collection_store import CollectionStore
 from backend.models.schemas import CacheStatus, ProcessResult
 import json
 
@@ -129,3 +130,31 @@ async def download_result(job_id: str):
         media_type="text/csv",
         filename=f"enhanced_collection_{job_id}.csv"
     )
+
+
+@router.get("/collection/{job_id}")
+async def get_collection(
+    job_id: str,
+    store: CollectionStore = Depends(lambda: CollectionStore())
+):
+    """Get collection data with images."""
+    collection = store.get_collection(job_id)
+
+    if not collection:
+        raise HTTPException(status_code=404, detail="Collection not found")
+
+    return {
+        "cards": collection,
+        "total": len(collection)
+    }
+
+
+@router.get("/collection/{job_id}/search")
+async def search_collection(
+    job_id: str,
+    q: str,
+    store: CollectionStore = Depends(lambda: CollectionStore())
+):
+    """Search collection by card name."""
+    results = store.search_collection(job_id, q)
+    return {"cards": results, "total": len(results)}
