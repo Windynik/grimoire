@@ -10,6 +10,7 @@ const views = {
     dashboard: document.getElementById('dashboard-view'),
     cache: document.getElementById('cache-view'),
     process: document.getElementById('process-view'),
+    viewer: document.getElementById('viewer-view'),
     settings: document.getElementById('settings-view')
 };
 
@@ -18,6 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupNavigation();
     setupCacheManagement();
     setupFileUpload();
+    setupCollectionViewer();
     checkCacheStatus();
 });
 
@@ -267,4 +269,117 @@ function formatDate(dateString) {
     if (!dateString) return '-';
     const date = new Date(dateString);
     return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+}
+
+// Collection Viewer Functions
+function setupCollectionViewer() {
+    const searchInput = document.getElementById('viewer-search');
+    const toggleBtns = document.querySelectorAll('.toggle-btn');
+    const modal = document.getElementById('card-modal');
+    const modalClose = document.querySelector('.modal-close');
+
+    if (searchInput) {
+        searchInput.addEventListener('input', debounce(searchCollection, 300));
+    }
+
+    toggleBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            toggleBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            const mode = btn.dataset.mode;
+            if (mode === 'grid') {
+                document.getElementById('card-grid').style.display = 'grid';
+                document.getElementById('card-list').style.display = 'none';
+            } else {
+                document.getElementById('card-grid').style.display = 'none';
+                document.getElementById('card-list').style.display = 'block';
+            }
+        });
+    });
+
+    if (modalClose) {
+        modalClose.addEventListener('click', () => {
+            modal.classList.remove('active');
+        });
+    }
+
+    // Close modal on background click
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.classList.remove('active');
+        }
+    });
+}
+
+async function loadCollectionViewer(jobId) {
+    try {
+        const response = await fetch(`${API_BASE}/collection/${jobId}`);
+        if (!response.ok) throw new Error('Collection not found');
+
+        const data = await response.json();
+        displayCardGrid(data.cards);
+        showToast(`Loaded ${data.total} cards`, 'success');
+    } catch (error) {
+        showToast('Error loading collection', 'error');
+    }
+}
+
+async function searchCollection() {
+    const query = document.getElementById('viewer-search').value;
+    if (!currentJobId) return;
+
+    try {
+        const url = query
+            ? `${API_BASE}/collection/${currentJobId}/search?q=${encodeURIComponent(query)}`
+            : `${API_BASE}/collection/${currentJobId}`;
+
+        const response = await fetch(url);
+        const data = await response.json();
+        displayCardGrid(data.cards);
+    } catch (error) {
+        showToast('Error searching collection', 'error');
+    }
+}
+
+function displayCardGrid(cards) {
+    const grid = document.getElementById('card-grid');
+    grid.innerHTML = '';
+
+    if (cards.length === 0) {
+        grid.innerHTML = '<p style="grid-column: 1/-1; text-align: center;">No cards found</p>';
+        return;
+    }
+
+    cards.forEach(card => {
+        const cardEl = document.createElement('div');
+        cardEl.className = 'card-item';
+        cardEl.innerHTML = `<img src="${card.image_url}" alt="${card.name}" loading="lazy">`;
+        cardEl.addEventListener('click', () => showCardDetail(card));
+        grid.appendChild(cardEl);
+    });
+}
+
+function showCardDetail(card) {
+    const modal = document.getElementById('card-modal');
+    const details = document.getElementById('modal-card-details');
+
+    details.innerHTML = `
+        <img src="${card.image_url}" alt="${card.name}" style="width: 100%; border-radius: 0.5rem; margin-bottom: 1rem;">
+        <h3>${card.name}</h3>
+        <p><strong>Mana Cost:</strong> ${card.mana_cost || 'N/A'}</p>
+        <p><strong>Type:</strong> ${card.type_line || 'N/A'}</p>
+        <p><strong>Oracle Text:</strong> ${card.oracle_text || 'N/A'}</p>
+        <p><strong>Quantity:</strong> ${card.quantity || 1}</p>
+    `;
+
+    modal.classList.add('active');
+}
+
+function debounce(func, wait) {
+    let timeout;
+    return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+    };
 }

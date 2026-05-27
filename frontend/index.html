@@ -22,6 +22,7 @@
                 <button class="nav-item active" data-view="dashboard" role="tab" aria-selected="true">Dashboard</button>
                 <button class="nav-item" data-view="cache" role="tab" aria-selected="false">Cache Management</button>
                 <button class="nav-item" data-view="process" role="tab" aria-selected="false">Process CSV</button>
+                <button class="nav-item" data-view="viewer" role="tab" aria-selected="false">Viewer</button>
                 <button class="nav-item" data-view="settings" role="tab" aria-selected="false">Settings</button>
             </div>
         </nav>
@@ -122,6 +123,28 @@
                     </div>
                 </div>
 
+                <!-- Collection Viewer View -->
+                <div id="viewer-view" class="view">
+                    <div class="card">
+                        <h2>Collection Viewer</h2>
+
+                        <!-- Search -->
+                        <div class="viewer-controls">
+                            <input type="text" id="viewer-search" class="search-input" placeholder="Search cards...">
+                            <div class="view-toggle">
+                                <button class="toggle-btn active" data-mode="grid">Grid</button>
+                                <button class="toggle-btn" data-mode="list">List</button>
+                            </div>
+                        </div>
+
+                        <!-- Grid View -->
+                        <div id="card-grid" class="card-grid"></div>
+
+                        <!-- List View -->
+                        <div id="card-list" class="card-list" style="display: none;"></div>
+                    </div>
+                </div>
+
                 <!-- Settings View -->
                 <div id="settings-view" class="view">
                     <div class="card">
@@ -142,6 +165,14 @@
 
         <!-- Toast Notifications -->
         <div id="toast-container"></div>
+
+        <!-- Card Detail Modal -->
+        <div id="card-modal" class="modal">
+            <div class="modal-content">
+                <span class="modal-close">&times;</span>
+                <div id="modal-card-details"></div>
+            </div>
+        </div>
     </div>
 
     <script src="/app.js"></script>
