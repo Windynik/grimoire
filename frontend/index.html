@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scryfall Collection Enhancer</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <div class="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="container">
+                <h1 class="logo">⚡ Scryfall Collection Enhancer</h1>
+                <p class="tagline">Enrich your ManaBox exports with Scryfall data</p>
+            </div>
+        </header>
+
+        <!-- Navigation -->
+        <nav class="nav">
+            <div class="container">
+                <button class="nav-item active" data-view="dashboard">Dashboard</button>
+                <button class="nav-item" data-view="cache">Cache Management</button>
+                <button class="nav-item" data-view="process">Process CSV</button>
+                <button class="nav-item" data-view="settings">Settings</button>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main">
+            <div class="container">
+                <!-- Dashboard View -->
+                <div id="dashboard-view" class="view active">
+                    <div class="card">
+                        <h2>Cache Status</h2>
+                        <div id="cache-status-dashboard">
+                            <div class="status-indicator" id="status-indicator">
+                                <span class="status-dot"></span>
+                                <span class="status-text">Checking...</span>
+                            </div>
+                            <div class="stats">
+                                <div class="stat">
+                                    <span class="stat-label">Cards Available</span>
+                                    <span class="stat-value" id="card-count">-</span>
+                                </div>
+                                <div class="stat">
+                                    <span class="stat-label">Last Updated</span>
+                                    <span class="stat-value" id="last-updated">-</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="actions">
+                            <button id="quick-download" class="btn btn-primary">Download Cache</button>
+                            <button id="quick-process" class="btn btn-secondary" disabled>Process CSV</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cache Management View -->
+                <div id="cache-view" class="view">
+                    <div class="card">
+                        <h2>Bulk Data Management</h2>
+                        <div id="cache-details">
+                            <p>Loading cache information...</p>
+                        </div>
+                        <div class="actions">
+                            <button id="download-cache" class="btn btn-primary">Download Bulk Data</button>
+                            <button id="clear-cache" class="btn btn-danger">Clear Cache</button>
+                        </div>
+                        <div id="download-progress" class="progress-container" style="display: none;">
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="download-progress-fill"></div>
+                            </div>
+                            <p class="progress-text" id="download-progress-text">0%</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Process CSV View -->
+                <div id="process-view" class="view">
+                    <div class="card">
+                        <h2>Process Collection CSV</h2>
+
+                        <!-- Upload Zone -->
+                        <div id="upload-zone" class="upload-zone">
+                            <input type="file" id="file-input" accept=".csv" hidden>
+                            <div class="upload-content">
+                                <span class="upload-icon">📂</span>
+                                <p>Drag and drop your CSV file here</p>
+                                <p class="upload-hint">or click to browse</p>
+                            </div>
+                        </div>
+
+                        <!-- Processing Display -->
+                        <div id="processing-display" style="display: none;">
+                            <div class="progress-container">
+                                <div class="progress-bar">
+                                    <div class="progress-fill" id="process-progress-fill"></div>
+                                </div>
+                                <p class="progress-text" id="process-progress-text">0%</p>
+                            </div>
+                            <div class="processing-info">
+                                <p><strong>Current:</strong> <span id="current-card">-</span></p>
+                                <p><strong>Progress:</strong> <span id="card-counter">0 / 0</span></p>
+                                <p><strong>Errors:</strong> <span id="error-count">0</span></p>
+                            </div>
+                        </div>
+
+                        <!-- Results -->
+                        <div id="results-display" style="display: none;">
+                            <div class="results-success">
+                                <h3>✓ Processing Complete!</h3>
+                                <p><strong>Total Processed:</strong> <span id="total-processed">0</span></p>
+                                <p><strong>Successful:</strong> <span id="success-count">0</span></p>
+                                <p><strong>Errors:</strong> <span id="final-error-count">0</span></p>
+                            </div>
+                            <div class="actions">
+                                <button id="download-result" class="btn btn-primary">Download Enhanced CSV</button>
+                                <button id="process-another" class="btn btn-secondary">Process Another</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Settings View -->
+                <div id="settings-view" class="view">
+                    <div class="card">
+                        <h2>Settings</h2>
+                        <div class="settings-section">
+                            <h3>About</h3>
+                            <p><strong>Version:</strong> 1.0.0</p>
+                            <p><strong>Powered by:</strong> <a href="https://scryfall.com" target="_blank">Scryfall API</a></p>
+                        </div>
+                        <div class="settings-section">
+                            <h3>Data Management</h3>
+                            <button class="btn btn-danger">Clear All Data</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Toast Notifications -->
+        <div id="toast-container"></div>
+    </div>
+
+    <script src="/app.js"></script>
+</body>
+</html>
