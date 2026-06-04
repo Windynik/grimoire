@@ -85,6 +85,29 @@ function updateCacheStatusUI(status) {
         lastUpdated.textContent = '-';
         quickProcess.disabled = true;
     }
+
+    // Update cache management tab details
+    const cacheDetails = document.getElementById('cache-details');
+    if (cacheDetails) {
+        if (isReady) {
+            const fileSizeMB = status.file_size_mb || 0;
+            cacheDetails.innerHTML = `
+                <div class="cache-info">
+                    <p><strong>Status:</strong> <span style="color: var(--success)">✓ Ready</span></p>
+                    <p><strong>Total Cards:</strong> ${status.card_count?.toLocaleString() || 'N/A'}</p>
+                    <p><strong>File Size:</strong> ${fileSizeMB.toFixed(2)} MB</p>
+                    <p><strong>Last Downloaded:</strong> ${formatDate(status.download_date)}</p>
+                </div>
+            `;
+        } else {
+            cacheDetails.innerHTML = `
+                <div class="cache-info">
+                    <p><strong>Status:</strong> <span style="color: var(--warning)">⚠ Not Downloaded</span></p>
+                    <p>Click "Download Bulk Data" below to download Scryfall card data (~100MB). This only needs to be done once.</p>
+                </div>
+            `;
+        }
+    }
 }
 
 async function downloadCache() {
@@ -93,6 +116,8 @@ async function downloadCache() {
     const progressText = document.getElementById('download-progress-text');
 
     progressContainer.style.display = 'block';
+    progressFill.style.width = '0%';
+    progressText.textContent = '0%';
 
     try {
         const response = await fetch(`${API_BASE}/cache/download`, {
@@ -101,38 +126,60 @@ async function downloadCache() {
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
+        let buffer = '';
 
         while (true) {
             const { done, value } = await reader.read();
-            if (done) break;
 
-            const text = decoder.decode(value);
-            const lines = text.split('\n');
+            if (value) {
+                buffer += decoder.decode(value, { stream: true });
 
-            for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                    const data = JSON.parse(line.substring(6));
+                // Process complete SSE messages (ending with \n\n)
+                const messages = buffer.split('\n\n');
+                // Keep the last incomplete message in buffer
+                buffer = messages.pop() || '';
 
-                    if (data.percentage !== undefined) {
-                        progressFill.style.width = `${data.percentage}%`;
-                        progressText.textContent = `${data.percentage}%`;
-                    }
+                for (const message of messages) {
+                    const lines = message.split('\n');
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(line.substring(6));
 
-                    if (data.status === 'complete') {
-                        showToast('Bulk data downloaded successfully!', 'success');
-                        await checkCacheStatus();
-                        progressContainer.style.display = 'none';
-                    }
+                                if (data.percentage !== undefined) {
+                                    progressFill.style.width = `${data.percentage}%`;
+                                    progressText.textContent = `${data.percentage}%`;
 
-                    if (data.error) {
-                        showToast(data.error, 'error');
-                        progressContainer.style.display = 'none';
+                                    // Update aria attributes for accessibility
+                                    const progressBar = document.querySelector('#download-progress .progress-bar');
+                                    if (progressBar) {
+                                        progressBar.setAttribute('aria-valuenow', data.percentage);
+                                    }
+                                }
+
+                                if (data.status === 'complete') {
+                                    showToast('Bulk data downloaded successfully!', 'success');
+                                    await checkCacheStatus();
+                                    progressContainer.style.display = 'none';
+                                }
+
+                                if (data.error) {
+                                    showToast(data.error, 'error');
+                                    progressContainer.style.display = 'none';
+                                }
+                            } catch (e) {
+                                console.error('Error parsing SSE data:', e, line);
+                            }
+                        }
                     }
                 }
             }
+
+            if (done) break;
         }
     } catch (error) {
-        showToast('Error downloading bulk data', 'error');
+        console.error('Download error:', error);
+        showToast('Error downloading bulk data: ' + error.message, 'error');
         progressContainer.style.display = 'none';
     }
 }
