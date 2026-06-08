@@ -563,6 +563,39 @@ function displayCardGrid(cards) {
     });
 }
 
+function parseManaSymbols(manaCost) {
+    if (!manaCost) return '<span class="mana-none">—</span>';
+
+    // Parse {X}{Y}{Z} format and convert to styled spans
+    return manaCost.replace(/\{([^}]+)\}/g, (match, symbol) => {
+        const sym = symbol.toLowerCase();
+        const colorMap = {
+            'w': 'white',
+            'u': 'blue',
+            'b': 'black',
+            'r': 'red',
+            'g': 'green',
+            'c': 'colorless',
+            'x': 'x',
+            't': 'tap'
+        };
+
+        // Handle hybrid mana like {W/U}
+        if (sym.includes('/')) {
+            const [c1, c2] = sym.split('/');
+            return `<span class="mana-symbol mana-hybrid mana-${colorMap[c1] || c1}-${colorMap[c2] || c2}">${symbol}</span>`;
+        }
+
+        // Handle colored mana
+        if (colorMap[sym]) {
+            return `<span class="mana-symbol mana-${colorMap[sym]}">${symbol.toUpperCase()}</span>`;
+        }
+
+        // Handle numeric mana
+        return `<span class="mana-symbol mana-generic">${symbol}</span>`;
+    });
+}
+
 function showCardDetail(card) {
     const modal = document.getElementById('card-modal');
     const details = document.getElementById('modal-card-details');
@@ -570,19 +603,56 @@ function showCardDetail(card) {
     // Handle missing images
     const hasImage = card.image_url && card.image_url.trim() !== '';
     const imageHtml = hasImage
-        ? `<img src="${card.image_url}" alt="${card.name}" style="width: 100%; border-radius: 0.5rem; margin-bottom: 1rem;">`
-        : `<div style="width: 100%; aspect-ratio: 5/7; background: linear-gradient(135deg, var(--bg-dark) 0%, rgba(124, 58, 237, 0.1) 100%); border: 2px dashed var(--border); border-radius: 0.5rem; display: flex; flex-direction: column; align-items: center; justify-content: center; margin-bottom: 1rem;">
-             <img src="/favicon.svg" alt="MTG Icon" style="width: 80px; height: 80px; opacity: 0.7; filter: drop-shadow(0 0 8px rgba(168, 85, 247, 0.4));">
-             <p style="color: var(--text-muted); font-size: 0.875rem; margin-top: 0.75rem;">No Image Available</p>
+        ? `<img src="${card.image_url}" alt="${card.name}" class="modal-card-image">`
+        : `<div class="modal-card-placeholder">
+             <img src="/favicon.svg" alt="MTG Icon" class="placeholder-icon-large">
+             <p class="placeholder-text">No Image Available</p>
            </div>`;
+
+    // Parse mana cost
+    const manaHtml = parseManaSymbols(card.mana_cost);
+
+    // Format price
+    const priceHtml = card.price
+        ? `<div class="detail-row"><span class="detail-label">Price:</span><span class="detail-value price-value">$${parseFloat(card.price).toFixed(2)}</span></div>`
+        : '';
+
+    // Format quantity
+    const quantityHtml = card.quantity > 0
+        ? `<div class="detail-row"><span class="detail-label">Quantity:</span><span class="detail-value owned-value">${card.quantity}</span></div>`
+        : '';
 
     details.innerHTML = `
         ${imageHtml}
-        <h3>${card.name}</h3>
-        <p><strong>Mana Cost:</strong> ${card.mana_cost || 'N/A'}</p>
-        <p><strong>Type:</strong> ${card.type_line || 'N/A'}</p>
-        <p><strong>Oracle Text:</strong> ${card.oracle_text || 'N/A'}</p>
-        ${card.quantity > 0 ? `<p><strong>Quantity:</strong> ${card.quantity}</p>` : ''}
+
+        <div class="card-details-content">
+            <h2 class="card-detail-name">${card.name}</h2>
+
+            <div class="card-detail-section">
+                <div class="detail-row">
+                    <span class="detail-label">Mana Cost:</span>
+                    <span class="detail-value">${manaHtml}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Type:</span>
+                    <span class="detail-value">${card.type_line || '—'}</span>
+                </div>
+            </div>
+
+            ${card.oracle_text ? `
+                <div class="card-detail-section">
+                    <div class="detail-label">Oracle Text:</div>
+                    <div class="oracle-text">${card.oracle_text}</div>
+                </div>
+            ` : ''}
+
+            ${priceHtml || quantityHtml ? `
+                <div class="card-detail-section">
+                    ${priceHtml}
+                    ${quantityHtml}
+                </div>
+            ` : ''}
+        </div>
     `;
 
     modal.classList.add('active');
