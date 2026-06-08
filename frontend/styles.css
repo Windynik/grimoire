@@ -738,52 +738,24 @@ body {
     font-weight: 700;
 }
 
-/* Mana Symbols - Using Official MTG Sprite Sheet */
+/* Mana Symbols - Simple styled version (sprite positioning needs debugging) */
 .mana-symbol {
-    display: inline-block;
-    width: 20px;
-    height: 20px;
-    background-image: url('/Mana.svg');
-    /* Scale so 100px symbols become 20px: 1045*(20/100) = 209px, 730*(20/100) = 146px */
-    background-size: 209px 146px;
-    background-repeat: no-repeat;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    font-size: 0.7rem;
+    font-weight: 700;
+    border: 2px solid currentColor;
     margin: 0 2px;
     vertical-align: middle;
-    text-indent: -9999px;
-    overflow: hidden;
-    position: relative;
-    cursor: help;
     transition: transform 0.2s;
 }
 
-/* Hover effect - enlarge symbol */
 .mana-symbol:hover {
-    transform: scale(1.5);
-    z-index: 100;
-}
-
-/* Tooltip with icon on hover */
-.mana-symbol::after {
-    content: '';
-    position: absolute;
-    bottom: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 40px;
-    height: 40px;
-    background-image: inherit;
-    background-size: 418px 292px; /* 2x size for tooltip */
-    background-position: inherit;
-    background-repeat: no-repeat;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.2s;
-    margin-bottom: 5px;
-    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.8));
-}
-
-.mana-symbol:hover::after {
-    opacity: 1;
+    transform: scale(1.3);
 }
 
 .mana-none {

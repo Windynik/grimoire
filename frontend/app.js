@@ -590,33 +590,29 @@ function displayCardGrid(cards) {
 function parseManaSymbols(manaCost) {
   if (!manaCost) return '<span class="mana-none">—</span>';
 
-  // Parse {X}{Y}{Z} format and convert to styled spans with MTG sprite
+  // For now, go back to styled spans - we'll use simple emoji/text until sprite is fixed
   return manaCost.replace(/\{([^}]+)\}/g, (_match, symbol) => {
     const sym = symbol.toLowerCase();
+
+    // Simple text display with color classes
     const colorMap = {
-      w: "white",
-      u: "blue",
-      b: "black",
-      r: "red",
-      g: "green",
-      c: "colorless",
-      x: "x",
-      t: "tap",
+      'w': { name: 'white', text: 'W' },
+      'u': { name: 'blue', text: 'U' },
+      'b': { name: 'black', text: 'B' },
+      'r': { name: 'red', text: 'R' },
+      'g': { name: 'green', text: 'G' },
+      'c': { name: 'colorless', text: 'C' },
+      'x': { name: 'x', text: 'X' },
+      't': { name: 'tap', text: '⟳' }
     };
 
-    // Handle hybrid mana like {W/U}
-    if (sym.includes("/")) {
-      const [c1, c2] = sym.split("/");
-      return `<span class="mana-symbol mana-hybrid mana-${colorMap[c1] || c1}-${colorMap[c2] || c2}" title="${symbol}"></span>`;
-    }
-
-    // Handle colored mana
-    if (colorMap[sym]) {
-      return `<span class="mana-symbol mana-${colorMap[sym]}" title="{${symbol.toUpperCase()}}"></span>`;
+    const color = colorMap[sym];
+    if (color) {
+      return `<span class="mana-symbol mana-${color.name}" data-symbol="${color.text}">{${color.text}}</span>`;
     }
 
     // Handle numeric mana
-    return `<span class="mana-symbol mana-generic" title="{${symbol}}"></span>`;
+    return `<span class="mana-symbol mana-generic" data-symbol="${symbol}">{${symbol}}</span>`;
   });
 }
 
