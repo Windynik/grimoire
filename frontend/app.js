@@ -53,9 +53,8 @@ function switchView(viewName) {
         if (currentJobId) {
             loadCollectionViewer(currentJobId);
         } else {
-            // No collection available
-            displayCardGrid([]);
-            showToast('No collection found. Process a CSV first!', 'info');
+            // No collection available - enter browse mode
+            loadBrowseMode();
         }
     }
 }
