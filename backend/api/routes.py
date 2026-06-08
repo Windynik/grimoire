@@ -103,6 +103,11 @@ async def process_csv(
     # Process CSV
     result = await csv_processor.process_csv(csv_content, bulk_data)
 
+    # Store collection for viewer
+    if result.status == "complete" and hasattr(result, '_enriched_rows'):
+        store = CollectionStore()
+        store.store_collection(result.job_id, result._enriched_rows, bulk_data)
+
     return result
 
 
@@ -158,3 +163,23 @@ async def search_collection(
     """Search collection by card name."""
     results = store.search_collection(job_id, q)
     return {"cards": results, "total": len(results)}
+
+
+@router.get("/collection/{job_id}/random")
+async def get_random_cards(
+    job_id: str,
+    limit: int = 20,
+    store: CollectionStore = Depends(lambda: CollectionStore())
+):
+    """Get random cards from collection."""
+    import random
+
+    collection = store.get_collection(job_id)
+    if not collection:
+        raise HTTPException(status_code=404, detail="Collection not found")
+
+    # Return random sample up to limit
+    sample_size = min(limit, len(collection))
+    random_cards = random.sample(collection, sample_size)
+
+    return {"cards": random_cards, "total": len(random_cards)}

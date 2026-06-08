@@ -145,7 +145,7 @@ class CSVProcessor:
         with open(output_file, 'w', encoding='utf-8', newline='') as f:
             f.write(output.getvalue())
 
-        return ProcessResult(
+        result = ProcessResult(
             job_id=job_id,
             status="complete",
             total_processed=total_rows,
@@ -154,3 +154,8 @@ class CSVProcessor:
             errors=errors,
             output_file=str(output_file)
         )
+
+        # Store enriched rows for potential use by caller
+        result._enriched_rows = enriched_rows
+
+        return result

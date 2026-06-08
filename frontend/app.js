@@ -42,6 +42,11 @@ function setupNavigation() {
 function switchView(viewName) {
     Object.values(views).forEach(view => view.classList.remove('active'));
     views[viewName].classList.add('active');
+
+    // Auto-load collection when switching to viewer
+    if (viewName === 'viewer' && currentJobId) {
+        loadCollectionViewer(currentJobId);
+    }
 }
 
 // Cache Management
@@ -282,6 +287,25 @@ function displayResults(result) {
     document.getElementById('total-processed').textContent = result.total_processed;
     document.getElementById('success-count').textContent = result.success_count;
     document.getElementById('final-error-count').textContent = result.error_count;
+
+    // Add View Collection button if it doesn't exist
+    const resultsDisplay = document.getElementById('results-display');
+    const actionsDiv = resultsDisplay.querySelector('.actions');
+    let viewCollectionBtn = document.getElementById('view-collection-btn');
+
+    if (!viewCollectionBtn) {
+        viewCollectionBtn = document.createElement('button');
+        viewCollectionBtn.id = 'view-collection-btn';
+        viewCollectionBtn.className = 'btn btn-secondary';
+        viewCollectionBtn.textContent = 'View Collection';
+        viewCollectionBtn.addEventListener('click', () => {
+            switchView('viewer');
+            // Update active nav
+            document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
+            document.querySelector('[data-view="viewer"]').classList.add('active');
+        });
+        actionsDiv.insertBefore(viewCollectionBtn, actionsDiv.firstChild);
+    }
 }
 
 function resetUploadUI() {
@@ -361,30 +385,49 @@ function setupCollectionViewer() {
 
 async function loadCollectionViewer(jobId) {
     try {
-        const response = await fetch(`${API_BASE}/collection/${jobId}`);
+        // Load random cards by default for better UX
+        const response = await fetch(`${API_BASE}/collection/${jobId}/random?limit=30`);
         if (!response.ok) throw new Error('Collection not found');
 
         const data = await response.json();
         displayCardGrid(data.cards);
-        showToast(`Loaded ${data.total} cards`, 'success');
+
+        // Also load total count
+        const fullResponse = await fetch(`${API_BASE}/collection/${jobId}`);
+        const fullData = await fullResponse.json();
+        showToast(`Showing 30 random cards from ${fullData.total} total cards`, 'success');
     } catch (error) {
-        showToast('Error loading collection', 'error');
+        console.error('Error loading collection:', error);
+        displayCardGrid([]);
+        showToast('No collection found. Process a CSV first!', 'error');
     }
 }
 
 async function searchCollection() {
-    const query = document.getElementById('viewer-search').value;
-    if (!currentJobId) return;
+    const query = document.getElementById('viewer-search').value.trim();
+    if (!currentJobId) {
+        displayCardGrid([]);
+        return;
+    }
 
     try {
-        const url = query
-            ? `${API_BASE}/collection/${currentJobId}/search?q=${encodeURIComponent(query)}`
-            : `${API_BASE}/collection/${currentJobId}`;
+        let url;
+        if (query) {
+            // Search by query
+            url = `${API_BASE}/collection/${currentJobId}/search?q=${encodeURIComponent(query)}`;
+        } else {
+            // Show random cards when search is cleared
+            url = `${API_BASE}/collection/${currentJobId}/random?limit=30`;
+        }
 
         const response = await fetch(url);
         const data = await response.json();
         displayCardGrid(data.cards);
+
+        // Show count in console for debugging
+        console.log(`Displayed ${data.cards.length} cards`);
     } catch (error) {
+        console.error('Search error:', error);
         showToast('Error searching collection', 'error');
     }
 }
