@@ -744,64 +744,103 @@ body {
     width: 20px;
     height: 20px;
     background-image: url('/Mana.svg');
-    background-size: 209px 146px; /* 1045/5 x 730/5 for 20px symbols */
+    /* Scale so 100px symbols become 20px: 1045*(20/100) = 209px, 730*(20/100) = 146px */
+    background-size: 209px 146px;
     background-repeat: no-repeat;
     margin: 0 2px;
     vertical-align: middle;
     text-indent: -9999px;
     overflow: hidden;
+    position: relative;
+    cursor: help;
+    transition: transform 0.2s;
+}
+
+/* Hover effect - enlarge symbol */
+.mana-symbol:hover {
+    transform: scale(1.5);
+    z-index: 100;
+}
+
+/* Tooltip with icon on hover */
+.mana-symbol::after {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 40px;
+    height: 40px;
+    background-image: inherit;
+    background-size: 418px 292px; /* 2x size for tooltip */
+    background-position: inherit;
+    background-repeat: no-repeat;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+    margin-bottom: 5px;
+    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.8));
+}
+
+.mana-symbol:hover::after {
+    opacity: 1;
 }
 
 .mana-none {
     color: var(--text-muted);
 }
 
-/* Generic/Numeric Mana - Top row at y=-160 */
+/* Position calculation: -(((cx - viewBox.x) * scale) - symbolRadius) */
+/* viewBox: x=-945, y=-210, scale=0.2, radius=10 (50*0.2) */
+
+/* Generic/Numeric Mana - cy=-160 */
 .mana-generic {
-    /* Generic numbers starting at x=-895, y=-160 */
-    background-position: -1px -10px;
+    /* cx=-895: x=-((-895-(-945))*0.2-10)=-(50*0.2-10)=0, y=-((-160-(-210))*0.2-10)=0 */
+    background-position: 0 0;
 }
 
-/* Colored Mana */
+/* Colored Mana - cy=50 */
 .mana-white {
-    /* cx="-475" cy="50" - viewBox offset: 945+475=1420/5=284, 210+50=260/5=52 */
-    background-position: -94px -52px;
+    /* cx=-475: x=-((-475-(-945))*0.2-10)=-(470*0.2-10)=-(94-10)=-84px */
+    /* cy=50: y=-((50-(-210))*0.2-10)=-(260*0.2-10)=-(52-10)=-42px */
+    background-position: -84px -42px;
 }
 
 .mana-blue {
-    /* cx="-370" cy="50" - 945+370=1315/5=263, 260/5=52 */
-    background-position: -115px -52px;
+    /* cx=-370: x=-((-370-(-945))*0.2-10)=-(575*0.2-10)=-(115-10)=-105px */
+    background-position: -105px -42px;
 }
 
 .mana-black {
-    /* cx="-790" cy="365" - 945+790=1735/5=347, 210+365=575/5=115 */
-    background-position: -31px -115px;
+    /* cx=-790: x=-((-790-(-945))*0.2-10)=-(155*0.2-10)=-(31-10)=-21px */
+    /* cy=365: y=-((365-(-210))*0.2-10)=-(575*0.2-10)=-(115-10)=-105px */
+    background-position: -21px -105px;
 }
 
 .mana-red {
-    /* cx="-160" cy="50" - 945+160=1105/5=221, 260/5=52 */
-    background-position: -157px -52px;
+    /* cx=-160: x=-((-160-(-945))*0.2-10)=-(785*0.2-10)=-(157-10)=-147px */
+    background-position: -147px -42px;
 }
 
 .mana-green {
-    /* cx="-55" cy="50" - 945+55=1000/5=200, 260/5=52 */
-    background-position: -178px -52px;
+    /* cx=-55: x=-((-55-(-945))*0.2-10)=-(890*0.2-10)=-(178-10)=-168px */
+    background-position: -168px -42px;
 }
 
 .mana-colorless {
-    /* Generic colorless at x=-265, y=50 */
-    background-position: -136px -52px;
+    /* cx=-265: x=-((-265-(-945))*0.2-10)=-(680*0.2-10)=-(136-10)=-126px */
+    background-position: -126px -42px;
 }
 
 /* Special Symbols */
 .mana-x {
-    /* X mana at x=50, y=-160 */
-    background-position: -199px -10px;
+    /* cx=50: x=-((50-(-945))*0.2-10)=-(995*0.2-10)=-(199-10)=-189px */
+    background-position: -189px 0;
 }
 
 .mana-tap {
-    /* Tap symbol - estimate position */
-    background-position: -40px -10px;
+    /* Need to find tap symbol position - using estimate */
+    background-position: -30px 0;
 }
 
 /* Responsive */
