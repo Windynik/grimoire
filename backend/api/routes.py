@@ -148,6 +148,10 @@ async def get_collection(
     if not collection:
         raise HTTPException(status_code=404, detail="Collection not found")
 
+    # Mark all cards as owned
+    for card in collection:
+        card["owned"] = True
+
     return {
         "cards": collection,
         "total": len(collection)
@@ -162,6 +166,11 @@ async def search_collection(
 ):
     """Search collection by card name."""
     results = store.search_collection(job_id, q)
+
+    # Mark all cards as owned
+    for card in results:
+        card["owned"] = True
+
     return {"cards": results, "total": len(results)}
 
 
@@ -182,4 +191,92 @@ async def get_random_cards(
     sample_size = min(limit, len(collection))
     random_cards = random.sample(collection, sample_size)
 
+    # Mark all cards as owned
+    for card in random_cards:
+        card["owned"] = True
+
     return {"cards": random_cards, "total": len(random_cards)}
+
+
+@router.get("/cards/search")
+async def search_all_cards(
+    q: str,
+    limit: int = 30,
+    bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager)
+):
+    """Search all cards in bulk data (not just collection)."""
+    bulk_data = await bulk_data_manager.load_bulk_data()
+
+    if not bulk_data:
+        raise HTTPException(
+            status_code=400,
+            detail="Bulk data not available. Please download cache first."
+        )
+
+    query_lower = q.lower()
+    matching_cards = []
+
+    for card_id, card_info in bulk_data.items():
+        if query_lower in card_info.get("name", "").lower():
+            prices = card_info.get("prices", {})
+            price = prices.get("usd") or prices.get("usd_foil") or prices.get("eur") or prices.get("tix")
+
+            matching_cards.append({
+                "name": card_info.get("name", ""),
+                "scryfall_id": card_id,
+                "mana_cost": card_info.get("mana_cost", ""),
+                "oracle_text": card_info.get("oracle_text", ""),
+                "type_line": card_info.get("type_line", ""),
+                "image_url": card_info.get("image_url", ""),
+                "price": price,
+                "prices": prices,
+                "quantity": 0,  # Not owned by default
+                "owned": False
+            })
+
+            if len(matching_cards) >= limit:
+                break
+
+    return {"cards": matching_cards, "total": len(matching_cards)}
+
+
+@router.get("/cards/random")
+async def get_random_all_cards(
+    limit: int = 30,
+    bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager)
+):
+    """Get random cards from all bulk data."""
+    import random
+
+    bulk_data = await bulk_data_manager.load_bulk_data()
+
+    if not bulk_data:
+        raise HTTPException(
+            status_code=400,
+            detail="Bulk data not available. Please download cache first."
+        )
+
+    # Get random sample
+    all_cards = list(bulk_data.items())
+    sample_size = min(limit, len(all_cards))
+    random_sample = random.sample(all_cards, sample_size)
+
+    cards = []
+    for card_id, card_info in random_sample:
+        prices = card_info.get("prices", {})
+        price = prices.get("usd") or prices.get("usd_foil") or prices.get("eur") or prices.get("tix")
+
+        cards.append({
+            "name": card_info.get("name", ""),
+            "scryfall_id": card_id,
+            "mana_cost": card_info.get("mana_cost", ""),
+            "oracle_text": card_info.get("oracle_text", ""),
+            "type_line": card_info.get("type_line", ""),
+            "image_url": card_info.get("image_url", ""),
+            "price": price,
+            "prices": prices,
+            "quantity": 0,
+            "owned": False
+        })
+
+    return {"cards": cards, "total": len(cards)}

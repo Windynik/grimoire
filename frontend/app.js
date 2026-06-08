@@ -399,13 +399,47 @@ function setupCollectionViewer() {
 async function loadCollectionViewer(jobId) {
     console.log('Loading collection viewer for job:', jobId);
 
-    try {
-        // Ensure currentJobId is set for search functionality
-        currentJobId = jobId;
-        localStorage.setItem('lastJobId', jobId);
+    if (jobId) {
+        // Collection mode: Load user's collection
+        try {
+            currentJobId = jobId;
+            localStorage.setItem('lastJobId', jobId);
 
-        // Load random cards by default for better UX
-        const response = await fetch(`${API_BASE}/collection/${jobId}/random?limit=30`);
+            const response = await fetch(`${API_BASE}/collection/${jobId}/random?limit=30`);
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            displayCardGrid(data.cards);
+            console.log(`Loaded ${data.cards.length} random cards from collection`);
+
+            try {
+                const fullResponse = await fetch(`${API_BASE}/collection/${jobId}`);
+                const fullData = await fullResponse.json();
+                showToast(`Showing 30 random cards from your ${fullData.total} card collection`, 'success');
+            } catch (countError) {
+                console.warn('Could not fetch total count:', countError);
+                showToast(`Loaded ${data.cards.length} cards from your collection`, 'success');
+            }
+        } catch (error) {
+            console.error('Error loading collection:', error);
+            // Fall back to browse mode
+            await loadBrowseMode();
+        }
+    } else {
+        // Browse mode: Show random cards from all Scryfall data
+        await loadBrowseMode();
+    }
+}
+
+async function loadBrowseMode() {
+    console.log('Loading browse mode - showing random cards from Scryfall database');
+    currentJobId = null;
+
+    try {
+        const response = await fetch(`${API_BASE}/cards/random?limit=30`);
 
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -413,24 +447,12 @@ async function loadCollectionViewer(jobId) {
 
         const data = await response.json();
         displayCardGrid(data.cards);
-        console.log(`Loaded ${data.cards.length} random cards`);
-
-        // Also load total count
-        try {
-            const fullResponse = await fetch(`${API_BASE}/collection/${jobId}`);
-            const fullData = await fullResponse.json();
-            showToast(`Showing 30 random cards from ${fullData.total} total`, 'success');
-        } catch (countError) {
-            // Don't fail if we can't get the count
-            console.warn('Could not fetch total count:', countError);
-            showToast(`Loaded ${data.cards.length} cards`, 'success');
-        }
+        console.log(`Loaded ${data.cards.length} random cards from Scryfall database`);
+        showToast('Browse mode: Showing random cards. Search to find specific cards!', 'info');
     } catch (error) {
-        console.error('Error loading collection:', error);
-        currentJobId = null;
-        localStorage.removeItem('lastJobId');
+        console.error('Error loading browse mode:', error);
         displayCardGrid([]);
-        showToast('No collection found. Process a CSV first!', 'error');
+        showToast('Error loading cards. Please download cache first!', 'error');
     }
 }
 
@@ -438,27 +460,32 @@ async function searchCollection() {
     const query = document.getElementById('viewer-search').value.trim();
 
     // Try to get job_id if not set
-    if (!currentJobId) {
-        currentJobId = localStorage.getItem('lastJobId');
-    }
-
-    if (!currentJobId) {
-        console.warn('No job ID available for search');
-        displayCardGrid([]);
-        showToast('No collection loaded. Process a CSV first!', 'warning');
-        return;
-    }
+    let jobId = currentJobId || localStorage.getItem('lastJobId');
 
     try {
         let url;
+        let mode = jobId ? 'collection' : 'browse';
+
         if (query) {
             // Search by query
-            url = `${API_BASE}/collection/${currentJobId}/search?q=${encodeURIComponent(query)}`;
-            console.log(`Searching for: "${query}"`);
+            if (jobId) {
+                // Collection mode: Search within user's collection
+                url = `${API_BASE}/collection/${jobId}/search?q=${encodeURIComponent(query)}`;
+                console.log(`Searching collection for: "${query}"`);
+            } else {
+                // Browse mode: Search all cards
+                url = `${API_BASE}/cards/search?q=${encodeURIComponent(query)}&limit=30`;
+                console.log(`Searching Scryfall database for: "${query}"`);
+            }
         } else {
             // Show random cards when search is cleared
-            url = `${API_BASE}/collection/${currentJobId}/random?limit=30`;
-            console.log('Loading random cards');
+            if (jobId) {
+                url = `${API_BASE}/collection/${jobId}/random?limit=30`;
+                console.log('Loading random cards from collection');
+            } else {
+                url = `${API_BASE}/cards/random?limit=30`;
+                console.log('Loading random cards from Scryfall database');
+            }
         }
 
         const response = await fetch(url);
@@ -469,15 +496,19 @@ async function searchCollection() {
 
         const data = await response.json();
         displayCardGrid(data.cards);
-        console.log(`Displayed ${data.cards.length} cards (total in response: ${data.total})`);
+        console.log(`Displayed ${data.cards.length} cards in ${mode} mode`);
 
         // Show helpful message if no results
         if (query && data.cards.length === 0) {
-            showToast(`No cards found matching "${query}"`, 'info');
+            if (jobId) {
+                showToast(`No cards in your collection matching "${query}"`, 'info');
+            } else {
+                showToast(`No cards found matching "${query}"`, 'info');
+            }
         }
     } catch (error) {
         console.error('Search error:', error);
-        showToast('Error searching collection: ' + error.message, 'error');
+        showToast('Error searching: ' + error.message, 'error');
         displayCardGrid([]);
     }
 }
@@ -498,14 +529,20 @@ function displayCardGrid(cards) {
         // Format price
         const priceText = card.price ? `$${parseFloat(card.price).toFixed(2)}` : 'N/A';
 
+        // Owned badge
+        const ownedBadge = card.owned && card.quantity > 0
+            ? `<div class="owned-badge">Owned: ${card.quantity}</div>`
+            : '';
+
         cardEl.innerHTML = `
             <div class="card-image-wrapper">
+                ${ownedBadge}
                 <img src="${card.image_url}" alt="${card.name}" loading="lazy">
                 <div class="card-hover-preview">
                     <p><strong>Type:</strong> ${card.type_line || 'N/A'}</p>
                     <p><strong>Mana Cost:</strong> ${card.mana_cost || 'N/A'}</p>
                     <p><strong>Oracle Text:</strong> ${card.oracle_text || 'N/A'}</p>
-                    ${card.quantity > 1 ? `<p><strong>Quantity:</strong> ${card.quantity}</p>` : ''}
+                    ${card.quantity > 0 ? `<p><strong>Quantity:</strong> ${card.quantity}</p>` : ''}
                 </div>
             </div>
             <div class="card-info">
