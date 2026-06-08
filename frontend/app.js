@@ -588,31 +588,48 @@ function displayCardGrid(cards) {
 }
 
 function parseManaSymbols(manaCost) {
-  if (!manaCost) return '<span class="mana-none">—</span>';
+  if (!manaCost) return '<span style="color: var(--text-muted);">—</span>';
 
-  // For now, go back to styled spans - we'll use simple emoji/text until sprite is fixed
+  // Parse {X}{Y}{Z} format and convert to mana-cost sprite classes
   return manaCost.replace(/\{([^}]+)\}/g, (_match, symbol) => {
     const sym = symbol.toLowerCase();
 
-    // Simple text display with color classes
-    const colorMap = {
-      'w': { name: 'white', text: 'W' },
-      'u': { name: 'blue', text: 'U' },
-      'b': { name: 'black', text: 'B' },
-      'r': { name: 'red', text: 'R' },
-      'g': { name: 'green', text: 'G' },
-      'c': { name: 'colorless', text: 'C' },
-      'x': { name: 'x', text: 'X' },
-      't': { name: 'tap', text: '⟳' }
+    // Map symbols to sprite classes (s0, s1, sw, su, etc.)
+    const classMap = {
+      'w': 'sw',
+      'u': 'su',
+      'b': 'sb',
+      'r': 'sr',
+      'g': 'sg',
+      'c': 'sc',
+      'x': 'sx',
+      't': 'st',
+      // Numbers 0-20
+      '0': 's0',
+      '1': 's1',
+      '2': 's2',
+      '3': 's3',
+      '4': 's4',
+      '5': 's5',
+      '6': 's6',
+      '7': 's7',
+      '8': 's8',
+      '9': 's9',
+      '10': 's10',
+      '11': 's11',
+      '12': 's12',
+      '13': 's13',
+      '14': 's14',
+      '15': 's15',
+      '16': 's16',
+      '17': 's17',
+      '18': 's18',
+      '19': 's19',
+      '20': 's20'
     };
 
-    const color = colorMap[sym];
-    if (color) {
-      return `<span class="mana-symbol mana-${color.name}" data-symbol="${color.text}">{${color.text}}</span>`;
-    }
-
-    // Handle numeric mana
-    return `<span class="mana-symbol mana-generic" data-symbol="${symbol}">{${symbol}}</span>`;
+    const className = classMap[sym] || 's0';
+    return `<i class="mana ${className}" title="{${symbol.toUpperCase()}}"></i>`;
   });
 }
 

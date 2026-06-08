@@ -738,25 +738,56 @@ body {
     font-weight: 700;
 }
 
-/* Mana Symbols - Simple styled version (sprite positioning needs debugging) */
-.mana-symbol {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    font-size: 0.7rem;
-    font-weight: 700;
-    border: 2px solid currentColor;
+/* Mana Symbols - Using mana-cost sprite (proven solution) */
+.mana {
+    background-image: url('/mana-symbols.svg');
+    background-repeat: no-repeat;
+    background-size: auto 700%;
+    display: inline-block;
+    height: 1.2em;
+    width: 1.2em;
     margin: 0 2px;
     vertical-align: middle;
-    transition: transform 0.2s;
+    transition: transform 0.15s;
 }
 
-.mana-symbol:hover {
-    transform: scale(1.3);
+.mana:hover {
+    transform: scale(1.4);
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
 }
+
+/* Numeric mana (0-20) */
+.mana.s0 { background-position: 0 0; }
+.mana.s1 { background-position: 11.1% 0; }
+.mana.s2 { background-position: 22.2% 0; }
+.mana.s3 { background-position: 33.3% 0; }
+.mana.s4 { background-position: 44.4% 0; }
+.mana.s5 { background-position: 55.5% 0; }
+.mana.s6 { background-position: 66.6% 0; }
+.mana.s7 { background-position: 77.7% 0; }
+.mana.s8 { background-position: 88.8% 0; }
+.mana.s9 { background-position: 99.9% 0; }
+.mana.s10 { background-position: 0 16.6%; }
+.mana.s11 { background-position: 11.1% 16.6%; }
+.mana.s12 { background-position: 22.2% 16.6%; }
+.mana.s13 { background-position: 33.3% 16.6%; }
+.mana.s14 { background-position: 44.4% 16.6%; }
+.mana.s15 { background-position: 55.5% 16.6%; }
+.mana.s16 { background-position: 66.6% 16.6%; }
+.mana.s17 { background-position: 77.7% 16.6%; }
+.mana.s18 { background-position: 88.8% 16.6%; }
+.mana.s19 { background-position: 99.9% 16.6%; }
+.mana.s20 { background-position: 0 33.3%; }
+
+/* Colored mana */
+.mana.sx { background-position: 11.1% 33.3%; }
+.mana.sw { background-position: 44.4% 33.3%; }
+.mana.su { background-position: 55.5% 33.3%; }
+.mana.sb { background-position: 66.6% 33.3%; }
+.mana.sr { background-position: 77.7% 33.3%; }
+.mana.sg { background-position: 88.8% 33.3%; }
+.mana.sc { background-position: 77.7% 83.3%; }
+.mana.st { background-position: 0 83.3%; }
 
 .mana-none {
     color: var(--text-muted);
