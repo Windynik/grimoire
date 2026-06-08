@@ -533,10 +533,19 @@ function displayCardGrid(cards) {
             ? `<div class="owned-badge">Owned: ${card.quantity}</div>`
             : '';
 
+        // Handle missing images
+        const hasImage = card.image_url && card.image_url.trim() !== '';
+        const imageHtml = hasImage
+            ? `<img src="${card.image_url}" alt="${card.name}" loading="lazy">`
+            : `<div class="card-placeholder">
+                 <img src="/favicon.svg" alt="MTG Icon" class="placeholder-icon">
+                 <p class="placeholder-text">No Image</p>
+               </div>`;
+
         cardEl.innerHTML = `
-            <div class="card-image-wrapper">
+            <div class="card-image-wrapper ${!hasImage ? 'no-image' : ''}">
                 ${ownedBadge}
-                <img src="${card.image_url}" alt="${card.name}" loading="lazy">
+                ${imageHtml}
                 <div class="card-hover-preview">
                     <p><strong>Type:</strong> ${card.type_line || 'N/A'}</p>
                     <p><strong>Mana Cost:</strong> ${card.mana_cost || 'N/A'}</p>
@@ -558,13 +567,22 @@ function showCardDetail(card) {
     const modal = document.getElementById('card-modal');
     const details = document.getElementById('modal-card-details');
 
+    // Handle missing images
+    const hasImage = card.image_url && card.image_url.trim() !== '';
+    const imageHtml = hasImage
+        ? `<img src="${card.image_url}" alt="${card.name}" style="width: 100%; border-radius: 0.5rem; margin-bottom: 1rem;">`
+        : `<div style="width: 100%; aspect-ratio: 5/7; background: linear-gradient(135deg, var(--bg-dark) 0%, rgba(124, 58, 237, 0.1) 100%); border: 2px dashed var(--border); border-radius: 0.5rem; display: flex; flex-direction: column; align-items: center; justify-content: center; margin-bottom: 1rem;">
+             <img src="/favicon.svg" alt="MTG Icon" style="width: 80px; height: 80px; opacity: 0.7; filter: drop-shadow(0 0 8px rgba(168, 85, 247, 0.4));">
+             <p style="color: var(--text-muted); font-size: 0.875rem; margin-top: 0.75rem;">No Image Available</p>
+           </div>`;
+
     details.innerHTML = `
-        <img src="${card.image_url}" alt="${card.name}" style="width: 100%; border-radius: 0.5rem; margin-bottom: 1rem;">
+        ${imageHtml}
         <h3>${card.name}</h3>
         <p><strong>Mana Cost:</strong> ${card.mana_cost || 'N/A'}</p>
         <p><strong>Type:</strong> ${card.type_line || 'N/A'}</p>
         <p><strong>Oracle Text:</strong> ${card.oracle_text || 'N/A'}</p>
-        <p><strong>Quantity:</strong> ${card.quantity || 1}</p>
+        ${card.quantity > 0 ? `<p><strong>Quantity:</strong> ${card.quantity}</p>` : ''}
     `;
 
     modal.classList.add('active');
