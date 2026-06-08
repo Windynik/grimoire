@@ -24,6 +24,11 @@ class CollectionStore:
             scryfall_id = card.get("Scryfall ID", "")
             if scryfall_id and scryfall_id in bulk_data:
                 card_info = bulk_data[scryfall_id]
+                prices = card_info.get("prices", {})
+
+                # Get the best available price (prefer USD, fall back to EUR/TIX)
+                price = prices.get("usd") or prices.get("usd_foil") or prices.get("eur") or prices.get("tix")
+
                 collection_data.append({
                     "name": card.get("Name", ""),
                     "scryfall_id": scryfall_id,
@@ -34,7 +39,9 @@ class CollectionStore:
                     "quantity": card.get("Quantity", 1),
                     "set": card.get("Set code", ""),
                     "rarity": card.get("Rarity", ""),
-                    "foil": card.get("Foil", "normal")
+                    "foil": card.get("Foil", "normal"),
+                    "price": price,
+                    "prices": prices
                 })
 
         # Save to file

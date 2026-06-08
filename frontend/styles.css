@@ -468,17 +468,84 @@ body {
 .card-item {
     cursor: pointer;
     border-radius: 0.75rem;
-    overflow: hidden;
+    overflow: visible;
     transition: transform 0.2s;
+    background: var(--card-bg);
 }
 
 .card-item:hover {
     transform: translateY(-5px);
 }
 
+.card-image-wrapper {
+    position: relative;
+    overflow: hidden;
+    border-radius: 0.75rem 0.75rem 0 0;
+}
+
 .card-item img {
     width: 100%;
     display: block;
+    border-radius: 0.75rem 0.75rem 0 0;
+}
+
+.card-info {
+    padding: 0.75rem;
+    background: var(--card-bg);
+    border-radius: 0 0 0.75rem 0.75rem;
+}
+
+.card-name {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-dark);
+    margin: 0 0 0.25rem 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.card-price {
+    font-size: 0.85rem;
+    color: var(--success);
+    margin: 0;
+    font-weight: 600;
+}
+
+/* Hover Preview */
+.card-hover-preview {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(to top, rgba(13, 17, 23, 0.98), rgba(13, 17, 23, 0.95), transparent);
+    padding: 1rem;
+    opacity: 0;
+    transform: translateY(100%);
+    transition: all 0.3s ease;
+    font-size: 0.75rem;
+    color: var(--text-dark);
+    max-height: 200px;
+    overflow-y: auto;
+    pointer-events: none;
+}
+
+.card-image-wrapper:hover .card-hover-preview {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.card-hover-preview p {
+    margin: 0 0 0.5rem 0;
+    line-height: 1.4;
+}
+
+.card-hover-preview p:last-child {
+    margin-bottom: 0;
+}
+
+.card-hover-preview strong {
+    color: var(--primary);
 }
 
 /* Modal */

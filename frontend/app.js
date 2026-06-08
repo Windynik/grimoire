@@ -444,7 +444,25 @@ function displayCardGrid(cards) {
     cards.forEach(card => {
         const cardEl = document.createElement('div');
         cardEl.className = 'card-item';
-        cardEl.innerHTML = `<img src="${card.image_url}" alt="${card.name}" loading="lazy">`;
+
+        // Format price
+        const priceText = card.price ? `$${parseFloat(card.price).toFixed(2)}` : 'N/A';
+
+        cardEl.innerHTML = `
+            <div class="card-image-wrapper">
+                <img src="${card.image_url}" alt="${card.name}" loading="lazy">
+                <div class="card-hover-preview">
+                    <p><strong>Type:</strong> ${card.type_line || 'N/A'}</p>
+                    <p><strong>Mana Cost:</strong> ${card.mana_cost || 'N/A'}</p>
+                    <p><strong>Oracle Text:</strong> ${card.oracle_text || 'N/A'}</p>
+                    ${card.quantity > 1 ? `<p><strong>Quantity:</strong> ${card.quantity}</p>` : ''}
+                </div>
+            </div>
+            <div class="card-info">
+                <p class="card-name">${card.name}</p>
+                <p class="card-price">${priceText}</p>
+            </div>
+        `;
         cardEl.addEventListener('click', () => showCardDetail(card));
         grid.appendChild(cardEl);
     });

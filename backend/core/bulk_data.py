@@ -140,7 +140,8 @@ class BulkDataManager:
                     "mana_cost": card.get("mana_cost", ""),
                     "oracle_text": card.get("oracle_text", ""),
                     "type_line": card.get("type_line", ""),
-                    "image_url": card.get("image_uris", {}).get("normal", "")
+                    "image_url": card.get("image_uris", {}).get("normal", ""),
+                    "prices": card.get("prices", {})
                 }
                 for card in bulk_data
                 if "id" in card
