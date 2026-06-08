@@ -566,7 +566,7 @@ function displayCardGrid(cards) {
 function parseManaSymbols(manaCost) {
     if (!manaCost) return '<span class="mana-none">—</span>';
 
-    // Parse {X}{Y}{Z} format and convert to styled spans
+    // Parse {X}{Y}{Z} format and convert to styled spans with MTG sprite
     return manaCost.replace(/\{([^}]+)\}/g, (match, symbol) => {
         const sym = symbol.toLowerCase();
         const colorMap = {
@@ -583,16 +583,16 @@ function parseManaSymbols(manaCost) {
         // Handle hybrid mana like {W/U}
         if (sym.includes('/')) {
             const [c1, c2] = sym.split('/');
-            return `<span class="mana-symbol mana-hybrid mana-${colorMap[c1] || c1}-${colorMap[c2] || c2}">${symbol}</span>`;
+            return `<span class="mana-symbol mana-hybrid mana-${colorMap[c1] || c1}-${colorMap[c2] || c2}" title="${symbol}"></span>`;
         }
 
         // Handle colored mana
         if (colorMap[sym]) {
-            return `<span class="mana-symbol mana-${colorMap[sym]}">${symbol.toUpperCase()}</span>`;
+            return `<span class="mana-symbol mana-${colorMap[sym]}" title="{${symbol.toUpperCase()}}"></span>`;
         }
 
         // Handle numeric mana
-        return `<span class="mana-symbol mana-generic">${symbol}</span>`;
+        return `<span class="mana-symbol mana-generic" title="{${symbol}}"></span>`;
     });
 }
 

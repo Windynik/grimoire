@@ -738,79 +738,70 @@ body {
     font-weight: 700;
 }
 
-/* Mana Symbols */
+/* Mana Symbols - Using Official MTG Sprite Sheet */
 .mana-symbol {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    font-size: 0.75rem;
-    font-weight: 700;
-    border: 2px solid currentColor;
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    background-image: url('/Mana.svg');
+    background-size: 209px 146px; /* 1045/5 x 730/5 for 20px symbols */
+    background-repeat: no-repeat;
     margin: 0 2px;
+    vertical-align: middle;
+    text-indent: -9999px;
+    overflow: hidden;
 }
 
 .mana-none {
     color: var(--text-muted);
 }
 
+/* Generic/Numeric Mana - Top row at y=-160 */
+.mana-generic {
+    /* Generic numbers starting at x=-895, y=-160 */
+    background-position: -1px -10px;
+}
+
 /* Colored Mana */
 .mana-white {
-    background: linear-gradient(135deg, #f9fafb, #e5e7eb);
-    color: #1f2937;
-    border-color: #9ca3af;
+    /* cx="-475" cy="50" - viewBox offset: 945+475=1420/5=284, 210+50=260/5=52 */
+    background-position: -94px -52px;
 }
 
 .mana-blue {
-    background: linear-gradient(135deg, #3b82f6, #2563eb);
-    color: white;
-    border-color: #1d4ed8;
+    /* cx="-370" cy="50" - 945+370=1315/5=263, 260/5=52 */
+    background-position: -115px -52px;
 }
 
 .mana-black {
-    background: linear-gradient(135deg, #374151, #1f2937);
-    color: white;
-    border-color: #111827;
+    /* cx="-790" cy="365" - 945+790=1735/5=347, 210+365=575/5=115 */
+    background-position: -31px -115px;
 }
 
 .mana-red {
-    background: linear-gradient(135deg, #ef4444, #dc2626);
-    color: white;
-    border-color: #b91c1c;
+    /* cx="-160" cy="50" - 945+160=1105/5=221, 260/5=52 */
+    background-position: -157px -52px;
 }
 
 .mana-green {
-    background: linear-gradient(135deg, #10b981, #059669);
-    color: white;
-    border-color: #047857;
+    /* cx="-55" cy="50" - 945+55=1000/5=200, 260/5=52 */
+    background-position: -178px -52px;
 }
 
 .mana-colorless {
-    background: linear-gradient(135deg, #6b7280, #4b5563);
-    color: white;
-    border-color: #374151;
-}
-
-/* Generic/Numeric Mana */
-.mana-generic {
-    background: linear-gradient(135deg, #9ca3af, #6b7280);
-    color: white;
-    border-color: #4b5563;
+    /* Generic colorless at x=-265, y=50 */
+    background-position: -136px -52px;
 }
 
 /* Special Symbols */
 .mana-x {
-    background: linear-gradient(135deg, #f59e0b, #d97706);
-    color: white;
-    border-color: #b45309;
+    /* X mana at x=50, y=-160 */
+    background-position: -199px -10px;
 }
 
 .mana-tap {
-    background: transparent;
-    color: var(--text-dark);
-    border-color: var(--text-dark);
+    /* Tap symbol - estimate position */
+    background-position: -40px -10px;
 }
 
 /* Responsive */
