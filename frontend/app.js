@@ -44,8 +44,19 @@ function switchView(viewName) {
     views[viewName].classList.add('active');
 
     // Auto-load collection when switching to viewer
-    if (viewName === 'viewer' && currentJobId) {
-        loadCollectionViewer(currentJobId);
+    if (viewName === 'viewer') {
+        // If no current job, try to load from localStorage
+        if (!currentJobId) {
+            currentJobId = localStorage.getItem('lastJobId');
+        }
+
+        if (currentJobId) {
+            loadCollectionViewer(currentJobId);
+        } else {
+            // No collection available
+            displayCardGrid([]);
+            showToast('No collection found. Process a CSV first!', 'info');
+        }
     }
 }
 
@@ -269,6 +280,8 @@ async function handleFile(file) {
 
         if (response.ok) {
             currentJobId = result.job_id;
+            // Save to localStorage for persistence
+            localStorage.setItem('lastJobId', currentJobId);
             displayResults(result);
         } else {
             showToast('Error processing CSV: ' + result.detail, 'error');
@@ -384,20 +397,38 @@ function setupCollectionViewer() {
 }
 
 async function loadCollectionViewer(jobId) {
+    console.log('Loading collection viewer for job:', jobId);
+
     try {
+        // Ensure currentJobId is set for search functionality
+        currentJobId = jobId;
+        localStorage.setItem('lastJobId', jobId);
+
         // Load random cards by default for better UX
         const response = await fetch(`${API_BASE}/collection/${jobId}/random?limit=30`);
-        if (!response.ok) throw new Error('Collection not found');
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
 
         const data = await response.json();
         displayCardGrid(data.cards);
+        console.log(`Loaded ${data.cards.length} random cards`);
 
         // Also load total count
-        const fullResponse = await fetch(`${API_BASE}/collection/${jobId}`);
-        const fullData = await fullResponse.json();
-        showToast(`Showing 30 random cards from ${fullData.total} total cards`, 'success');
+        try {
+            const fullResponse = await fetch(`${API_BASE}/collection/${jobId}`);
+            const fullData = await fullResponse.json();
+            showToast(`Showing 30 random cards from ${fullData.total} total`, 'success');
+        } catch (countError) {
+            // Don't fail if we can't get the count
+            console.warn('Could not fetch total count:', countError);
+            showToast(`Loaded ${data.cards.length} cards`, 'success');
+        }
     } catch (error) {
         console.error('Error loading collection:', error);
+        currentJobId = null;
+        localStorage.removeItem('lastJobId');
         displayCardGrid([]);
         showToast('No collection found. Process a CSV first!', 'error');
     }
@@ -405,8 +436,16 @@ async function loadCollectionViewer(jobId) {
 
 async function searchCollection() {
     const query = document.getElementById('viewer-search').value.trim();
+
+    // Try to get job_id if not set
     if (!currentJobId) {
+        currentJobId = localStorage.getItem('lastJobId');
+    }
+
+    if (!currentJobId) {
+        console.warn('No job ID available for search');
         displayCardGrid([]);
+        showToast('No collection loaded. Process a CSV first!', 'warning');
         return;
     }
 
@@ -415,20 +454,31 @@ async function searchCollection() {
         if (query) {
             // Search by query
             url = `${API_BASE}/collection/${currentJobId}/search?q=${encodeURIComponent(query)}`;
+            console.log(`Searching for: "${query}"`);
         } else {
             // Show random cards when search is cleared
             url = `${API_BASE}/collection/${currentJobId}/random?limit=30`;
+            console.log('Loading random cards');
         }
 
         const response = await fetch(url);
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
         const data = await response.json();
         displayCardGrid(data.cards);
+        console.log(`Displayed ${data.cards.length} cards (total in response: ${data.total})`);
 
-        // Show count in console for debugging
-        console.log(`Displayed ${data.cards.length} cards`);
+        // Show helpful message if no results
+        if (query && data.cards.length === 0) {
+            showToast(`No cards found matching "${query}"`, 'info');
+        }
     } catch (error) {
         console.error('Search error:', error);
-        showToast('Error searching collection', 'error');
+        showToast('Error searching collection: ' + error.message, 'error');
+        displayCardGrid([]);
     }
 }
 
