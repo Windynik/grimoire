@@ -108,15 +108,12 @@ def _quantity(value) -> int:
 
 
 def _best_price(prices: dict) -> Optional[float]:
-    best = None
     for key in ("usd", "usd_foil", "eur", "tix"):
         try:
-            value = float(prices.get(key))
+            return float(prices.get(key))
         except (TypeError, ValueError):
             continue
-        if best is None or value > best:
-            best = value
-    return best
+    return None
 
 
 def _mdfc_land_back(record: dict) -> bool:

@@ -76,8 +76,10 @@ def test_pips_hybrid_counts_each_color(rules):
     assert card.pips == {"G": 2, "W": 1, "B": 1}
 
 
-def test_price_is_best_available(rules):
+def test_price_uses_first_available(rules):
     rec = make_record("Priced")
     rec["prices"] = {"usd": "1.50", "usd_foil": "3.00", "eur": None, "tix": "0.2"}
+    assert hydrate_one(rec, rules["modern"]).price == 1.5
+    rec["prices"] = {"usd": None, "usd_foil": "3.00", "eur": "2.00", "tix": None}
     assert hydrate_one(rec, rules["modern"]).price == 3.0
     assert hydrate_one(make_record("Free"), rules["modern"]).price is None
