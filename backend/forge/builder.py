@@ -30,6 +30,13 @@ _FETCH = re.compile(r"search your library for ([^.]*)", re.IGNORECASE)
 _BASIC_LAND = re.compile(r"\bbasic lands?\b", re.IGNORECASE)
 _BASIC_TYPE = re.compile(r"\b(Plains|Island|Swamp|Mountain|Forest)s?\b", re.IGNORECASE)
 _TYPE_COLOR = {name.lower(): color for color, name in BASIC_FOR_COLOR.items()}
+# Nonbasic land tiers, best first.
+TIER_DUAL, TIER_ANY, TIER_UTILITY = 1, 2, 3
+TIER_FULL = {TIER_ANY: "the any-color land limit is full",
+             TIER_UTILITY: "the utility land limit is full"}
+ANY_COLOR_LIMIT_100 = 3
+ANY_COLOR_LIMIT_60 = 2
+ANY_COLOR_MIN_COLORS_60 = 3  # 60-card decks take any-color lands only with 3+ colors
 
 
 @dataclass
@@ -349,9 +356,35 @@ def land_colors(card: OwnedCard, colors: FrozenSet[str]) -> FrozenSet[str]:
     return (frozenset(card.produced_mana) & colors) | fetch_colors(card, colors)
 
 
-def _is_utility(card: OwnedCard, colors: FrozenSet[str]) -> bool:
-    """A utility land is a source for no deck color and makes at most colorless mana."""
-    return not land_colors(card, colors) and card.produced_mana <= {"C"}
+def land_tier(card: OwnedCard, colors: FrozenSet[str]) -> Optional[int]:
+    """Return the priority tier of a nonbasic land for the deck colors.
+
+    Args:
+        card: Land card (identity already inside the deck colors).
+        colors: Deck colors.
+
+    Returns:
+        TIER_DUAL for fetch lands and for lands that make 2+ deck colors and
+        nothing outside the deck colors and C; TIER_ANY for lands that make a
+        deck color and also colors outside the deck; TIER_UTILITY for every
+        other land that makes only deck colors or C (one color, colorless,
+        none); None for a land that makes only colors outside the deck.
+    """
+    if fetch_colors(card, colors):
+        return TIER_DUAL
+    made = frozenset(card.produced_mana) & colors
+    if card.produced_mana - colors - {"C"}:
+        return TIER_ANY if made else None
+    return TIER_DUAL if len(made) >= 2 else TIER_UTILITY
+
+
+def _tier_limits(fmt: FormatRules, colors: FrozenSet[str]) -> Dict[int, float]:
+    if fmt.deck_size >= 80:
+        any_color = ANY_COLOR_LIMIT_100
+    else:
+        any_color = ANY_COLOR_LIMIT_60 if len(colors) >= ANY_COLOR_MIN_COLORS_60 else 0
+    return {TIER_DUAL: float("inf"), TIER_ANY: any_color,
+            TIER_UTILITY: fmt.utility_land_limit}
 
 
 def _mana_base(lands: List[OwnedCard], colors: FrozenSet[str], demand: Dict[str, int],
@@ -366,46 +399,49 @@ def _mana_base(lands: List[OwnedCard], colors: FrozenSet[str], demand: Dict[str,
         fmt: Format rules (utility limit, color sources, copies).
         target: Land target. Nonbasics take at most target - basics floor.
         land_slots: Number of land cards to place (more than target on a shortfall).
-        required: Required land cards. They go first.
+        required: Required land cards. They go first, inside their tier limit.
 
     Returns:
-        (land entries, warnings, notes). A land qualifies when it is a source
-        for a deck color, or when it is a utility land (at most
-        fmt.utility_land_limit copies).
+        (land entries, warnings, notes). Lands rank by tier (see land_tier),
+        then deck colors covered, then quality. Any-color lands stop at 3
+        copies in 100-card decks and at 2 in 60-card decks with 3+ colors
+        (0 otherwise); other single-color and colorless lands stop at
+        fmt.utility_land_limit. Basic lands fill the rest.
     """
     floor = len(colors) * (4 if fmt.deck_size >= 80 else 3)
     cap = max(0, min(target, land_slots) - floor)
+    limits = _tier_limits(fmt, colors)
     required_ids = {card.id for card in required}
     warnings = []  # type: List[str]
-    qualified = [l for l in lands if land_colors(l, colors) or _is_utility(l, colors)]
-    qualified_ids = {card.id for card in qualified}
+    tiers = {l.id: land_tier(l, colors) for l in lands}
     for card in required:
-        if card.id not in qualified_ids:
+        if tiers.get(card.id) is None:
             warnings.append(f"Couldn't fit {card.name}: it makes no mana of the deck colors.")
-    ranked = sorted(qualified,
-                    key=lambda l: (l.id not in required_ids,
+    ranked = sorted((l for l in lands if tiers[l.id] is not None),
+                    key=lambda l: (l.id not in required_ids, tiers[l.id],
                                    -len(land_colors(l, colors)), -l.quality, l.name))
     entries = []  # type: List[DeckEntry]
-    taken = utility_taken = 0
+    taken = 0
+    per_tier = {}  # type: Dict[int, int]
     for card in ranked:
-        is_utility = _is_utility(card, colors)
-        count = min(copies_for(card, fmt), cap - taken)
-        if is_utility:
-            count = min(count, fmt.utility_land_limit - utility_taken)
+        tier = tiers[card.id]
+        room = limits[tier] - per_tier.get(tier, 0)
+        count = int(min(copies_for(card, fmt), cap - taken, room))
         if count <= 0:
             if card.id in required_ids:
-                why = ("the utility land limit is full" if is_utility and cap > taken
+                why = (TIER_FULL[tier] if cap > taken and room <= 0
                        else "no room left for nonbasic lands")
                 warnings.append(f"Couldn't fit {card.name}: {why}.")
             continue
         taken += count
-        if is_utility:
-            utility_taken += count
+        per_tier[tier] = per_tier.get(tier, 0) + count
+        made = "/".join(_ordered(land_colors(card, colors)))
+        if not made:
             reason = "Utility land."
+        elif card.produced_mana & colors:
+            reason = f"Makes {made} mana."
         else:
-            made = "/".join(_ordered(land_colors(card, colors)))
-            verb = "Makes" if card.produced_mana & colors else "Fetches"
-            reason = f"{verb} {made} mana."
+            reason = f"Fetches {made} mana."
         entries.append(DeckEntry(card=card, name=card.name, count=count, role="land",
                                  reason=reason))
     split = _split_basics(land_slots - taken, colors, demand)

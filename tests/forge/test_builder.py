@@ -1,8 +1,8 @@
 from dataclasses import replace
 
 from backend.forge.builder import (
-    BuildPlan, BuiltDeck, DeckEntry, build_deck, copies_for, curve_bucket, fetch_colors,
-    land_colors, land_target,
+    TIER_ANY, TIER_DUAL, TIER_UTILITY, BuildPlan, BuiltDeck, DeckEntry, build_deck, copies_for,
+    curve_bucket, fetch_colors, land_colors, land_target, land_tier,
 )
 from backend.forge.cards import hydrate
 from backend.forge.graph import Backbone, build_graph
@@ -319,17 +319,78 @@ HEATH = ("{T}, Pay 1 life, Sacrifice this land: Search your library for a Forest
          "card, put it onto the battlefield, then shuffle.")
 
 
-def test_command_tower_qualifies_and_counts_for_both_colors(playbook):
-    tower = land("Command Tower", ("W", "U", "B", "R", "G"), colors=(),
-                 text="{T}: Add one mana of any color in your commander's color identity.")
+TOWER_TEXT = "{T}: Add one mana of any color in your commander's color identity."
+
+
+def any_color_lands(count=5):
+    """Command Tower plus other lands that make all five colors, all of top quality."""
+    recs = [land("Command Tower", ("W", "U", "B", "R", "G"), colors=(), text=TOWER_TEXT,
+                 rank=1)]
+    recs += [land(f"Prism Land {i}", ("W", "U", "B", "R", "G"), colors=(), rank=2)
+             for i in range(count)]
+    return recs
+
+
+def any_color_count(deck):
+    return sum(e.count for e in deck.entries
+               if e.name == "Command Tower" or e.name.startswith("Prism Land"))
+
+
+def test_two_color_sixty_takes_no_any_color_lands(playbook):
     recs = [creature(f"Green Beast {i}", 600 + i, colors=("G",)) for i in range(20)]
     recs += [spell(f"White Ward {i}", REMOVAL, colors=("W",)) for i in range(20)]
-    cards = tagged(playbook, "modern", recs + [tower])
-    card = by_name(cards)["Command Tower"]
-    assert land_colors(card, frozenset("GW")) == frozenset("GW")
+    recs += any_color_lands(5)  # 6 any-color lands
+    recs += [land("Grove A", ("G", "W"), rank=30000), land("Grove B", ("G", "W"), rank=30000)]
+    cards = tagged(playbook, "modern", recs, [1] * 40 + [4] * 8)
+    tower = by_name(cards)["Command Tower"]
+    assert land_colors(tower, frozenset("GW")) == frozenset("GW")
     deck = build(playbook, "modern", cards, backbone(cards, set(), "GW"))
-    entry = [e for e in deck.entries if e.name == "Command Tower"]
-    assert entry and entry[0].role == "land" and entry[0].reason == "Makes W/G mana."
+    assert any_color_count(deck) == 0
+    counts = {e.name: e.count for e in deck.entries}
+    assert counts["Grove A"] == 4 and counts["Grove B"] == 4
+    assert sum(basics(deck).values()) >= 6
+    assert deck.total() == 60
+
+
+def test_hundred_card_two_color_takes_at_most_three_any_color(playbook):
+    captain = creature("Selesnya Captain", 999, colors=("G", "W"), cmc=4,
+                       type_line="Legendary Creature — Kind999")
+    recs = [captain] + gw_records(bears=60) + any_color_lands(5)
+    recs += [land("Grove A", ("G", "W")), land("Grove B", ("G", "W"))]
+    cards = tagged(playbook, "commander", recs)
+    commander = by_name(cards)["Selesnya Captain"]
+    deck = build(playbook, "commander", cards, backbone(cards, CORE_NAMES, "GW", commander),
+                 commander=commander)
+    assert any_color_count(deck) == 3
+    tower = [e for e in deck.entries if e.name == "Command Tower"]
+    assert tower and tower[0].reason == "Makes W/G mana."
+    assert {"grove a", "grove b"} <= deck.names()
+    assert deck.total() == 100
+
+
+def test_three_color_sixty_takes_at_most_two_any_color(playbook):
+    recs = [creature(f"Beast {i}", 600 + i, colors=("GWU"[i % 3],)) for i in range(40)]
+    recs += any_color_lands(5)
+    cards = tagged(playbook, "modern", recs, [1] * 40 + [4] * 6)
+    deck = build(playbook, "modern", cards, backbone(cards, set(), "GWU"))
+    assert any_color_count(deck) == 2
+    assert deck.total() == 60
+
+
+def test_single_color_nonbasics_respect_utility_limit(playbook):
+    recs = [creature(f"Green Beast {i}", 600 + i, colors=("G",)) for i in range(20)]
+    recs += [spell(f"White Ward {i}", REMOVAL, colors=("W",)) for i in range(20)]
+    recs += [land(f"Mono Grove {i}", ("G",), rank=1) for i in range(5)]
+    recs += [land(f"Rogue Path {i}", ("C",), rank=1) for i in range(2)]
+    recs.append(land("Grove A", ("G", "W"), rank=30000))
+    cards = tagged(playbook, "modern", recs, [1] * 40 + [4] * 8)
+    deck = build(playbook, "modern", cards, backbone(cards, set(), "GW"))
+    counts = {e.name: e.count for e in deck.entries}
+    tier3 = sum(n for name, n in counts.items()
+                if name.startswith("Mono Grove") or name.startswith("Rogue Path"))
+    assert tier3 == 2  # single-color and colorless lands share the utility limit of 2
+    assert counts["Grove A"] == 4  # the dual goes first despite its low quality
+    assert deck.total() == 60
 
 
 def test_basic_fetch_is_a_source_and_not_utility(playbook):
@@ -406,3 +467,36 @@ def test_commander_ignored_outside_commander_formats(playbook):
     assert deck.commander is None
     assert deck.total() == 60
     assert sum(e.count for e in deck.entries) == 60
+
+
+def test_land_tiers(playbook):
+    recs = any_color_lands(0) + [
+        land("Grove", ("G", "W")), land("Mono Grove", ("G",)), land("Rogue Path", ("C",)),
+        land("Evolving Wilds", (), text=WILDS), land("Wild Ground", ("G", "R"), colors=()),
+        land("Red Spring", ("R",), colors=()), land("Pain Grove", ("G", "W", "C")),
+    ]
+    cards = by_name(tagged(playbook, "modern", recs))
+    gw = frozenset("GW")
+    assert land_tier(cards["Grove"], gw) == TIER_DUAL
+    assert land_tier(cards["Pain Grove"], gw) == TIER_DUAL
+    assert land_tier(cards["Evolving Wilds"], gw) == TIER_DUAL
+    assert land_tier(cards["Command Tower"], gw) == TIER_ANY
+    assert land_tier(cards["Wild Ground"], gw) == TIER_ANY
+    assert land_tier(cards["Mono Grove"], gw) == TIER_UTILITY
+    assert land_tier(cards["Rogue Path"], gw) == TIER_UTILITY
+    assert land_tier(cards["Mono Grove"], frozenset("G")) == TIER_UTILITY  # no duals in mono
+    assert land_tier(cards["Red Spring"], gw) is None
+
+
+def test_true_lands_rank_before_any_color_lands(playbook):
+    # 3 colors, 60 cards: nonbasics stop at 22 - 9 = 13. Low-quality tri-lands (16 copies)
+    # fill all 13 before the top-quality any-color lands, which cover the same 3 colors.
+    recs = [creature(f"Beast {i}", 600 + i, colors=("GWU"[i % 3],)) for i in range(40)]
+    recs += any_color_lands(5)
+    recs += [land(f"Tri Land {i}", ("G", "W", "U"), rank=39000) for i in range(4)]
+    cards = tagged(playbook, "modern", recs, [1] * 40 + [4] * 10)
+    deck = build(playbook, "modern", cards, backbone(cards, set(), "GWU"))
+    assert deck.land_target == 22
+    assert sum(e.count for e in deck.entries if e.name.startswith("Tri Land")) == 13
+    assert any_color_count(deck) == 0
+    assert sum(basics(deck).values()) == 9
