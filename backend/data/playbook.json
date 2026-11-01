@@ -1,0 +1,656 @@
+{
+  "formats": {
+    "commander": {
+      "name": "Commander",
+      "legality_key": "commander",
+      "deck_size": 100,
+      "commander": true,
+      "singleton": true,
+      "max_copies": 1,
+      "lands": [
+        36,
+        38
+      ],
+      "utility_land_limit": 4,
+      "quality_weight": 1.0,
+      "min_core": 10,
+      "color_sources": {
+        "primary": 18,
+        "secondary": 14,
+        "splash": 8
+      }
+    },
+    "brawl": {
+      "name": "Brawl",
+      "legality_key": "brawl",
+      "deck_size": 100,
+      "commander": true,
+      "singleton": true,
+      "max_copies": 1,
+      "lands": [
+        36,
+        38
+      ],
+      "utility_land_limit": 4,
+      "quality_weight": 1.0,
+      "min_core": 10,
+      "color_sources": {
+        "primary": 18,
+        "secondary": 14,
+        "splash": 8
+      }
+    },
+    "standardbrawl": {
+      "name": "Standard Brawl",
+      "legality_key": "standardbrawl",
+      "deck_size": 60,
+      "commander": true,
+      "singleton": true,
+      "max_copies": 1,
+      "lands": [
+        24,
+        25
+      ],
+      "utility_land_limit": 2,
+      "quality_weight": 1.0,
+      "min_core": 8,
+      "color_sources": {
+        "primary": 14,
+        "secondary": 10,
+        "splash": 6
+      }
+    },
+    "standard": {
+      "name": "Standard",
+      "legality_key": "standard",
+      "deck_size": 60,
+      "commander": false,
+      "singleton": false,
+      "max_copies": 4,
+      "lands": [
+        22,
+        25
+      ],
+      "utility_land_limit": 2,
+      "quality_weight": 0.25,
+      "min_core": 8,
+      "color_sources": {
+        "primary": 14,
+        "secondary": 10,
+        "splash": 6
+      }
+    },
+    "pioneer": {
+      "name": "Pioneer",
+      "legality_key": "pioneer",
+      "deck_size": 60,
+      "commander": false,
+      "singleton": false,
+      "max_copies": 4,
+      "lands": [
+        22,
+        25
+      ],
+      "utility_land_limit": 2,
+      "quality_weight": 0.25,
+      "min_core": 8,
+      "color_sources": {
+        "primary": 14,
+        "secondary": 10,
+        "splash": 6
+      }
+    },
+    "modern": {
+      "name": "Modern",
+      "legality_key": "modern",
+      "deck_size": 60,
+      "commander": false,
+      "singleton": false,
+      "max_copies": 4,
+      "lands": [
+        22,
+        25
+      ],
+      "utility_land_limit": 2,
+      "quality_weight": 0.25,
+      "min_core": 8,
+      "color_sources": {
+        "primary": 14,
+        "secondary": 10,
+        "splash": 6
+      }
+    },
+    "legacy": {
+      "name": "Legacy",
+      "legality_key": "legacy",
+      "deck_size": 60,
+      "commander": false,
+      "singleton": false,
+      "max_copies": 4,
+      "lands": [
+        22,
+        25
+      ],
+      "utility_land_limit": 2,
+      "quality_weight": 0.25,
+      "min_core": 8,
+      "color_sources": {
+        "primary": 14,
+        "secondary": 10,
+        "splash": 6
+      }
+    },
+    "vintage": {
+      "name": "Vintage",
+      "legality_key": "vintage",
+      "deck_size": 60,
+      "commander": false,
+      "singleton": false,
+      "max_copies": 4,
+      "lands": [
+        22,
+        25
+      ],
+      "utility_land_limit": 2,
+      "quality_weight": 0.25,
+      "min_core": 8,
+      "color_sources": {
+        "primary": 14,
+        "secondary": 10,
+        "splash": 6
+      }
+    },
+    "pauper": {
+      "name": "Pauper",
+      "legality_key": "pauper",
+      "deck_size": 60,
+      "commander": false,
+      "singleton": false,
+      "max_copies": 4,
+      "lands": [
+        22,
+        25
+      ],
+      "utility_land_limit": 2,
+      "quality_weight": 0.25,
+      "min_core": 8,
+      "color_sources": {
+        "primary": 14,
+        "secondary": 10,
+        "splash": 6
+      }
+    },
+    "casual": {
+      "name": "Casual",
+      "legality_key": null,
+      "deck_size": 60,
+      "commander": false,
+      "singleton": false,
+      "max_copies": 4,
+      "lands": [
+        22,
+        24
+      ],
+      "utility_land_limit": 2,
+      "quality_weight": 0.5,
+      "min_core": 8,
+      "color_sources": {
+        "primary": 14,
+        "secondary": 10,
+        "splash": 6
+      }
+    }
+  },
+  "playstyles": {
+    "aggro": {
+      "quotas": {
+        "100": {
+          "ramp": 8,
+          "draw": 7,
+          "removal": 7,
+          "boardwipe": 1
+        },
+        "60": {
+          "removal": 6,
+          "draw": 2,
+          "creatures": 18
+        }
+      },
+      "curve": {
+        "1": 0.25,
+        "2": 0.35,
+        "3": 0.25,
+        "4": 0.12,
+        "5": 0.03,
+        "6+": 0
+      }
+    },
+    "midrange": {
+      "quotas": {
+        "100": {
+          "ramp": 10,
+          "draw": 10,
+          "removal": 8,
+          "boardwipe": 2,
+          "protection": 2
+        },
+        "60": {
+          "removal": 7,
+          "draw": 4,
+          "creatures": 14
+        }
+      },
+      "curve": {
+        "1": 0.1,
+        "2": 0.26,
+        "3": 0.28,
+        "4": 0.2,
+        "5": 0.1,
+        "6+": 0.06
+      }
+    },
+    "control": {
+      "quotas": {
+        "100": {
+          "ramp": 10,
+          "draw": 12,
+          "removal": 10,
+          "boardwipe": 4,
+          "counterspell": 3
+        },
+        "60": {
+          "removal": 9,
+          "draw": 7,
+          "counterspell": 4,
+          "boardwipe": 2,
+          "creatures": 4
+        }
+      },
+      "curve": {
+        "1": 0.08,
+        "2": 0.25,
+        "3": 0.25,
+        "4": 0.2,
+        "5": 0.12,
+        "6+": 0.1
+      }
+    },
+    "combo": {
+      "quotas": {
+        "100": {
+          "ramp": 10,
+          "draw": 10,
+          "removal": 6,
+          "tutor": 3,
+          "protection": 3
+        },
+        "60": {
+          "draw": 6,
+          "selection": 4,
+          "removal": 4,
+          "protection": 2
+        }
+      },
+      "curve": {
+        "1": 0.15,
+        "2": 0.3,
+        "3": 0.25,
+        "4": 0.15,
+        "5": 0.1,
+        "6+": 0.05
+      }
+    },
+    "tempo": {
+      "quotas": {
+        "100": {
+          "ramp": 8,
+          "draw": 9,
+          "removal": 8,
+          "counterspell": 4
+        },
+        "60": {
+          "removal": 6,
+          "counterspell": 4,
+          "draw": 4,
+          "creatures": 12
+        }
+      },
+      "curve": {
+        "1": 0.2,
+        "2": 0.32,
+        "3": 0.25,
+        "4": 0.15,
+        "5": 0.06,
+        "6+": 0.02
+      }
+    }
+  },
+  "weights": {
+    "synergy": 1.0,
+    "role": 2.0,
+    "quality": 3.0,
+    "curve": 1.0,
+    "mana": 1.0,
+    "prefer": 3.0
+  },
+  "metric_weights": {
+    "synergy": 0.35,
+    "roles": 0.2,
+    "curve": 0.15,
+    "mana": 0.15,
+    "quality": 0.15,
+    "synergy_cap": 3.0
+  },
+  "roles": {
+    "ramp": [
+      "add (\\{[wubrgc]\\})+",
+      "add (one|two|three) mana",
+      "add \\{[wubrgc]\\} for each",
+      "search your library for (a|up to \\w+) (basic )?(land|forest|island|swamp|mountain|plains)[^.]*onto the battlefield",
+      "put (a|up to \\w+) lands? cards? from your hand onto the battlefield",
+      "you may put a land card from (your hand|among them) onto the battlefield"
+    ],
+    "draw": [
+      "draws? (a|one|two|three|four|x|that many) cards?",
+      "draw cards equal to",
+      "exile the top \\w+ cards? of your library[^.]*you may (play|cast)",
+      "look at the top \\w+ cards? of your library[^.]*put (one|two|that card|them) into your hand"
+    ],
+    "selection": [
+      "\\bscry \\d+",
+      "\\bsurveil \\d+",
+      "draw (a|one|two) cards?, then discard (a|one|two) cards?",
+      "discard (a|one|two) cards?, then draw (a|one|two) cards?",
+      "look at the top \\w+ cards? of your library"
+    ],
+    "removal": [
+      "destroy target (?!land)[^.]*(creature|artifact|enchantment|planeswalker|permanent)",
+      "exile target (?!card from a graveyard)[^.]*(creature|artifact|enchantment|planeswalker|permanent)",
+      "deals? \\w+ damage to (any target|target creature|target planeswalker|target creature or planeswalker)",
+      "target (creature|player) sacrifices a creature",
+      "target creature gets -\\d+/-\\d+",
+      "return target [^.]*(creature|nonland permanent|permanent) to its owner's hand"
+    ],
+    "boardwipe": [
+      "destroy all (?!lands)[^.]*(creatures|permanents|artifacts|enchantments)",
+      "exile all (?!cards from)[^.]*(creatures|permanents|artifacts|enchantments)",
+      "each creature gets -\\d+/-\\d+",
+      "deals? \\d+ damage to each creature",
+      "all creatures get -\\d+/-\\d+"
+    ],
+    "counterspell": [
+      "counter target (spell|noncreature spell|creature spell|activated or triggered ability)",
+      "counter target [^.]* spell"
+    ],
+    "protection": [
+      "gains? (hexproof|indestructible|protection)",
+      "gain (hexproof|indestructible|protection)",
+      "(creatures|permanents) you control (gain|have) (hexproof|indestructible)",
+      "regenerate target",
+      "phases? out"
+    ],
+    "recursion": [
+      "return (target|up to \\w+ target|a|all) [^.]*cards? from your graveyard to (your hand|the battlefield)",
+      "put target [^.]*card from your graveyard onto the battlefield",
+      "you may (cast|play) [^.]*from your graveyard"
+    ],
+    "tutor": [
+      "search your library for (a|an|up to \\w+) (?!basic land|land|forest|island|swamp|mountain|plains)[^.]*card",
+      "search your library for a card"
+    ],
+    "finisher": [
+      "each opponent loses \\w+ life",
+      "you win the game",
+      "target player loses the game",
+      "extra turn",
+      "creatures you control get \\+\\d+/\\+\\d+ and gain (trample|haste|flying)"
+    ]
+  },
+  "hooks": {
+    "tokens": {
+      "label": "Go-wide tokens",
+      "gives": [
+        "creates? (a|an|one|two|three|four|x|that many|\\w+) [^.]*tokens?"
+      ],
+      "wants": [
+        "whenever (a|one or more) (creature|token)s? (you control )?(enters|dies)",
+        "creatures you control get \\+\\d+/\\+\\d+"
+      ],
+      "wants_scaling": [
+        "for each creature you control",
+        "for each token you control",
+        "equal to the number of creatures you control"
+      ],
+      "gives_types": [],
+      "gives_subtypes": [],
+      "gives_keywords": [],
+      "wants_keywords": []
+    },
+    "death": {
+      "label": "Aristocrats",
+      "gives": [
+        "sacrifice (a|another|an|two) (creature|permanent|artifact)",
+        "\\bsacrifice\\b[^.]*:",
+        "destroy target creature"
+      ],
+      "wants": [
+        "whenever (a|another|one or more) [^.]*creatures? (you control )?dies",
+        "whenever you sacrifice",
+        "when [^.]* dies"
+      ],
+      "wants_scaling": [
+        "for each creature that died"
+      ],
+      "gives_types": [],
+      "gives_subtypes": [],
+      "gives_keywords": [],
+      "wants_keywords": []
+    },
+    "lifegain": {
+      "label": "Lifegain",
+      "gives": [
+        "you gain \\w+ life",
+        "gains? \\w+ life",
+        "\\blifelink\\b"
+      ],
+      "wants": [
+        "whenever you gain life",
+        "if you gained life this turn"
+      ],
+      "wants_scaling": [
+        "equal to the amount of life you gained",
+        "for each (\\d+ )?life you('ve)? gained"
+      ],
+      "gives_types": [],
+      "gives_subtypes": [],
+      "gives_keywords": [
+        "Lifelink"
+      ],
+      "wants_keywords": []
+    },
+    "counters": {
+      "label": "+1/+1 counters",
+      "gives": [
+        "put (a|an|one|two|three|x|\\w+) \\+1/\\+1 counters? on",
+        "\\bproliferate\\b",
+        "\\bevolve\\b|\\bsupport \\d+|\\bbolster \\d+|\\bmentor\\b"
+      ],
+      "wants": [
+        "whenever [^.]*\\+1/\\+1 counters? (is|are) put",
+        "with a \\+1/\\+1 counter on it",
+        "each creature you control with a \\+1/\\+1 counter"
+      ],
+      "wants_scaling": [
+        "for each \\+1/\\+1 counter",
+        "equal to the number of \\+1/\\+1 counters"
+      ],
+      "gives_types": [],
+      "gives_subtypes": [],
+      "gives_keywords": [],
+      "wants_keywords": []
+    },
+    "enchantments": {
+      "label": "Enchantress",
+      "gives": [
+        "search your library for an? [^.]*enchantment",
+        "return target enchantment"
+      ],
+      "wants": [
+        "whenever (you cast an enchantment|an enchantment enters)",
+        "enchantments? you control"
+      ],
+      "wants_scaling": [
+        "for each enchantment you control",
+        "number of enchantments you control"
+      ],
+      "gives_types": [
+        "Enchantment"
+      ],
+      "gives_subtypes": [],
+      "gives_keywords": [],
+      "wants_keywords": [
+        "Constellation"
+      ]
+    },
+    "spells": {
+      "label": "Spellslinger",
+      "gives": [
+        "copy target (instant|sorcery)",
+        "you may cast [^.]*instant or sorcery"
+      ],
+      "wants": [
+        "whenever you cast (an?|your first) (instant|sorcery|noncreature)[^.]*",
+        "instant and sorcery spells you cast"
+      ],
+      "wants_scaling": [
+        "for each (instant|sorcery) (card )?(in your graveyard|you've cast)"
+      ],
+      "gives_types": [
+        "Instant",
+        "Sorcery"
+      ],
+      "gives_subtypes": [],
+      "gives_keywords": [],
+      "wants_keywords": [
+        "Prowess",
+        "Magecraft"
+      ]
+    },
+    "graveyard": {
+      "label": "Graveyard",
+      "gives": [
+        "\\bmill \\w+",
+        "put the top \\w+ cards? of your library into your graveyard",
+        "discard (a|one|two|your hand)",
+        "\\bsurveil \\d+"
+      ],
+      "wants": [
+        "from your graveyard",
+        "cards? in your graveyard",
+        "creature cards? in your graveyard"
+      ],
+      "wants_scaling": [
+        "for each (creature )?card in your graveyard",
+        "equal to the number of cards in your graveyard"
+      ],
+      "gives_types": [],
+      "gives_subtypes": [],
+      "gives_keywords": [],
+      "wants_keywords": [
+        "Flashback",
+        "Unearth",
+        "Escape"
+      ]
+    },
+    "artifacts": {
+      "label": "Artifacts",
+      "gives": [
+        "creates? [^.]*(treasure|clue|food|blood|map|powerstone)[^.]*token",
+        "creates? [^.]*artifact [^.]*token"
+      ],
+      "wants": [
+        "whenever (you cast an artifact|an artifact enters)",
+        "artifacts? you control",
+        "sacrifice an artifact"
+      ],
+      "wants_scaling": [
+        "for each artifact you control",
+        "number of artifacts you control"
+      ],
+      "gives_types": [
+        "Artifact"
+      ],
+      "gives_subtypes": [],
+      "gives_keywords": [],
+      "wants_keywords": [
+        "Affinity",
+        "Improvise"
+      ]
+    },
+    "landfall": {
+      "label": "Landfall",
+      "gives": [
+        "put (a|up to \\w+) lands? cards? [^.]*onto the battlefield",
+        "search your library for (a|up to \\w+) [^.]*land[^.]*onto the battlefield",
+        "you may play an additional land"
+      ],
+      "wants": [
+        "whenever a land enters the battlefield under your control",
+        "whenever a land enters under your control",
+        "\\blandfall\\b"
+      ],
+      "wants_scaling": [
+        "for each land you control",
+        "number of lands you control"
+      ],
+      "gives_types": [],
+      "gives_subtypes": [],
+      "gives_keywords": [],
+      "wants_keywords": [
+        "Landfall"
+      ]
+    },
+    "blink": {
+      "label": "Blink",
+      "gives": [
+        "exile (target|another target|up to \\w+ target) [^.]*you control[^.]*then return",
+        "exile target creature you control, then return it"
+      ],
+      "wants": [
+        "when [^.]* enters the battlefield",
+        "whenever (a|another) creature enters"
+      ],
+      "wants_scaling": [],
+      "gives_types": [],
+      "gives_subtypes": [],
+      "gives_keywords": [],
+      "wants_keywords": []
+    },
+    "voltron": {
+      "label": "Voltron",
+      "gives": [
+        "attach (it|target|this)",
+        "equipped creature gets",
+        "enchanted creature gets",
+        "\\bequip\\b"
+      ],
+      "wants": [
+        "equipped creature",
+        "enchanted creature",
+        "whenever [^.]* becomes attached"
+      ],
+      "wants_scaling": [
+        "for each (aura|equipment)"
+      ],
+      "gives_types": [],
+      "gives_subtypes": [
+        "Aura",
+        "Equipment"
+      ],
+      "gives_keywords": [],
+      "wants_keywords": [
+        "Hexproof"
+      ]
+    }
+  }
+}
