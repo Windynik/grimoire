@@ -343,18 +343,21 @@
   },
   "roles": {
     "ramp": [
-      "add (\\{[wubrgc]\\})+",
-      "add (one|two|three) mana",
-      "add \\{[wubrgc]\\} for each",
-      "search your library for (a|up to \\w+) (basic )?(land|forest|island|swamp|mountain|plains)[^.]*onto the battlefield",
-      "put (a|up to \\w+) lands? cards? from your hand onto the battlefield",
-      "you may put a land card from (your hand|among them) onto the battlefield"
+      "\\badd (\\{[wubrgc]\\})+",
+      "\\badd (one|two|three|four|five|x|that much) mana\\b",
+      "\\badd an amount of \\{",
+      "search your library for (a|an|up to \\w+|x) (basic )?(lands?|forests?|islands?|swamps?|mountains?|plains)\\b[^.]*\\bonto the battlefield",
+      "\\bput (a|up to \\w+|x) lands? cards? from your hand onto the battlefield",
+      "you may put a land card from (your hand|among them) onto the battlefield",
+      "you may play (an|two|three|\\w+) additional lands?"
     ],
     "draw": [
-      "draws? (a|one|two|three|four|x|that many) cards?",
-      "draw cards equal to",
-      "exile the top \\w+ cards? of your library[^.]*you may (play|cast)",
-      "look at the top \\w+ cards? of your library[^.]*put (one|two|that card|them) into your hand"
+      "\\bdraws? (two|three|four|five|six|seven|eight|x|that many) cards\\b",
+      "\\bdraws? cards equal to",
+      "\\b(whenever|at the beginning of)\\b[^.]*?,[^.]*(?<!opponent )\\bdraws? (a|an|one|an additional) card",
+      "(?m)^[^\\n:\\\"]*:[^\\n]*\\bdraws? (a|an additional) card",
+      "exile the top (two|three|four|five|six|seven|x) cards of your library(\\.|,)[^.]*\\byou may (play|cast)",
+      "put (two|three|four|five|x|all|any number|up to \\w+) of (them|those cards) into your hand"
     ],
     "selection": [
       "\\bscry \\d+",
@@ -364,45 +367,47 @@
       "look at the top \\w+ cards? of your library"
     ],
     "removal": [
-      "destroy target (?!land)[^.]*(creature|artifact|enchantment|planeswalker|permanent)",
-      "exile target (?!card from a graveyard)[^.]*(creature|artifact|enchantment|planeswalker|permanent)",
-      "deals? \\w+ damage to (any target|target creature|target planeswalker|target creature or planeswalker)",
-      "target (creature|player) sacrifices a creature",
-      "target creature gets -\\d+/-\\d+",
-      "return target [^.]*(creature|nonland permanent|permanent) to its owner's hand"
+      "\\bdestroy (?:another |up to (?:one|two|three|x) )?target (?!(?:[\\w-]+ ){0,3}you (?:own|control)\\b)(?!lands?\\b)[^.]*\\b(creature|artifact|enchantment|planeswalker|permanent|battle)",
+      "\\bexile (?:another |up to (?:one|two|three|x) )?target (?!(?:[\\w-]+ ){0,3}you (?:own|control)\\b)(?!card)(?![^.]*graveyard)[^.]*\\b(creature|artifact|enchantment|planeswalker|permanent|battle)",
+      "deals? (\\d+|x) damage to (any target|target (attacking |blocking |tapped |attacking or blocking )?(creature|planeswalker))",
+      "deals? damage equal to [^.]* to (any target|target (creature|planeswalker))",
+      "\\b(target (player|opponent)|each opponent) sacrifices (a|an) (attacking )?(creature|nonland permanent|permanent)",
+      "target creature [^.]*gets -(\\d+|x)/-([1-9]\\d*|x)",
+      "\\bfights? (target|another target|up to one target) creature",
+      "\\breturn (?:another |up to (?:one|two|three|x) )?target (?!(?:[\\w-]+ ){0,3}you (?:own|control)\\b)(?![^.]*graveyard)[^.]*\\b(creature|nonland permanent|permanent)[^.]* to (its|their) owners?'?s? hands?"
     ],
     "boardwipe": [
-      "destroy all (?!lands)[^.]*(creatures|permanents|artifacts|enchantments)",
-      "exile all (?!cards from)[^.]*(creatures|permanents|artifacts|enchantments)",
-      "each creature gets -\\d+/-\\d+",
-      "deals? \\d+ damage to each creature",
-      "all creatures get -\\d+/-\\d+"
+      "destroy all (?!lands)[^.]*\\b(creatures|permanents|artifacts|enchantments)",
+      "exile all (?!cards from)[^.]*\\b(creatures|permanents|artifacts|enchantments)",
+      "each creature gets -(\\d+|x)/-([1-9]\\d*|x)",
+      "all creatures get -(\\d+|x)/-([1-9]\\d*|x)",
+      "deals? (\\d+|x) damage to each creature",
+      "return all (nonland )?(creatures|permanents) to their owners'? hands"
     ],
     "counterspell": [
       "counter target (spell|noncreature spell|creature spell|activated or triggered ability)",
       "counter target [^.]* spell"
     ],
     "protection": [
-      "gains? (hexproof|indestructible|protection)",
-      "gain (hexproof|indestructible|protection)",
-      "(creatures|permanents) you control (gain|have) (hexproof|indestructible)",
-      "regenerate target",
-      "phases? out"
+      "\\b(other )?(creatures|permanents) you control (gain|have) [^.]*\\b(hexproof|indestructible|shroud|protection)",
+      "\\btarget (creature|permanent|artifact)[^.]* gains? [^.]*\\b(hexproof|indestructible|shroud|protection)",
+      "\\b(equipped|enchanted) creature (has|gains|gets [^.]* and has) [^.]*\\b(hexproof|indestructible|shroud|protection)",
+      "\\bregenerate target",
+      "\\bphases? out"
     ],
     "recursion": [
-      "return (target|up to \\w+ target|a|all) [^.]*cards? from your graveyard to (your hand|the battlefield)",
-      "put target [^.]*card from your graveyard onto the battlefield",
-      "you may (cast|play) [^.]*from your graveyard"
+      "\\breturn (target|another target|up to \\w+ target|a|all|x target)[^.]*\\bcards? from your graveyard to (your hand|the battlefield)",
+      "\\b(put|return) (target|up to \\w+ target|a|all)[^.]*\\bcards? from (your|a|an opponent's) graveyard onto the battlefield",
+      "\\byou may (cast|play) [^.]*from your graveyard"
     ],
     "tutor": [
-      "search your library for (a|an|up to \\w+) (?!basic land|land|forest|island|swamp|mountain|plains)[^.]*card",
-      "search your library for a card"
+      "search your library for (a|an|up to \\w+|x) (?!basic lands?\\b|lands?\\b|(basic )?(forests?|islands?|swamps?|mountains?|plains)\\b)(?![^.]*\\bnamed\\b)[^.]*\\bcards?\\b"
     ],
     "finisher": [
-      "each opponent loses \\w+ life",
-      "you win the game",
+      "each opponent loses (x|[3-9]|\\d\\d+) life",
+      "\\byou win the game",
       "target player loses the game",
-      "extra turn",
+      "\\btakes? an extra turn",
       "creatures you control get \\+\\d+/\\+\\d+ and gain (trample|haste|flying)"
     ]
   },
@@ -410,16 +415,19 @@
     "tokens": {
       "label": "Go-wide tokens",
       "gives": [
-        "creates? (a|an|one|two|three|four|x|that many|\\w+) [^.]*tokens?"
+        "(?<!controller )(?<!player )(?<!opponent )\\bcreates? [^.]*\\bcreature tokens?\\b",
+        "\\bpopulate\\b",
+        "\\bamass\\b"
       ],
       "wants": [
-        "whenever (a|one or more) (creature|token)s? (you control )?(enters|dies)",
-        "creatures you control get \\+\\d+/\\+\\d+"
+        "whenever (a|another|one or more) (creature tokens?|creatures?|tokens?)( you control)? enters?\\b",
+        "(?m)(^|[^a-z] |\\bother )creatures you control get \\+[1-9]\\d*/\\+[1-9]"
       ],
       "wants_scaling": [
         "for each creature you control",
-        "for each token you control",
-        "equal to the number of creatures you control"
+        "for each (creature )?token you control",
+        "equal to the number of creatures you control",
+        "whenever (a|another|one or more) (creature tokens?|creatures?|tokens?)( you control)? enters?\\b"
       ],
       "gives_types": [],
       "gives_subtypes": [],
@@ -429,17 +437,18 @@
     "death": {
       "label": "Aristocrats",
       "gives": [
-        "sacrifice (a|another|an|two) (creature|permanent|artifact)",
-        "\\bsacrifice\\b[^.]*:",
-        "destroy target creature"
+        "\\bsacrifice (a|another|an|two|three|x|any number of) (other )?(nontoken )?creatures?\\b"
       ],
       "wants": [
-        "whenever (a|another|one or more) [^.]*creatures? (you control )?dies",
-        "whenever you sacrifice",
-        "when [^.]* dies"
+        "whenever [^.]*\\b(another|a|one or more|other)\\b[^.]*\\bcreatures?( you control| an opponent controls| your opponents control)? (dies|die)\\b",
+        "whenever (equipped|enchanted) creature dies",
+        "\\bwhen(ever)? this creature dies\\b",
+        "\\bwhenever you sacrifice\\b"
       ],
       "wants_scaling": [
-        "for each creature that died"
+        "for each creature that died",
+        "whenever [^.]*\\b(another|a|one or more|other)\\b[^.]*\\bcreatures?( you control| an opponent controls| your opponents control)? (dies|die)\\b",
+        "\\bwhenever you sacrifice (a|another) (creature|permanent)"
       ],
       "gives_types": [],
       "gives_subtypes": [],
@@ -449,17 +458,19 @@
     "lifegain": {
       "label": "Lifegain",
       "gives": [
-        "you gain \\w+ life",
-        "gains? \\w+ life",
+        "\\bgain (\\d+|x|that much) life\\b",
+        "\\bgain life equal to",
         "\\blifelink\\b"
       ],
       "wants": [
         "whenever you gain life",
-        "if you gained life this turn"
+        "if you gained life this turn",
+        "if you would gain life"
       ],
       "wants_scaling": [
         "equal to the amount of life you gained",
-        "for each (\\d+ )?life you('ve)? gained"
+        "for each (\\d+ )?life you('ve)? gained",
+        "whenever you gain life"
       ],
       "gives_types": [],
       "gives_subtypes": [],
@@ -471,18 +482,19 @@
     "counters": {
       "label": "+1/+1 counters",
       "gives": [
-        "put (a|an|one|two|three|x|\\w+) \\+1/\\+1 counters? on",
+        "\\bput (a|an|one|two|three|x|that many|\\w+) \\+1/\\+1 counters? on",
+        "\\benters( the battlefield)? with (a|an|one|two|three|x|\\w+) (additional )?\\+1/\\+1 counters?",
         "\\bproliferate\\b",
-        "\\bevolve\\b|\\bsupport \\d+|\\bbolster \\d+|\\bmentor\\b"
+        "\\bevolve\\b|\\bsupport \\d+|\\bbolster \\d+|\\bmentor\\b|\\badapt \\d+"
       ],
       "wants": [
-        "whenever [^.]*\\+1/\\+1 counters? (is|are) put",
-        "with a \\+1/\\+1 counter on it",
-        "each creature you control with a \\+1/\\+1 counter"
+        "\\+1/\\+1 counters? (would be|is|are) put",
+        "\\bcreatures?( you control)? with (a|one or more) \\+1/\\+1 counters? on (it|them)"
       ],
       "wants_scaling": [
         "for each \\+1/\\+1 counter",
-        "equal to the number of \\+1/\\+1 counters"
+        "equal to the number of \\+1/\\+1 counters",
+        "whenever (one or more )?\\+1/\\+1 counters? (is|are) put"
       ],
       "gives_types": [],
       "gives_subtypes": [],
@@ -492,16 +504,19 @@
     "enchantments": {
       "label": "Enchantress",
       "gives": [
-        "search your library for an? [^.]*enchantment",
-        "return target enchantment"
+        "search your library for an? [^.]*\\benchantment",
+        "return target enchantment card from your graveyard"
       ],
       "wants": [
-        "whenever (you cast an enchantment|an enchantment enters)",
-        "enchantments? you control"
+        "whenever you cast an enchantment spell",
+        "whenever (an|another|this creature or another) enchantment( you control)? enters",
+        "\\benchantment spells you cast\\b"
       ],
       "wants_scaling": [
         "for each enchantment you control",
-        "number of enchantments you control"
+        "number of enchantments you control",
+        "whenever you cast an enchantment spell",
+        "whenever (an|another|this creature or another) enchantment( you control)? enters"
       ],
       "gives_types": [
         "Enchantment"
@@ -516,14 +531,17 @@
       "label": "Spellslinger",
       "gives": [
         "copy target (instant|sorcery)",
-        "you may cast [^.]*instant or sorcery"
+        "you may cast [^.]*\\binstant or sorcery"
       ],
       "wants": [
-        "whenever you cast (an?|your first) (instant|sorcery|noncreature)[^.]*",
-        "instant and sorcery spells you cast"
+        "whenever you cast (an?|your first|your second) (instant|sorcery|noncreature)",
+        "whenever you cast or copy an instant or sorcery",
+        "\\binstant (and|or) sorcery spells you cast"
       ],
       "wants_scaling": [
-        "for each (instant|sorcery) (card )?(in your graveyard|you've cast)"
+        "for each (instant|sorcery) (card )?(in your graveyard|you've cast)",
+        "whenever you cast an? (instant|sorcery|noncreature)",
+        "whenever you cast or copy an instant or sorcery"
       ],
       "gives_types": [
         "Instant",
@@ -539,19 +557,21 @@
     "graveyard": {
       "label": "Graveyard",
       "gives": [
-        "\\bmill \\w+",
+        "\\byou mill\\b",
+        "\\bmill (\\w+|that many) cards?\\b",
         "put the top \\w+ cards? of your library into your graveyard",
-        "discard (a|one|two|your hand)",
-        "\\bsurveil \\d+"
+        "(?<!whenever you )\\bdiscard (a|one|two|three|x) cards?\\b|\\bdiscard your hand",
+        "\\bsurveil \\d+",
+        "search your library for [^.]*\\bput (it|that card|them|those cards) into your graveyard"
       ],
       "wants": [
         "from your graveyard",
         "cards? in your graveyard",
-        "creature cards? in your graveyard"
+        "from a graveyard onto the battlefield"
       ],
       "wants_scaling": [
         "for each (creature )?card in your graveyard",
-        "equal to the number of cards in your graveyard"
+        "equal to the number of (creature )?cards in your graveyard"
       ],
       "gives_types": [],
       "gives_subtypes": [],
@@ -565,17 +585,19 @@
     "artifacts": {
       "label": "Artifacts",
       "gives": [
-        "creates? [^.]*(treasure|clue|food|blood|map|powerstone)[^.]*token",
-        "creates? [^.]*artifact [^.]*token"
+        "(?<!controller )(?<!player )(?<!opponent )\\bcreates? [^.]*\\b(treasure|clue|food|blood|map|powerstone|lander|gold|junk|incubator)\\b[^.]*\\btokens?",
+        "(?<!controller )(?<!player )(?<!opponent )\\bcreates? [^.]*\\bartifact [^.]*\\btokens?"
       ],
       "wants": [
-        "whenever (you cast an artifact|an artifact enters)",
-        "artifacts? you control",
-        "sacrifice an artifact"
+        "whenever (you cast an artifact spell|an artifact( you control)? enters|another artifact( you control)? enters|one or more artifacts( you control)? enter)",
+        "\\bartifacts you control\\b",
+        "\\bsacrifice an artifact",
+        "\\baffinity for (artifacts|equipment|vehicles)\\b"
       ],
       "wants_scaling": [
         "for each artifact you control",
-        "number of artifacts you control"
+        "number of artifacts you control",
+        "whenever (you cast an artifact spell|an artifact( you control)? enters|another artifact( you control)? enters)"
       ],
       "gives_types": [
         "Artifact"
@@ -583,25 +605,24 @@
       "gives_subtypes": [],
       "gives_keywords": [],
       "wants_keywords": [
-        "Affinity",
         "Improvise"
       ]
     },
     "landfall": {
       "label": "Landfall",
       "gives": [
-        "put (a|up to \\w+) lands? cards? [^.]*onto the battlefield",
-        "search your library for (a|up to \\w+) [^.]*land[^.]*onto the battlefield",
-        "you may play an additional land"
+        "\\bput (a|up to \\w+|x|any number of) lands? cards? [^.]*onto the battlefield",
+        "search your library for (a|an|up to \\w+|x) [^.]*\\b(lands?|forests?|islands?|swamps?|mountains?|plains)\\b[^.]*\\bonto the battlefield",
+        "you may play (an|two|three|\\w+) additional lands?"
       ],
       "wants": [
-        "whenever a land enters the battlefield under your control",
-        "whenever a land enters under your control",
+        "whenever (a land|one or more lands)( you control)? enters?\\b(?! under an opponent)",
         "\\blandfall\\b"
       ],
       "wants_scaling": [
         "for each land you control",
-        "number of lands you control"
+        "number of lands you control",
+        "whenever (a land|one or more lands)( you control)? enters?\\b(?! under an opponent)"
       ],
       "gives_types": [],
       "gives_subtypes": [],
@@ -613,12 +634,10 @@
     "blink": {
       "label": "Blink",
       "gives": [
-        "exile (target|another target|up to \\w+ target) [^.]*you control[^.]*then return",
-        "exile target creature you control, then return it"
+        "\\bexile [^.]*\\btarget\\b[^.]*(,|\\.)\\s*(then )?return (it|that card|those cards|them|the exiled cards?) to the battlefield"
       ],
       "wants": [
-        "when [^.]* enters the battlefield",
-        "whenever (a|another) creature enters"
+        "\\bwhen(ever)? this (creature|permanent) enters\\b"
       ],
       "wants_scaling": [],
       "gives_types": [],
@@ -629,18 +648,20 @@
     "voltron": {
       "label": "Voltron",
       "gives": [
-        "attach (it|target|this)",
-        "equipped creature gets",
-        "enchanted creature gets",
-        "\\bequip\\b"
+        "\\battach (it|target|this|that|an?|any number of)\\b",
+        "\\b(equipped|enchanted) creature gets \\+"
       ],
       "wants": [
-        "equipped creature",
-        "enchanted creature",
-        "whenever [^.]* becomes attached"
+        "\\b(auras?|equipment) attached to (it|this creature)",
+        "whenever [^.]* becomes attached",
+        "as long as this creature is (equipped|enchanted)",
+        "\\b(equipped|enchanted) creatures you control\\b",
+        "whenever you cast an aura spell",
+        "(?m)(^|, )hexproof(,|$)"
       ],
       "wants_scaling": [
-        "for each (aura|equipment)"
+        "for each (aura|equipment)",
+        "whenever you cast an aura spell"
       ],
       "gives_types": [],
       "gives_subtypes": [
@@ -648,9 +669,7 @@
         "Equipment"
       ],
       "gives_keywords": [],
-      "wants_keywords": [
-        "Hexproof"
-      ]
+      "wants_keywords": []
     }
   }
 }
