@@ -68,6 +68,7 @@ def test_edges_from_gives_to_wants(oracle, playbook):
     assert graph.between([seer.id]) == []
     assert graph.weight_into(seer.id, [artist.id]) == pytest.approx(1.5)
     assert graph.weight_into(artist.id, [seer.id]) == pytest.approx(1.5)  # both directions
+    assert graph.inner_weight([seer.id, artist.id]) == pytest.approx(1.5)
 
 
 def test_plain_want_has_weight_one(playbook):
@@ -98,7 +99,7 @@ def test_aristocrats_core_wins_over_noise(playbook, rules):
     top = backbones[0]
     assert top.commander_id == teysa.id
     assert top.colors == frozenset("WB")
-    assert teysa.id in top.members
+    assert teysa.id not in top.members  # the commander is never a member
     names = {graph.cards[m].name for m in top.members}
     assert not any(n.startswith("Vanilla") for n in names)
     assert {f"Sac Outlet {i}" for i in range(6)} <= names
@@ -143,7 +144,7 @@ def test_tribal_backbone_name(playbook, rules):
     goblins = [make_record(f"Goblin {i}", type_line="Creature — Goblin", color_identity=("R",),
                            mana_cost="{R}") for i in range(10)]
     lords = [make_record(f"Goblin Lord {i}", type_line="Creature — Orc", color_identity=("R",),
-                         oracle_text="Other Goblins you control get +1/+1.") for i in range(2)]
+                         oracle_text="Other Goblins you control get +1/+1.") for i in range(3)]
     boss = make_record("Goblin Boss", type_line="Legendary Creature — Orc",
                        color_identity=("R",), oracle_text="Other Goblins you control have haste.")
     cards = tagged_pool(playbook, goblins + lords + [boss])
@@ -173,6 +174,69 @@ def test_commander_hooks_double_score(playbook, rules):
     assert with_hook.score == pytest.approx(2 * base_score(graph, with_hook.members, fmt))
     assert without.score == pytest.approx(base_score(graph, without.members, fmt))
     assert names["Plain Boss"].id not in without.members
+
+
+def test_hand_computed_score(playbook, rules):
+    # 5 sac outlets give "death" to 5 scaling payoffs: 25 edges of weight 1.5 = 37.5.
+    # 10 members (Teysa is not one): density = 37.5 / 10 = 3.75.
+    # No EDHREC rank gives quality 0.5: quality = 10 * (0.5 + 0.5 * 1.0) = 10.0.
+    # fill = min(1, 10 / 10) = 1.0. Score = 3.75 * 10.0 * 1.0 = 37.5.
+    # Teysa wants "death", so the score doubles: 75.0.
+    recs = [creature(f"Sac Outlet {i}", i, SAC, rank=None) for i in range(5)]
+    recs += [creature(f"Death Payoff {i}", 10 + i, DEATH_PAYOFF, rank=None) for i in range(5)]
+    cards = tagged_pool(playbook, [teysa_record()] + recs)
+    graph = build_graph(cards, playbook)
+    teysa = by_name(cards)["Teysa Karlov"]
+    top = find_backbones(cards, graph, rules["commander"], playbook, commander_id=teysa.id)[0]
+    assert len(top.members) == 10
+    assert top.score == pytest.approx(75.0)
+
+
+def test_cap_keeps_twenty_best_connected_members(playbook, rules):
+    # Outlets have degree 15 * 1.5 + 5 * 1.0 = 27.5; scaling payoffs 5 * 1.5 = 7.5;
+    # plain payoffs 5 * 1.0 = 5.0. The cap of 20 drops the 5 plain payoffs.
+    recs = [creature(f"Sac Outlet {i}", i, SAC) for i in range(5)]
+    recs += [creature(f"Death Payoff {i}", 10 + i, DEATH_PAYOFF) for i in range(15)]
+    recs += [creature(f"Plain Payoff {i}", 40 + i, "When this creature dies, draw a card.")
+             for i in range(5)]
+    cards = tagged_pool(playbook, [teysa_record()] + recs)
+    graph = build_graph(cards, playbook)
+    teysa = by_name(cards)["Teysa Karlov"]
+    top = find_backbones(cards, graph, rules["commander"], playbook, commander_id=teysa.id)[0]
+    names = [graph.cards[m].name for m in top.members]
+    assert len(names) == 20
+    assert names[:5] == sorted(names[:5]) and all(n.startswith("Sac Outlet") for n in names[:5])
+    assert not any(n.startswith("Plain Payoff") for n in names)
+    assert teysa.id not in top.members
+
+
+def test_group_needs_three_wanters(playbook, rules):
+    plain = creature("Plain Boss", 901, colors=("B",), legendary=True)
+    recs = [creature(f"Sac Outlet {i}", i, SAC) for i in range(10)]
+    recs += [creature(f"Death Payoff {i}", 20 + i, DEATH_PAYOFF) for i in range(2)]
+    cards = tagged_pool(playbook, [plain] + recs)
+    graph = build_graph(cards, playbook)
+    assert find_backbones(cards, graph, rules["commander"], playbook) == []
+    recs.append(creature("Death Payoff 2", 22, DEATH_PAYOFF))
+    cards = tagged_pool(playbook, [plain] + recs)
+    graph = build_graph(cards, playbook)
+    assert [b.hooks for b in find_backbones(cards, graph, rules["commander"], playbook)] == \
+        [("death",)]
+
+
+def test_one_commander_gets_alternative_plans(playbook, rules):
+    lifegain = [creature(f"Life Giver {i}", 200 + i, "When this creature enters, you gain 3 life.",
+                         colors=("W",)) for i in range(6)]
+    lifegain += [creature(f"Life Payoff {i}", 300 + i,
+                          "Whenever you gain life, put a +1/+1 counter on this creature.",
+                          colors=("B",)) for i in range(6)]
+    cards = tagged_pool(playbook, [teysa_record()] + aristocrats_records() + lifegain)
+    graph = build_graph(cards, playbook)
+    teysa = by_name(cards)["Teysa Karlov"]
+    backbones = find_backbones(cards, graph, rules["commander"], playbook, commander_id=teysa.id)
+    assert [b.hooks for b in backbones] == [("death",), ("lifegain",)]
+    assert all(b.commander_id == teysa.id and teysa.id not in b.members for b in backbones)
+    assert backbones[0].score >= backbones[1].score
 
 
 def test_commander_scopes_respect_color_identity(playbook, rules):
@@ -206,11 +270,11 @@ def test_sixty_scopes_by_color_pair(playbook, rules):
                         quantities=[4] * len(gw) + [1] * len(ur))
     graph = build_graph(cards, playbook)
     backbones = find_backbones(cards, graph, rules["standard"], playbook)
-    # Auras are enchantments too, so the enchantments group merges into voltron.
-    assert backbones[0].hooks == ("enchantments", "voltron")
+    # Auras are enchantments too, but no card wants enchantments, so that group drops.
+    assert backbones[0].hooks == ("voltron",)
     assert backbones[0].colors == frozenset("GW")
     assert backbones[0].commander_id is None
-    assert backbones[0].id == "enchantments+voltron:WG"
+    assert backbones[0].id == "voltron:WG"
     # Ten single copies count as 2.5 playsets, less than min_core / 2 = 4.
     assert not any("spells" in b.hooks for b in backbones)
 
@@ -298,7 +362,10 @@ def test_find_backbones_is_fast_on_a_real_collection_size(playbook, rules):
     backbones = find_backbones(cards, graph, rules["commander"], playbook)
     done = time.perf_counter()
     assert len(graph.edges) > 1000
-    assert backbones and all(isinstance(b, Backbone) for b in backbones)
+    assert len(backbones) == 5 and all(isinstance(b, Backbone) for b in backbones)
+    assert max(len(b.members) for b in backbones) <= 20
+    assert min(len(b.members) for b in backbones) >= rules["commander"].min_core
+    assert all(b.commander_id not in b.members for b in backbones)
     assert built - start < 2.0
     assert done - built < 2.0
     assert isinstance(graph, SynergyGraph)

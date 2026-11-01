@@ -1,9 +1,9 @@
 """Synergy graph and deck backbones for the deck forge.
 
 An edge goes from a card that gives a synergy hook to a card that wants it.
-A backbone is a dense group of cards around one or two hooks: the central
-plan of a deck. Commander formats find one backbone per commander; other
-formats find one per color set.
+A backbone is a dense group of at most 20 cards around one or two hooks:
+the central plan of a deck. Commander formats find backbones per commander;
+other formats find them per color set.
 """
 
 import re
@@ -19,12 +19,15 @@ SCALING_FACTOR = 1.5
 MERGE_OVERLAP = 0.4
 COMMANDER_BONUS = 2.0
 COMMANDER_PHRASE = "can be your commander"
+MAX_MEMBERS = 20  # a backbone is 8-20 core cards
+MIN_WANTERS = 3  # cards that want a hook; type-based piles of givers are no plan
+GROUPS_PER_SCOPE = 3
 # Scopes for formats without a commander: the 5 mono colors and the 10 pairs.
 COLOR_SCOPES = ([frozenset(c) for c in COLORS]
                 + [frozenset(pair) for pair in combinations(COLORS, 2)])
 
 Group = Tuple[Tuple[str, ...], Set[str]]  # (hooks, member ids)
-ScoredGroup = Tuple[Tuple[str, ...], Set[str], float]  # (hooks, member ids, score)
+ScoredGroup = Tuple[Tuple[str, ...], List[str], float]  # (hooks, member ids, score)
 
 
 @dataclass
@@ -92,8 +95,17 @@ class SynergyGraph:
         return (_weight_to(self._out_weight.get(card_id, {}), core_set)
                 + _weight_to(self._in_weight.get(card_id, {}), core_set))
 
-    def _inner_weight(self, ids: Set[str]) -> float:
-        return sum(_weight_to(self._out_weight.get(src, {}), ids) for src in ids)
+    def inner_weight(self, ids: Collection[str]) -> float:
+        """Return the total weight of the edges inside a set of cards.
+
+        Args:
+            ids: Card ids.
+
+        Returns:
+            Sum of the weights of between(ids), without building the edge list.
+        """
+        id_set = _as_set(ids)
+        return sum(_weight_to(self._out_weight.get(src, {}), id_set) for src in id_set)
 
 
 @dataclass
@@ -190,6 +202,17 @@ def _big_enough(members: List[OwnedCard], fmt: FormatRules) -> bool:
     return copies / fmt.max_copies >= fmt.min_core / 2
 
 
+def _enough_wanters(hooks: Tuple[str, ...], ids: Collection[str], graph: SynergyGraph) -> bool:
+    wanted = set(hooks)
+    count = 0
+    for card_id in ids:
+        if graph.cards[card_id].wants & wanted:
+            count += 1
+            if count >= MIN_WANTERS:
+                return True
+    return False
+
+
 def _merge(groups: List[Group]) -> List[Group]:
     """Merge pairs of groups that share at least MERGE_OVERLAP of the smaller one.
 
@@ -213,20 +236,44 @@ def _merge(groups: List[Group]) -> List[Group]:
     return merged
 
 
+def _core(ids: Set[str], graph: SynergyGraph) -> List[str]:
+    """Return the group's best MAX_MEMBERS cards, most connected first.
+
+    Cards rank by weighted degree inside the whole group, then by quality,
+    then by name.
+    """
+    def rank(card_id):
+        card = graph.cards[card_id]
+        return -graph.weight_into(card_id, ids), -card.quality, card.name
+    return sorted(ids, key=rank)[:MAX_MEMBERS]
+
+
 def _scored_groups(by_hook: Dict[str, List[OwnedCard]], scope: FrozenSet[str],
-                   graph: SynergyGraph, fmt: FormatRules) -> List[ScoredGroup]:
-    """Return (hooks, member ids, score) for the hook groups of one color scope."""
+                   commander: Optional[OwnedCard], graph: SynergyGraph,
+                   fmt: FormatRules) -> List[ScoredGroup]:
+    """Return (hooks, member ids, score) for the hook groups of one scope.
+
+    The commander is never a member. Each group needs MIN_WANTERS cards that
+    want one of its hooks, before and after the merge and the cap. Scores use
+    the capped members and do not include the commander bonus.
+    """
+    skip = commander.id if commander is not None else None
     groups = []
     for hook in sorted(by_hook):
-        members = [card for card in by_hook[hook] if card.color_identity <= scope]
-        if members and _big_enough(members, fmt):
-            groups.append(((hook,), {card.id for card in members}))
+        members = [card for card in by_hook[hook]
+                   if card.color_identity <= scope and card.id != skip]
+        ids = {card.id for card in members}
+        if members and _big_enough(members, fmt) and _enough_wanters((hook,), ids, graph):
+            groups.append(((hook,), ids))
     scored = []
     for hooks, ids in _merge(groups):
-        density = graph._inner_weight(ids) / len(ids)
-        quality = sum(0.5 + graph.cards[i].quality * fmt.quality_weight for i in ids)
-        fill = min(1.0, len(ids) / fmt.min_core)
-        scored.append((hooks, ids, density * quality * fill))
+        core = _core(ids, graph)
+        if not _enough_wanters(hooks, core, graph):
+            continue
+        density = graph.inner_weight(core) / len(core)
+        quality = sum(0.5 + graph.cards[i].quality * fmt.quality_weight for i in core)
+        fill = min(1.0, len(core) / fmt.min_core)
+        scored.append((hooks, core, density * quality * fill))
     return scored
 
 
@@ -259,35 +306,41 @@ def find_backbones(cards: List[OwnedCard], graph: SynergyGraph, fmt: FormatRules
         limit: Largest number of backbones to return.
 
     Returns:
-        The best group of each scope, best score first (ties by id), with no
-        two backbones that have the same hooks and commander. Groups with no
-        synergy edges (score 0) are no plan and are left out.
+        The best GROUPS_PER_SCOPE groups of each scope, then the best `limit`
+        overall, best score first (ties by id), with no two backbones that
+        have the same hooks and commander. Each backbone has at most
+        MAX_MEMBERS members, most connected first, and never the commander.
+        Groups with no synergy edges (score 0) are no plan and are left out.
     """
     by_hook = {}  # type: Dict[str, List[OwnedCard]]
     for card in cards:
         if not card.is_land:
             for hook in card.gives | card.wants:
                 by_hook.setdefault(hook, []).append(card)
-    # Hook groups depend only on the scope colors, so commanders that share a
-    # color identity share one computation.
-    cache = {}  # type: Dict[FrozenSet[str], List[ScoredGroup]]
-    best = []  # type: List[Backbone]
+    # Hook groups depend only on the scope colors and on which card is left
+    # out as commander. A commander with no hooks is in no group, so such
+    # commanders that share a color identity share one computation.
+    cache = {}  # type: Dict[Tuple[FrozenSet[str], Optional[str]], List[ScoredGroup]]
+    candidates = []  # type: List[Backbone]
     for scope, commander in _scopes(cards, fmt, commander_id, colors):
-        if scope not in cache:
-            cache[scope] = _scored_groups(by_hook, scope, graph, fmt)
-        top = None
-        for hooks, ids, score in cache[scope]:
+        in_groups = commander is not None and not commander.is_land and bool(
+            commander.gives | commander.wants)
+        key = (scope, commander.id if in_groups else None)
+        if key not in cache:
+            cache[key] = _scored_groups(by_hook, scope, commander if in_groups else None,
+                                        graph, fmt)
+        options = []
+        for hooks, core, score in cache[key]:
             if commander is not None and (commander.gives | commander.wants) & set(hooks):
                 score *= COMMANDER_BONUS
-            rank = (-score, _backbone_id(hooks, scope, commander))
-            if score > 0 and (top is None or rank < top[0]):
-                top = (rank, hooks, ids, score)
-        if top is not None:
-            _, hooks, ids, score = top
-            best.append(_backbone(hooks, ids, scope, commander, score, playbook))
-    best.sort(key=lambda b: (-b.score, b.id))
+            if score > 0:
+                options.append((-score, _backbone_id(hooks, scope, commander), hooks, core, score))
+        options.sort(key=lambda option: option[:2])
+        for _, _, hooks, core, score in options[:GROUPS_PER_SCOPE]:
+            candidates.append(_backbone(hooks, core, scope, commander, score, playbook))
+    candidates.sort(key=lambda b: (-b.score, b.id))
     chosen, seen = [], set()
-    for backbone in best:
+    for backbone in candidates:
         key = (backbone.hooks, backbone.commander_id)
         if key in seen:
             continue
@@ -296,8 +349,7 @@ def find_backbones(cards: List[OwnedCard], graph: SynergyGraph, fmt: FormatRules
         if len(chosen) >= limit:
             break
     for backbone in chosen:
-        ids = set(backbone.members)
-        backbone.members.sort(key=lambda i: (-graph.weight_into(i, ids), graph.cards[i].name))
+        backbone.members = _core(set(backbone.members), graph)
     return chosen
 
 
@@ -309,13 +361,13 @@ def _backbone_id(hooks: Tuple[str, ...], scope: FrozenSet[str],
     return ":".join(parts)
 
 
-def _backbone(hooks: Tuple[str, ...], ids: Set[str], scope: FrozenSet[str],
+def _backbone(hooks: Tuple[str, ...], members: List[str], scope: FrozenSet[str],
               commander: Optional[OwnedCard], score: float, playbook: Playbook) -> Backbone:
     return Backbone(
         id=_backbone_id(hooks, scope, commander),
         hooks=hooks,
         name=" & ".join(hook_label(hook, playbook) for hook in hooks),
-        members=sorted(ids),
+        members=list(members),
         colors=scope,
         commander_id=commander.id if commander is not None else None,
         score=score,
