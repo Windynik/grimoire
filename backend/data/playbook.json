@@ -421,7 +421,8 @@
       ],
       "wants": [
         "whenever (a|another|one or more) (creature tokens?|creatures?|tokens?)( you control)? enters?\\b",
-        "(?m)(^|[^a-z] |\\bother )creatures you control get \\+[1-9]\\d*/\\+[1-9]"
+        "(?m)(^|[^a-z] |\\bother )creatures you control get \\+[1-9]\\d*/\\+[1-9]",
+        "\\b(for each|number of) (creatures?|(creature )?tokens?) you control"
       ],
       "wants_scaling": [
         "for each creature you control",
@@ -432,7 +433,9 @@
       "gives_types": [],
       "gives_subtypes": [],
       "gives_keywords": [],
-      "wants_keywords": []
+      "wants_keywords": [],
+      "gives_subtypes_except": [],
+      "gives_subtypes_unless": []
     },
     "death": {
       "label": "Aristocrats",
@@ -443,7 +446,8 @@
         "whenever [^.]*\\b(another|a|one or more|other)\\b[^.]*\\bcreatures?( you control| an opponent controls| your opponents control)? (dies|die)\\b",
         "whenever (equipped|enchanted) creature dies",
         "\\bwhen(ever)? this creature dies\\b",
-        "\\bwhenever you sacrifice\\b"
+        "\\bwhenever you sacrifice\\b",
+        "\\bfor each creature that died"
       ],
       "wants_scaling": [
         "for each creature that died",
@@ -453,7 +457,9 @@
       "gives_types": [],
       "gives_subtypes": [],
       "gives_keywords": [],
-      "wants_keywords": []
+      "wants_keywords": [],
+      "gives_subtypes_except": [],
+      "gives_subtypes_unless": []
     },
     "lifegain": {
       "label": "Lifegain",
@@ -465,7 +471,8 @@
       "wants": [
         "whenever you gain life",
         "if you gained life this turn",
-        "if you would gain life"
+        "if you would gain life",
+        "\\blife you('ve)? gained\\b"
       ],
       "wants_scaling": [
         "equal to the amount of life you gained",
@@ -477,7 +484,9 @@
       "gives_keywords": [
         "Lifelink"
       ],
-      "wants_keywords": []
+      "wants_keywords": [],
+      "gives_subtypes_except": [],
+      "gives_subtypes_unless": []
     },
     "counters": {
       "label": "+1/+1 counters",
@@ -489,7 +498,8 @@
       ],
       "wants": [
         "\\+1/\\+1 counters? (would be|is|are) put",
-        "\\bcreatures?( you control)? with (a|one or more) \\+1/\\+1 counters? on (it|them)"
+        "\\bcreatures?( you control)? with (a|one or more) \\+1/\\+1 counters? on (it|them)",
+        "\\b(for each|number of) \\+1/\\+1 counters?"
       ],
       "wants_scaling": [
         "for each \\+1/\\+1 counter",
@@ -499,7 +509,9 @@
       "gives_types": [],
       "gives_subtypes": [],
       "gives_keywords": [],
-      "wants_keywords": []
+      "wants_keywords": [],
+      "gives_subtypes_except": [],
+      "gives_subtypes_unless": []
     },
     "enchantments": {
       "label": "Enchantress",
@@ -510,7 +522,8 @@
       "wants": [
         "whenever you cast an enchantment spell",
         "whenever (an|another|this creature or another) enchantment( you control)? enters",
-        "\\benchantment spells you cast\\b"
+        "\\benchantment spells you cast\\b",
+        "\\b(for each|number of) enchantments? you control"
       ],
       "wants_scaling": [
         "for each enchantment you control",
@@ -525,7 +538,9 @@
       "gives_keywords": [],
       "wants_keywords": [
         "Constellation"
-      ]
+      ],
+      "gives_subtypes_except": [],
+      "gives_subtypes_unless": []
     },
     "spells": {
       "label": "Spellslinger",
@@ -536,7 +551,8 @@
       "wants": [
         "whenever you cast (an?|your first|your second) (instant|sorcery|noncreature)",
         "whenever you cast or copy an instant or sorcery",
-        "\\binstant (and|or) sorcery spells you cast"
+        "\\binstant (and|or) sorcery spells you cast",
+        "for each (instant|sorcery) (card )?(in your graveyard|you've cast)"
       ],
       "wants_scaling": [
         "for each (instant|sorcery) (card )?(in your graveyard|you've cast)",
@@ -552,7 +568,9 @@
       "wants_keywords": [
         "Prowess",
         "Magecraft"
-      ]
+      ],
+      "gives_subtypes_except": [],
+      "gives_subtypes_unless": []
     },
     "graveyard": {
       "label": "Graveyard",
@@ -580,7 +598,9 @@
         "Flashback",
         "Unearth",
         "Escape"
-      ]
+      ],
+      "gives_subtypes_except": [],
+      "gives_subtypes_unless": []
     },
     "artifacts": {
       "label": "Artifacts",
@@ -592,7 +612,8 @@
         "whenever (you cast an artifact spell|an artifact( you control)? enters|another artifact( you control)? enters|one or more artifacts( you control)? enter)",
         "\\bartifacts you control\\b",
         "\\bsacrifice an artifact",
-        "\\baffinity for (artifacts|equipment|vehicles)\\b"
+        "\\baffinity for (artifacts|equipment|vehicles)\\b",
+        "\\b(for each|number of) artifacts? you control"
       ],
       "wants_scaling": [
         "for each artifact you control",
@@ -606,7 +627,9 @@
       "gives_keywords": [],
       "wants_keywords": [
         "Improvise"
-      ]
+      ],
+      "gives_subtypes_except": [],
+      "gives_subtypes_unless": []
     },
     "landfall": {
       "label": "Landfall",
@@ -617,7 +640,8 @@
       ],
       "wants": [
         "whenever (a land|one or more lands)( you control)? enters?\\b(?! under an opponent)",
-        "\\blandfall\\b"
+        "\\blandfall\\b",
+        "\\b(for each|number of) lands? you control"
       ],
       "wants_scaling": [
         "for each land you control",
@@ -629,7 +653,9 @@
       "gives_keywords": [],
       "wants_keywords": [
         "Landfall"
-      ]
+      ],
+      "gives_subtypes_except": [],
+      "gives_subtypes_unless": []
     },
     "blink": {
       "label": "Blink",
@@ -643,7 +669,9 @@
       "gives_types": [],
       "gives_subtypes": [],
       "gives_keywords": [],
-      "wants_keywords": []
+      "wants_keywords": [],
+      "gives_subtypes_except": [],
+      "gives_subtypes_unless": []
     },
     "voltron": {
       "label": "Voltron",
@@ -657,7 +685,8 @@
         "as long as this creature is (equipped|enchanted)",
         "\\b(equipped|enchanted) creatures you control\\b",
         "whenever you cast an aura spell",
-        "(?m)(^|, )hexproof(,|$)"
+        "(?m)^([\\w{}]+( [\\w{}]+){0,2}, )*hexproof(, [\\w{}]+( [\\w{}]+){0,2})*$",
+        "\\bfor each (aura|equipment)"
       ],
       "wants_scaling": [
         "for each (aura|equipment)",
@@ -669,7 +698,28 @@
         "Equipment"
       ],
       "gives_keywords": [],
-      "wants_keywords": []
+      "wants_keywords": [],
+      "gives_subtypes_except": [
+        "Curse"
+      ],
+      "gives_subtypes_unless": [
+        "(?m)^enchant (?!creature|permanent)",
+        "(?m)^enchant (creature|permanent) (an opponent controls|you don't control)",
+        "\\b(enchanted|equipped) creature (can't attack|can't block|doesn't untap|loses all (other )?abilities|gets -)",
+        "\\b(enchanted|equipped) creature['’]s activated abilities can't be activated",
+        "\\bits activated abilities can't be activated",
+        "\\bwith base power and toughness \\d+/\\d+",
+        "\\b(enchanted|equipped) creature has base power and toughness"
+      ]
     }
+  },
+  "tribal_plurals": {
+    "Elf": "Elves",
+    "Wolf": "Wolves",
+    "Dwarf": "Dwarves",
+    "Werewolf": "Werewolves",
+    "Thief": "Thieves",
+    "Mouse": "Mice",
+    "Ox": "Oxen"
   }
 }

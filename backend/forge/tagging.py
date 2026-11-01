@@ -15,8 +15,11 @@ from backend.forge.playbook import Playbook
 TRIBAL_PREFIX = "tribal:"
 FACE_SEPARATOR = "\n//\n"
 _REMINDER = re.compile(r"[ \t]*\([^()]*\)")
-_TRIBAL_WANT = (r"\b(other )?{T}s?\b( you control| spells?| creatures?| cards?)"
-                r"|\bother {T}s?\b|\beach {T}\b")
+# {T} is an alternation of the type's singular and plural forms.
+_TRIBAL_WANT = (r"\b(other )?{T}\b( you control| spells?| creatures?| cards?)"
+                r"|\bother {T}\b|\beach {T}\b")
+# Text that makes tokens of the type gives the tribe; it is not a payoff.
+_TRIBAL_TOKENS = r"(?<!controller )(?<!player )(?<!opponent )\bcreates? [^.]*?\b{T}\b[^.]*?\btokens?\b"
 # Noun that replaces the card's own name, so old templating ("When Mulldrifter
 # enters the battlefield") reads like new templating ("When this creature enters").
 _SELF_NOUNS = (("Creature", "creature"), ("Planeswalker", "planeswalker"),
@@ -106,27 +109,59 @@ def _tag_roles(card: OwnedCard, text: str, playbook: Playbook) -> Set[str]:
     return roles
 
 
+def _gives_by_subtype(card: OwnedCard, text: str, spec: dict) -> bool:
+    subtypes = set(card.subtypes)
+    if not subtypes & set(spec["gives_subtypes"]):
+        return False
+    # For example, a Curse or an Aura that locks down a creature is no voltron piece.
+    if subtypes & set(spec.get("gives_subtypes_except", ())):
+        return False
+    return not _any_match(spec.get("gives_subtypes_unless", ()), text)
+
+
 def _tag_hooks(card: OwnedCard, text: str, playbook: Playbook) -> None:
     keywords = set(card.keywords)
     for hook, spec in playbook.hooks.items():
         if (card.types & set(spec["gives_types"])
-                or set(card.subtypes) & set(spec["gives_subtypes"])
+                or _gives_by_subtype(card, text, spec)
                 or keywords & set(spec["gives_keywords"])
                 or _any_match(spec["gives"], text)):
             card.gives.add(hook)
-        if (keywords & set(spec["wants_keywords"])
-                or _any_match(spec["wants"], text)
-                or _any_match(spec["wants_scaling"], text)):
+        if keywords & set(spec["wants_keywords"]) or _any_match(spec["wants"], text):
             card.wants.add(hook)
 
 
-def _tag_tribes(card: OwnedCard, text: str, tribes: Set[str]) -> None:
+def plural_forms(tribe: str, plurals: Dict[str, str]) -> str:
+    """Return a regex alternation of a creature type's singular and plural forms.
+
+    Args:
+        tribe: Creature type, for example "Elf".
+        plurals: Irregular plurals from the playbook, for example {"Elf": "Elves"}.
+
+    Returns:
+        A non-capturing group such as "(?:Elfs?|Elves)". Types that end in "f"
+        or "fe" and have no entry get the "ves" plural.
+    """
+    forms = [re.escape(tribe) + "s?"]
+    plural = plurals.get(tribe)
+    if plural is None and tribe.endswith("fe"):
+        plural = tribe[:-2] + "ves"
+    elif plural is None and tribe.endswith("f"):
+        plural = tribe[:-1] + "ves"
+    if plural:
+        forms.append(re.escape(plural))
+    return "(?:" + "|".join(forms) + ")"
+
+
+def _tag_tribes(card: OwnedCard, text: str, tribes: Set[str], playbook: Playbook) -> None:
     changeling = "Changeling" in card.keywords
     for tribe in tribes:
         hook = TRIBAL_PREFIX + tribe
-        if changeling or tribe in card.subtypes:
+        forms = plural_forms(tribe, playbook.tribal_plurals)
+        makes_tokens = _rx(_TRIBAL_TOKENS.format(T=forms))
+        if changeling or tribe in card.subtypes or makes_tokens.search(text):
             card.gives.add(hook)
-        if _rx(_TRIBAL_WANT.format(T=re.escape(tribe))).search(text):
+        if _rx(_TRIBAL_WANT.format(T=forms)).search(makes_tokens.sub("", text)):
             card.wants.add(hook)
 
 
@@ -148,7 +183,7 @@ def tag_cards(cards: List[OwnedCard], playbook: Playbook) -> None:
         card.gives = set()
         card.wants = set()
         _tag_hooks(card, text, playbook)
-        _tag_tribes(card, text, tribes)
+        _tag_tribes(card, text, tribes, playbook)
         card.quality = quality_prior(card.edhrec_rank)
 
 

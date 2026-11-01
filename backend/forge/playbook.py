@@ -6,7 +6,7 @@ backend/data/playbook.json and makes no network calls.
 """
 
 import json
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from functools import lru_cache
 from pathlib import Path
 from typing import Dict, List, Optional, Protocol, Tuple
@@ -73,6 +73,7 @@ class Playbook:
     playstyles: Dict[str, dict]
     weights: Dict[str, float]
     metric_weights: Dict[str, float]
+    tribal_plurals: Dict[str, str] = field(default_factory=dict)
 
     def quotas(self, fmt: FormatRules, playstyle: str) -> Dict[str, int]:
         """Return role quotas for a format and playstyle, scaled to deck size.
@@ -118,6 +119,7 @@ def _load(path: Path) -> Playbook:
         playstyles=data["playstyles"],
         weights=data["weights"],
         metric_weights=data["metric_weights"],
+        tribal_plurals=data.get("tribal_plurals", {}),
     )
 
 
