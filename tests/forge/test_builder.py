@@ -1,7 +1,8 @@
 from dataclasses import replace
 
 from backend.forge.builder import (
-    BuildPlan, BuiltDeck, DeckEntry, build_deck, copies_for, curve_bucket, land_target,
+    BuildPlan, BuiltDeck, DeckEntry, build_deck, copies_for, curve_bucket, fetch_colors,
+    land_colors, land_target,
 )
 from backend.forge.cards import hydrate
 from backend.forge.graph import Backbone, build_graph
@@ -82,27 +83,6 @@ def gw_records(bears=30):
 CORE_NAMES = {f"Sac Outlet {i}" for i in range(6)} | {f"Death Payoff {i}" for i in range(6)}
 
 
-def demand(deck):
-    pips = {}
-    cards = [(e.card, e.count) for e in deck.nonland_entries()]
-    if deck.commander is not None:
-        cards.append((deck.commander, 1))
-    for card, count in cards:
-        for color, n in card.pips.items():
-            pips[color] = pips.get(color, 0) + n * count
-    return pips
-
-
-def largest_remainder(total, weights):
-    whole = sum(weights.values())
-    shares = {c: total * w / whole for c, w in weights.items()}
-    split = {c: int(s) for c, s in shares.items()}
-    order = sorted(weights, key=lambda c: (-(shares[c] - split[c]), "WUBRG".index(c)))
-    for c in order[:total - sum(split.values())]:
-        split[c] += 1
-    return split
-
-
 def basics(deck):
     return {e.name: e.count for e in deck.entries if e.basic}
 
@@ -118,8 +98,9 @@ def test_no_tokens_offcolor_or_illegal_cards(playbook):
         creature("Gilded Rare", 900, DEATH_PAYOFF, colors=("G",), rank=1, rarity="rare",
                  legal=("commander", "modern", "standard")),
         land("Selesnya Grove", ("G", "W")),
-        land("Swamp Cave", ("B",)),
-        land("Wild Ground", ("G", "R"), colors=()),
+        land("Swamp Cave", ("B",)),  # off-color identity
+        land("Red Spring", ("R",), colors=()),  # colorless identity, makes only off-color mana
+        land("Gruul Path", ("G", "R")),  # makes G, but its identity has R
         basic("Forest", "G"),
     ]
     cards = tagged(playbook, "pauper", recs, [4] * len(recs))
@@ -136,7 +117,7 @@ def test_no_tokens_offcolor_or_illegal_cards(playbook):
 
     assert deck.total() == 60
     banned = {"lander", "bog awakening // bog ground", "gilded rare", "swamp cave",
-              "wild ground", "injected token", "injected illegal"}
+              "red spring", "gruul path", "injected token", "injected illegal"}
     assert not banned & deck.names()
     for entry in deck.entries:
         if entry.basic:
@@ -147,8 +128,8 @@ def test_no_tokens_offcolor_or_illegal_cards(playbook):
         assert card.legality in ("legal", "restricted")
         assert "Token" not in card.types and not card.is_basic
         assert card.color_identity <= frozenset("GW")
-        if card.is_land:
-            assert card.produced_mana <= frozenset("GWC")
+        if card.is_land:  # a source for a deck color, or a colorless utility land
+            assert land_colors(card, frozenset("GW")) or card.produced_mana <= {"C"}
     assert "selesnya grove" in deck.names()
 
 
@@ -218,24 +199,26 @@ def test_curve_bucket():
 
 
 def test_basics_floor_and_split_by_pips(playbook):
-    recs = [creature(f"Green Beast {i}", 600 + i, colors=("G",), pips=2) for i in range(12)]
-    recs += [spell(f"White Ward {i}", REMOVAL, colors=("W",), cmc=1) for i in range(4)]
+    # 38 nonland copies (avg mana value 70/38 = 1.84) fill the 38 slots of a 22-land deck.
+    # Pips: G = 8 cards x 4 copies x 2 = 64, W = 6 copies x 1 = 6.
+    recs = [creature(f"Green Beast {i}", 600 + i, colors=("G",), pips=2) for i in range(8)]
+    recs += [spell("White Ward A", REMOVAL, colors=("W",), cmc=1),
+             spell("White Ward B", REMOVAL, colors=("W",), cmc=1)]
     recs += [land(f"Grove {i}", ("G", "W")) for i in range(8)]
-    cards = tagged(playbook, "modern", recs, [4] * len(recs))
-    bone = backbone(cards, set(), "GW")
-    deck = build(playbook, "modern", cards, bone)
+    quantities = [4] * 8 + [4, 2] + [4] * 8
+    cards = tagged(playbook, "modern", recs, quantities)
+    deck = build(playbook, "modern", cards, backbone(cards, set(), "GW"))
 
     assert deck.total() == 60
-    split = basics(deck)
-    assert sum(split.values()) >= 6
-    nonbasic = sum(e.count for e in deck.entries if e.role == "land")
-    assert nonbasic <= deck.land_target - 6
-    assert split == {k: v for k, v in {
-        "Forest": largest_remainder(sum(split.values()), demand(deck))["G"],
-        "Plains": largest_remainder(sum(split.values()), demand(deck))["W"],
-    }.items() if v}
-    assert split["Forest"] > split["Plains"]
-    assert any(n.startswith(f"Add {sum(split.values())} basic lands: ") for n in deck.notes)
+    assert deck.land_target == 22
+    assert sum(e.count for e in deck.nonland_entries()) == 38
+    # Nonbasics stop at 22 - floor 6 = 16 (four Groves x 4).
+    assert sum(e.count for e in deck.entries if e.role == "land") == 16
+    # 6 basics: G share 6 * 64/70 = 5.49, W share 0.51. Floors 5 and 0; the
+    # last basic goes to the larger remainder (W 0.51 > G 0.49).
+    assert basics(deck) == {"Forest": 5, "Plains": 1}
+    assert "Add 6 basic lands: 1 Plains, 5 Forest" in deck.notes
+    assert deck.warnings == []  # G: 16 + 5 = 21 sources, W: 16 + 1 = 17
 
 
 def test_utility_land_limit(playbook):
@@ -328,3 +311,98 @@ def test_entry_shapes(playbook):
     for entry in deck.nonland_entries():
         assert not entry.basic and not entry.card.is_land
     assert deck.commander is None
+
+
+WILDS = ("{T}, Sacrifice this land: Search your library for a basic land card, put it onto "
+         "the battlefield tapped, then shuffle.")
+HEATH = ("{T}, Pay 1 life, Sacrifice this land: Search your library for a Forest or Plains "
+         "card, put it onto the battlefield, then shuffle.")
+
+
+def test_command_tower_qualifies_and_counts_for_both_colors(playbook):
+    tower = land("Command Tower", ("W", "U", "B", "R", "G"), colors=(),
+                 text="{T}: Add one mana of any color in your commander's color identity.")
+    recs = [creature(f"Green Beast {i}", 600 + i, colors=("G",)) for i in range(20)]
+    recs += [spell(f"White Ward {i}", REMOVAL, colors=("W",)) for i in range(20)]
+    cards = tagged(playbook, "modern", recs + [tower])
+    card = by_name(cards)["Command Tower"]
+    assert land_colors(card, frozenset("GW")) == frozenset("GW")
+    deck = build(playbook, "modern", cards, backbone(cards, set(), "GW"))
+    entry = [e for e in deck.entries if e.name == "Command Tower"]
+    assert entry and entry[0].role == "land" and entry[0].reason == "Makes W/G mana."
+
+
+def test_basic_fetch_is_a_source_and_not_utility(playbook):
+    recs = [creature(f"Green Beast {i}", 600 + i, colors=("G",)) for i in range(20)]
+    recs += [spell(f"White Ward {i}", REMOVAL, colors=("W",)) for i in range(20)]
+    recs += [land(f"Utility {i}", ("C",), text="{T}: Add {C}.", rank=1) for i in range(5)]
+    recs.append(land("Evolving Wilds", (), text=WILDS, rank=40000))
+    cards = tagged(playbook, "modern", recs, [4] * len(recs))
+    wilds = by_name(cards)["Evolving Wilds"]
+    assert fetch_colors(wilds, frozenset("GW")) == frozenset("GW")
+    assert land_colors(wilds, frozenset("GWU")) == frozenset("GWU")
+    deck = build(playbook, "modern", cards, backbone(cards, set(), "GW"))
+    counts = {e.name: e.count for e in deck.entries}
+    assert counts["Evolving Wilds"] == 4  # not held back by the utility limit of 2
+    assert sum(n for name, n in counts.items() if name.startswith("Utility")) == 2
+
+
+def test_named_type_fetch_counts_for_those_colors(playbook):
+    heath = land("Verdant Heath", (), text=HEATH)
+    cards = tagged(playbook, "modern", [heath])
+    assert land_colors(cards[0], frozenset("GWU")) == frozenset("GW")
+    assert land_colors(cards[0], frozenset("G")) == frozenset("G")
+
+    # 36 green creatures and 2 white spells fill the 38 slots of a 22-land deck.
+    recs = [creature(f"Green Beast {i}", 600 + i, colors=("G",), pips=2) for i in range(36)]
+    recs += [spell(f"White Ward {i}", REMOVAL, colors=("W",), cmc=1) for i in range(2)]
+    recs.append(heath)
+    cards = tagged(playbook, "modern", recs, [1] * 38 + [4])
+    deck = build(playbook, "modern", cards, backbone(cards, set(), "GW"))
+    # 18 basics split 72:2 → 18 Forest, 0 Plains. The 4 fetches are the only W sources.
+    assert basics(deck) == {"Forest": 18}
+    assert {e.name: e.count for e in deck.entries}["Verdant Heath"] == 4
+    assert "Only 4 white sources; 10 recommended." in deck.warnings
+    assert not any("green" in w for w in deck.warnings)  # 18 + 4 = 22 sources
+
+
+def test_duplicate_required_names_place_one_copy(playbook):
+    ring = make_record("Sol Ring", type_line="Artifact", mana_cost="{1}", cmc=1,
+                       color_identity=(), oracle_text="{T}: Add {C}{C}.")
+    captain = creature("Selesnya Captain", 999, colors=("G", "W"), cmc=4,
+                       type_line="Legendary Creature — Kind999")
+    cards = tagged(playbook, "commander", [captain, ring] + gw_records(), [3] * 58)
+    commander = by_name(cards)["Selesnya Captain"]
+    deck = build(playbook, "commander", cards, backbone(cards, CORE_NAMES, "GW", commander),
+                 commander=commander, required={"Sol Ring", "sol ring "})
+    assert sum(e.count for e in deck.entries if e.name == "Sol Ring") == 1
+    assert deck.total() == 100
+
+
+def test_required_cards_that_do_not_fit_warn(playbook):
+    recs = [creature(f"Big {i:02d}", 650 + i, colors=("G",)) for i in range(12)]
+    recs += [land(f"Utility {i}", ("C",), text="{T}: Add {C}.") for i in range(3)]
+    cards = tagged(playbook, "modern", recs, [4] * len(recs))
+    names = {f"Big {i:02d}" for i in range(12)} | {f"Utility {i}" for i in range(3)}
+    deck = build(playbook, "modern", cards, backbone(cards, set(), "G"), required=names)
+    # 12 x 4 copies do not fit in 38 slots: Big 00-08 fill 36, Big 09 gets 2, 10-11 none.
+    assert {e.name: e.count for e in deck.entries}["Big 09"] == 2
+    assert "Couldn't fit Big 10: no room left in the deck." in deck.warnings
+    assert "Couldn't fit Big 11: no room left in the deck." in deck.warnings
+    assert not any("Big 09" in w for w in deck.warnings)
+    # The utility limit is 2 copies: Utility 0 takes both, the others warn.
+    assert "Couldn't fit Utility 1: the utility land limit is full." in deck.warnings
+    assert "Couldn't fit Utility 2: the utility land limit is full." in deck.warnings
+    assert deck.total() == 60
+
+
+def test_commander_ignored_outside_commander_formats(playbook):
+    captain = creature("Selesnya Captain", 999, colors=("G", "W"), cmc=4,
+                       type_line="Legendary Creature — Kind999")
+    cards = tagged(playbook, "modern", [captain] + gw_records())
+    commander = by_name(cards)["Selesnya Captain"]
+    deck = build(playbook, "modern", cards, backbone(cards, CORE_NAMES, "GW"),
+                 commander=commander)
+    assert deck.commander is None
+    assert deck.total() == 60
+    assert sum(e.count for e in deck.entries) == 60

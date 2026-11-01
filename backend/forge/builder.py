@@ -6,6 +6,7 @@ Then builds the mana base from owned lands and basic lands. Basic lands are
 the one card the player is assumed to own. Makes no network calls.
 """
 
+import re
 from dataclasses import dataclass, field
 from typing import Dict, FrozenSet, List, Optional, Set, Tuple
 
@@ -24,6 +25,11 @@ SOURCE_RANKS = ("primary", "secondary")  # the third color and after are "splash
 PASSES = 3  # placement passes to settle the land target on the placed cards
 LEGAL = ("legal", "restricted")
 SHORTFALL = "Only {k} playable nonland cards fit; filled the rest with basic lands."
+NO_ROOM = "Couldn't fit {name}: no room left in the deck."
+_FETCH = re.compile(r"search your library for ([^.]*)", re.IGNORECASE)
+_BASIC_LAND = re.compile(r"\bbasic lands?\b", re.IGNORECASE)
+_BASIC_TYPE = re.compile(r"\b(Plains|Island|Swamp|Mountain|Forest)s?\b", re.IGNORECASE)
+_TYPE_COLOR = {name.lower(): color for color, name in BASIC_FOR_COLOR.items()}
 
 
 @dataclass
@@ -51,7 +57,7 @@ class DeckEntry:
 
 @dataclass
 class BuiltDeck:
-    """A built deck. The commander is plan.commander and is not in entries."""
+    """A built deck. The commander is not in entries (see the commander property)."""
 
     fmt: FormatRules
     plan: BuildPlan
@@ -64,8 +70,8 @@ class BuiltDeck:
 
     @property
     def commander(self) -> Optional[OwnedCard]:
-        """The commander card, or None."""
-        return self.plan.commander
+        """The effective commander: plan.commander in a commander format, else None."""
+        return self.plan.commander if self.fmt.commander else None
 
     def total(self) -> int:
         """Return the number of cards in the deck, the commander included."""
@@ -215,10 +221,13 @@ def _best(candidates: List[OwnedCard], state: _State) -> OwnedCard:
 
 
 def _place(card: OwnedCard, role: str, reason: str, state: _State) -> None:
+    """Place as many copies as fit. A card is consumed even when no copy fits."""
+    if card.id in state.counts:
+        return
     count = min(copies_for(card, state.fmt), state.slots - state.filled)
+    state.counts[card.id] = max(0, count)
     if count <= 0:
         return
-    state.counts[card.id] = count
     state.filled += count
     bucket = curve_bucket(card.cmc)
     state.buckets[bucket] = state.buckets.get(bucket, 0) + count
@@ -307,46 +316,96 @@ def _split_basics(total: int, colors: FrozenSet[str], demand: Dict[str, int]) ->
     return {BASIC_FOR_COLOR[c]: n for c, n in split.items() if n > 0}
 
 
+def fetch_colors(card: OwnedCard, colors: FrozenSet[str]) -> FrozenSet[str]:
+    """Return the deck colors a land can fetch from the library.
+
+    Args:
+        card: Land card. Its oracle text is read.
+        colors: Deck colors.
+
+    Returns:
+        All deck colors when the land searches for a basic land card; the
+        colors of the named basic land types ("a Forest or Plains card");
+        else an empty set.
+    """
+    found = set()  # type: Set[str]
+    for clause in _FETCH.findall(card.oracle_text or ""):
+        if _BASIC_LAND.search(clause):
+            return frozenset(colors)
+        found.update(_TYPE_COLOR[name.lower()] for name in _BASIC_TYPE.findall(clause))
+    return frozenset(found) & colors
+
+
+def land_colors(card: OwnedCard, colors: FrozenSet[str]) -> FrozenSet[str]:
+    """Return the deck colors a land is a source for: the colors it makes or fetches.
+
+    Args:
+        card: Land card.
+        colors: Deck colors.
+
+    Returns:
+        (produced_mana & colors) | fetch_colors(card, colors).
+    """
+    return (frozenset(card.produced_mana) & colors) | fetch_colors(card, colors)
+
+
+def _is_utility(card: OwnedCard, colors: FrozenSet[str]) -> bool:
+    """A utility land is a source for no deck color and makes at most colorless mana."""
+    return not land_colors(card, colors) and card.produced_mana <= {"C"}
+
+
 def _mana_base(lands: List[OwnedCard], colors: FrozenSet[str], demand: Dict[str, int],
                fmt: FormatRules, target: int, land_slots: int,
-               required: Set[str]) -> Tuple[List[DeckEntry], List[str], List[str]]:
+               required: List[OwnedCard]) -> Tuple[List[DeckEntry], List[str], List[str]]:
     """Choose nonbasic lands and basic lands, then check color sources.
 
     Args:
-        lands: Playable owned lands (in the deck colors, legal, not basic).
+        lands: Playable owned lands (identity in the deck colors, legal, not basic).
         colors: Deck colors.
         demand: Pip demand per color of the placed nonland cards.
         fmt: Format rules (utility limit, color sources, copies).
         target: Land target. Nonbasics take at most target - basics floor.
         land_slots: Number of land cards to place (more than target on a shortfall).
-        required: Lowercase names of required cards. Required lands go first.
+        required: Required land cards. They go first.
 
     Returns:
-        (land entries, warnings, notes).
+        (land entries, warnings, notes). A land qualifies when it is a source
+        for a deck color, or when it is a utility land (at most
+        fmt.utility_land_limit copies).
     """
     floor = len(colors) * (4 if fmt.deck_size >= 80 else 3)
     cap = max(0, min(target, land_slots) - floor)
-    allowed = colors | {"C"}
-    colored = [l for l in lands if l.produced_mana & colors and l.produced_mana <= allowed]
-    utility = [l for l in lands if not l.produced_mana & colors and l.produced_mana <= {"C"}]
-    ranked = sorted(colored + utility,
-                    key=lambda l: (l.name.lower() not in required,
-                                   -len(l.produced_mana & colors), -l.quality, l.name))
+    required_ids = {card.id for card in required}
+    warnings = []  # type: List[str]
+    qualified = [l for l in lands if land_colors(l, colors) or _is_utility(l, colors)]
+    qualified_ids = {card.id for card in qualified}
+    for card in required:
+        if card.id not in qualified_ids:
+            warnings.append(f"Couldn't fit {card.name}: it makes no mana of the deck colors.")
+    ranked = sorted(qualified,
+                    key=lambda l: (l.id not in required_ids,
+                                   -len(land_colors(l, colors)), -l.quality, l.name))
     entries = []  # type: List[DeckEntry]
     taken = utility_taken = 0
     for card in ranked:
-        is_utility = not card.produced_mana & colors
+        is_utility = _is_utility(card, colors)
         count = min(copies_for(card, fmt), cap - taken)
         if is_utility:
             count = min(count, fmt.utility_land_limit - utility_taken)
         if count <= 0:
+            if card.id in required_ids:
+                why = ("the utility land limit is full" if is_utility and cap > taken
+                       else "no room left for nonbasic lands")
+                warnings.append(f"Couldn't fit {card.name}: {why}.")
             continue
         taken += count
         if is_utility:
             utility_taken += count
             reason = "Utility land."
         else:
-            reason = "Makes " + "/".join(_ordered(card.produced_mana & colors)) + " mana."
+            made = "/".join(_ordered(land_colors(card, colors)))
+            verb = "Makes" if card.produced_mana & colors else "Fetches"
+            reason = f"{verb} {made} mana."
         entries.append(DeckEntry(card=card, name=card.name, count=count, role="land",
                                  reason=reason))
     split = _split_basics(land_slots - taken, colors, demand)
@@ -359,15 +418,19 @@ def _mana_base(lands: List[OwnedCard], colors: FrozenSet[str], demand: Dict[str,
     if split:
         notes.append(f"Add {sum(split.values())} basic lands: "
                      + ", ".join(f"{n} {name}" for name, n in split.items()))
-    return entries, _source_warnings(entries, demand, fmt), notes
+    return entries, warnings + _source_warnings(entries, demand, fmt, colors), notes
 
 
 def _source_warnings(entries: List[DeckEntry], demand: Dict[str, int],
-                     fmt: FormatRules) -> List[str]:
-    """Warn for each demanded color with fewer sources than fmt.color_sources."""
+                     fmt: FormatRules, colors: FrozenSet[str]) -> List[str]:
+    """Warn for each demanded color with fewer sources than fmt.color_sources.
+
+    A nonbasic land is a source for each deck color in land_colors; a basic
+    land for its own color.
+    """
     sources = {}  # type: Dict[str, int]
     for entry in entries:
-        made = entry.card.produced_mana if entry.card is not None else {
+        made = land_colors(entry.card, colors) if entry.card is not None else {
             c for c, n in BASIC_FOR_COLOR.items() if n == entry.name}
         for color in made:
             sources[color] = sources.get(color, 0) + entry.count
@@ -401,13 +464,15 @@ def _resolve_required(plan: BuildPlan, pool: List[OwnedCard],
     by_name = {card.name.lower(): card for card in pool}
     known = {card.name.lower(): card for card in all_cards}
     commander = plan.commander.name.lower() if plan.commander else None
-    found, warnings = [], []
+    found, seen, warnings = [], set(), []  # type: List[OwnedCard], Set[str], List[str]
     for name in sorted(plan.required, key=str.lower):
         key = name.strip().lower()
         if key == commander or (key in known and known[key].is_basic):
             continue
         if key in by_name:
-            found.append(by_name[key])
+            if by_name[key].id not in seen:  # "Sol Ring" and "sol ring " are one card
+                seen.add(by_name[key].id)
+                found.append(by_name[key])
         else:
             warnings.append(f"{name.strip()} is not an owned, legal card in the deck colors; "
                             "left it out.")
@@ -466,12 +531,14 @@ def build_deck(cards: List[OwnedCard], graph: SynergyGraph, playbook: Playbook,
 
     if state.filled < state.slots:
         warnings.append(SHORTFALL.format(k=state.filled))
+    warnings += [NO_ROOM.format(name=c.name) for c in required_nonland
+                 if not state.counts.get(c.id)]
     placed = [(p.card, p.count) for p in state.picks]
     demand = _pip_demand(placed + ([(commander, 1)] if commander else []), colors)
     land_slots = fmt.deck_size - reserved - state.filled
     land_entries, source_warnings, notes = _mana_base(
         lands, colors, demand, fmt, target, land_slots,
-        {n.strip().lower() for n in plan.required})
+        [c for c in required if c.is_land])
     warnings += source_warnings
 
     entries = [DeckEntry(card=p.card, name=p.card.name, count=p.count, role=p.role,
