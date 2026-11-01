@@ -1,6 +1,5 @@
 from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional, List, Dict, Any
-from datetime import datetime
 
 
 class CacheStatus(BaseModel):
@@ -66,31 +65,3 @@ class ProcessResult(BaseModel):
     error_count: int = 0
     errors: List[Dict[str, Any]] = Field(default_factory=list)
     output_file: Optional[str] = None
-
-
-class ProgressEvent(BaseModel):
-    """Progress update event for SSE."""
-    model_config = ConfigDict(
-        json_schema_extra={
-            "example": {
-                "event": "progress",
-                "data": {
-                    "current": 450,
-                    "total": 851,
-                    "percentage": 52.9,
-                    "current_card": "Lightning Bolt"
-                }
-            }
-        }
-    )
-
-    event: str  # "progress", "complete", "error"
-    data: Dict[str, Any]
-
-
-class JobInfo(BaseModel):
-    """Processing job information."""
-    job_id: str
-    status: str
-    timestamp: str
-    filename: Optional[str] = None

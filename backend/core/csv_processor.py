@@ -87,14 +87,16 @@ class CSVProcessor:
         if "Type Line" not in headers:
             headers.append("Type Line")
 
+        # Read every row first so progress reports know the real total
+        rows = list(reader)
+        total_rows = len(rows)
+
         # Process rows
         enriched_rows = []
         errors = []
-        total_rows = 0
         success_count = 0
 
-        for row_num, row in enumerate(reader, start=1):
-            total_rows += 1
+        for row_num, row in enumerate(rows, start=1):
             scryfall_id = row.get("Scryfall ID", "").strip()
             card_name = row.get("Name", "Unknown")
 

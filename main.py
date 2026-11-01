@@ -8,8 +8,9 @@ from pathlib import Path
 
 # Create FastAPI app
 app = FastAPI(
-    title="Scryfall Collection Enhancer",
-    description="Enrich ManaBox MTG collection exports with Scryfall data",
+    title="Grimoire",
+    description="Offline MTG companion: enrich ManaBox exports with Scryfall data, "
+                "browse your collection, and forge decks from cards you own",
     version="1.0.0"
 )
 
@@ -45,9 +46,10 @@ def run():
     threading.Thread(target=open_browser, daemon=True).start()
 
     # Start server
+    # Bind to loopback only: the API has no auth and can delete local data
     uvicorn.run(
         app,
-        host="0.0.0.0",
+        host="127.0.0.1",
         port=8133,
         log_level="info"
     )

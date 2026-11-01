@@ -1,40 +1,31 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <!-- Background circle -->
-  <circle cx="50" cy="50" r="48" fill="#1a1f2e" stroke="#a855f7" stroke-width="3"/>
-
-  <!-- Inner glow -->
-  <circle cx="50" cy="50" r="42" fill="none" stroke="#7c3aed" stroke-width="1" opacity="0.5"/>
-
-  <!-- Stylized mana symbol / pentagram -->
-  <g transform="translate(50, 50)">
-    <!-- Five points for colors of magic -->
-    <!-- White (top) -->
-    <circle cx="0" cy="-28" r="6" fill="#f9fafb" stroke="#e5e7eb" stroke-width="1.5"/>
-
-    <!-- Blue (top right) -->
-    <circle cx="26.6" cy="-8.7" r="6" fill="#3b82f6" stroke="#2563eb" stroke-width="1.5"/>
-
-    <!-- Black (bottom right) -->
-    <circle cx="16.5" cy="23.5" r="6" fill="#1f2937" stroke="#111827" stroke-width="1.5"/>
-
-    <!-- Red (bottom left) -->
-    <circle cx="-16.5" cy="23.5" r="6" fill="#ef4444" stroke="#dc2626" stroke-width="1.5"/>
-
-    <!-- Green (top left) -->
-    <circle cx="-26.6" cy="-8.7" r="6" fill="#10b981" stroke="#059669" stroke-width="1.5"/>
-
-    <!-- Connecting lines (pentagram) -->
-    <path d="M 0,-28 L 16.5,23.5 M 16.5,23.5 L -26.6,-8.7 M -26.6,-8.7 L 26.6,-8.7 M 26.6,-8.7 L -16.5,23.5 M -16.5,23.5 L 0,-28"
-          stroke="#a855f7"
-          stroke-width="2"
-          fill="none"
-          opacity="0.6"/>
-
-    <!-- Center sparkle -->
-    <circle cx="0" cy="0" r="4" fill="#a855f7"/>
-    <circle cx="0" cy="0" r="2" fill="#fbbf24"/>
-  </g>
-
-  <!-- Outer ring detail -->
-  <circle cx="50" cy="50" r="46" fill="none" stroke="#6366f1" stroke-width="0.5" opacity="0.3"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="cover" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#323b6e"/>
+      <stop offset="1" stop-color="#181d38"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#c3cdff"/>
+      <stop offset="1" stop-color="#94a8ff"/>
+    </linearGradient>
+  </defs>
+  <!-- page block peeking out -->
+  <rect x="17" y="11" width="37" height="45" rx="5" fill="#e9ecf8"/>
+  <rect x="17" y="11" width="37" height="45" rx="5" fill="none" stroke="#9aa3c2" stroke-width="0.6"/>
+  <!-- front cover -->
+  <rect x="12" y="8" width="40" height="46" rx="5" fill="url(#cover)" stroke="url(#gold)" stroke-width="1.6"/>
+  <!-- spine -->
+  <path d="M12 13 a5 5 0 0 1 5-5 h4 v46 h-4 a5 5 0 0 1-5-5 z" fill="#11152a" stroke="url(#gold)" stroke-width="1"/>
+  <line x1="13.5" y1="19" x2="20" y2="19" stroke="#94a8ff" stroke-width="1.3" stroke-linecap="round"/>
+  <line x1="13.5" y1="43" x2="20" y2="43" stroke="#94a8ff" stroke-width="1.3" stroke-linecap="round"/>
+  <!-- crescent moon emblem -->
+  <circle cx="36" cy="30" r="9" fill="url(#gold)"/>
+  <circle cx="39.5" cy="27.5" r="8" fill="#232a52"/>
+  <!-- sparkles -->
+  <path d="M45 14 l1.1 2.6 2.6 1.1 -2.6 1.1 -1.1 2.6 -1.1 -2.6 -2.6 -1.1 2.6 -1.1 z" fill="#e9ecf8"/>
+  <circle cx="27" cy="45" r="1.4" fill="#94a8ff"/>
+  <circle cx="44" cy="42" r="1" fill="#e9ecf8"/>
+  <!-- clasp -->
+  <rect x="47" y="27" width="7" height="9" rx="2.5" fill="url(#gold)"/>
+  <circle cx="50.5" cy="31.5" r="1.3" fill="#181d38"/>
 </svg>

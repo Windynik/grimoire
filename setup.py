@@ -4,10 +4,10 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(
-    name="scryfall-enhancer",
+    name="grimoire-mtg",
     version="1.0.0",
-    author="Your Name",
-    description="Enrich ManaBox MTG collection exports with Scryfall data",
+    author="Nikhil Prem",
+    description="Offline MTG companion: collection enrichment, viewer, and deck forge",
     long_description=long_description,
     long_description_content_type="text/markdown",
     packages=find_packages(),
@@ -30,7 +30,7 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "scryfall-enhancer=main:run",
+            "grimoire=main:run",
         ],
     },
     include_package_data=True,

@@ -5,7 +5,7 @@ Update ManaBox collection CSV with mana value and oracle text from Scryfall API.
 
 import csv
 import time
-import requests
+import httpx
 from typing import Dict, Optional
 import sys
 
@@ -23,7 +23,7 @@ def fetch_card_data(scryfall_id: str) -> Optional[Dict]:
     url = f"https://api.scryfall.com/cards/{scryfall_id}"
     
     try:
-        response = requests.get(url)
+        response = httpx.get(url, timeout=30.0)
         response.raise_for_status()
         data = response.json()
         
@@ -32,7 +32,7 @@ def fetch_card_data(scryfall_id: str) -> Optional[Dict]:
             'oracle_text': data.get('oracle_text', ''),
             'type_line': data.get('type_line', '')
         }
-    except requests.exceptions.RequestException as e:
+    except httpx.HTTPError as e:
         print(f"Error fetching card {scryfall_id}: {e}")
         return None
 

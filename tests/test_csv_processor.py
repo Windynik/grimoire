@@ -155,6 +155,8 @@ async def test_process_csv_progress_callback(mock_bulk_data, tmp_path):
     assert len(progress_updates) > 0
     assert all("current" in update for update in progress_updates)
     assert progress_updates[0]["current"] == 10  # First callback at row 10
+    # Every update reports the real total, not the rows read so far
+    assert all(update["total"] == 20 for update in progress_updates)
 
 
 @pytest.mark.asyncio

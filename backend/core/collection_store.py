@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
 from pathlib import Path
 import json
@@ -10,13 +11,15 @@ class CollectionStore:
         self.storage_dir = Path(storage_dir)
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 
-    def store_collection(self, job_id: str, cards: List[Dict], bulk_data: Dict):
+    def store_collection(self, job_id: str, cards: List[Dict], bulk_data: Dict,
+                         source_name: str = ""):
         """Store collection with card images for viewing.
 
         Args:
             job_id: Job identifier
             cards: List of processed card data
             bulk_data: Full bulk data for image URLs
+            source_name: Original CSV filename, used as the collection's display name
         """
         collection_data = []
 
@@ -36,6 +39,7 @@ class CollectionStore:
                     "oracle_text": card_info.get("oracle_text", ""),
                     "type_line": card_info.get("type_line", ""),
                     "image_url": card_info.get("image_url", ""),
+                    "back_image_url": card_info.get("back_image_url", ""),
                     "quantity": card.get("Quantity", 1),
                     "set": card.get("Set code", ""),
                     "rarity": card.get("Rarity", ""),
@@ -44,10 +48,20 @@ class CollectionStore:
                     "prices": prices
                 })
 
-        # Save to file
+        # Save to file with metadata so collections are remembered by name
+        name = source_name.rsplit(".", 1)[0].replace("_", " ").strip() if source_name else ""
+        payload = {
+            "meta": {
+                "job_id": job_id,
+                "name": name or f"Collection {job_id[:8]}",
+                "created": datetime.now(timezone.utc).isoformat(),
+                "card_count": len(collection_data),
+            },
+            "cards": collection_data,
+        }
         collection_file = self.storage_dir / f"{job_id}.json"
         with open(collection_file, 'w', encoding='utf-8') as f:
-            json.dump(collection_data, f, indent=2)
+            json.dump(payload, f, indent=2)
 
     def get_collection(self, job_id: str) -> Optional[List[Dict]]:
         """Retrieve stored collection data.
@@ -64,24 +78,45 @@ class CollectionStore:
             return None
 
         with open(collection_file, 'r', encoding='utf-8') as f:
-            return json.load(f)
+            data = json.load(f)
 
-    def search_collection(self, job_id: str, query: str) -> List[Dict]:
-        """Search collection by card name.
+        # Legacy files are a bare list; current format wraps cards with meta
+        if isinstance(data, dict):
+            return data.get("cards", [])
+        return data
 
-        Args:
-            job_id: Job identifier
-            query: Search query
+    def delete_collection(self, job_id: str) -> bool:
+        """Delete a stored collection. Returns True if it existed."""
+        collection_file = self.storage_dir / f"{job_id}.json"
+        if not collection_file.exists():
+            return False
+        collection_file.unlink()
+        return True
 
-        Returns:
-            Filtered list of cards
-        """
-        collection = self.get_collection(job_id)
-        if not collection:
-            return []
+    def list_collections(self) -> List[Dict]:
+        """All stored collections' metadata, newest first."""
+        collections = []
+        for path in self.storage_dir.glob("*.json"):
+            try:
+                with open(path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+            except Exception:
+                continue
 
-        query_lower = query.lower()
-        return [
-            card for card in collection
-            if query_lower in card.get("name", "").lower()
-        ]
+            if isinstance(data, dict):
+                meta = data.get("meta", {})
+            else:
+                # Legacy list format: synthesize metadata
+                meta = {
+                    "job_id": path.stem,
+                    "name": f"Collection {path.stem[:8]}",
+                    "created": datetime.fromtimestamp(
+                        path.stat().st_mtime, timezone.utc
+                    ).isoformat(),
+                    "card_count": len(data),
+                }
+            if meta.get("job_id"):
+                collections.append(meta)
+
+        collections.sort(key=lambda m: m.get("created", ""), reverse=True)
+        return collections

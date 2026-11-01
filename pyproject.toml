@@ -3,8 +3,15 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "scryfall-enhancer"
+name = "grimoire-mtg"
 version = "1.0.0"
-description = "Enrich ManaBox MTG collection exports with Scryfall data"
+description = "Offline MTG companion: collection enrichment, viewer, and deck forge"
 requires-python = ">=3.9"
 dynamic = ["readme", "authors", "classifiers", "dependencies"]
+
+[tool.pytest.ini_options]
+asyncio_default_fixture_loop_scope = "function"
+filterwarnings = [
+    # Raised inside Starlette's form parser, not our code
+    "ignore:Please use `import python_multipart` instead:PendingDeprecationWarning",
+]

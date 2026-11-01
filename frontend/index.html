@@ -3,27 +3,53 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scryfall Collection Enhancer</title>
+    <title>Grimoire — Offline MTG Companion</title>
+    <meta name="description" content="Your offline MTG spellbook: enrich ManaBox exports with Scryfall data, browse your collection, and forge decks from cards you own">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Marcellus&family=Figtree:ital,wght@0,400;0,600;0,700;0,800;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
+    <!-- Atmospheric background layers -->
+    <div class="atmosphere" aria-hidden="true">
+        <div class="glow glow-u"></div>
+        <div class="glow glow-r"></div>
+        <div class="glow glow-g"></div>
+        <div class="grain"></div>
+    </div>
+
     <div class="app">
         <!-- Header -->
         <header class="header">
-            <div class="container">
-                <h1 class="logo">⚡ Scryfall Collection Enhancer</h1>
-                <p class="tagline">Enrich your ManaBox exports with Scryfall data</p>
+            <div class="container header-inner">
+                <div class="sigil">
+                    <button class="pip pip-w" data-color="W" title="Browse white cards" aria-label="Browse white cards"></button>
+                    <button class="pip pip-u" data-color="U" title="Browse blue cards" aria-label="Browse blue cards"></button>
+                    <button class="pip pip-b" data-color="B" title="Browse black cards" aria-label="Browse black cards"></button>
+                    <button class="pip pip-r" data-color="R" title="Browse red cards" aria-label="Browse red cards"></button>
+                    <button class="pip pip-g" data-color="G" title="Browse green cards" aria-label="Browse green cards"></button>
+                </div>
+                <button class="orb" id="header-orb" aria-label="Consult the orb of fortune" title="psst… give me a tap">
+                    <span class="orb-glass">
+                        <span class="orb-swirl"></span>
+                        <span class="orb-glint"></span>
+                    </span>
+                </button>
+                <h1 class="logo">Grimoire <em>Offline MTG Companion</em></h1>
+                <p class="tagline">Your collection, your decks, your spellbook — no internet required</p>
             </div>
+            <div class="mana-strip" aria-hidden="true"></div>
         </header>
 
         <!-- Navigation -->
-        <nav class="nav">
-            <div class="container" role="tablist">
+        <nav class="nav" aria-label="Main">
+            <div class="container nav-inner" role="tablist">
                 <button class="nav-item active" data-view="dashboard" role="tab" aria-selected="true">Dashboard</button>
-                <button class="nav-item" data-view="cache" role="tab" aria-selected="false">Cache Management</button>
                 <button class="nav-item" data-view="process" role="tab" aria-selected="false">Process CSV</button>
                 <button class="nav-item" data-view="viewer" role="tab" aria-selected="false">Viewer</button>
+                <button class="nav-item" data-view="forge" role="tab" aria-selected="false">Deck Forge</button>
                 <button class="nav-item" data-view="settings" role="tab" aria-selected="false">Settings</button>
             </div>
         </nav>
@@ -33,40 +59,29 @@
             <div class="container">
                 <!-- Dashboard View -->
                 <div id="dashboard-view" class="view active">
-                    <div class="card">
-                        <h2>Cache Status</h2>
-                        <div id="cache-status-dashboard">
-                            <div class="status-indicator" id="status-indicator">
-                                <span class="status-dot"></span>
-                                <span class="status-text">Checking...</span>
-                            </div>
-                            <div class="stats">
-                                <div class="stat">
-                                    <span class="stat-label">Cards Available</span>
-                                    <span class="stat-value" id="card-count">-</span>
-                                </div>
-                                <div class="stat">
-                                    <span class="stat-label">Last Updated</span>
-                                    <span class="stat-value" id="last-updated">-</span>
-                                </div>
-                            </div>
+                    <section class="card">
+                        <h2>The Archive</h2>
+                        <div class="status-indicator" id="status-indicator">
+                            <span class="status-dot"></span>
+                            <span class="status-text">Checking&hellip;</span>
                         </div>
-                        <div class="actions">
-                            <button id="quick-download" class="btn btn-primary">Download Cache</button>
-                            <button id="quick-process" class="btn btn-secondary" disabled>Process CSV</button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Cache Management View -->
-                <div id="cache-view" class="view">
-                    <div class="card">
-                        <h2>Bulk Data Management</h2>
-                        <div id="cache-details">
-                            <p>Loading cache information...</p>
+                        <div class="stats">
+                            <div class="stat">
+                                <span class="stat-label">Cards Available</span>
+                                <span class="stat-value" id="card-count">&mdash;</span>
+                            </div>
+                            <div class="stat">
+                                <span class="stat-label">Archive Size</span>
+                                <span class="stat-value" id="cache-size">&mdash;</span>
+                            </div>
+                            <div class="stat">
+                                <span class="stat-label">Last Updated</span>
+                                <span class="stat-value" id="last-updated">&mdash;</span>
+                            </div>
                         </div>
                         <div class="actions">
                             <button id="download-cache" class="btn btn-primary">Download Bulk Data</button>
+                            <button id="quick-process" class="btn btn-secondary" disabled>Process CSV</button>
                             <button id="clear-cache" class="btn btn-danger">Clear Cache</button>
                         </div>
                         <div id="download-progress" class="progress-container" style="display: none;">
@@ -75,20 +90,30 @@
                             </div>
                             <p class="progress-text" id="download-progress-text">0%</p>
                         </div>
-                    </div>
+                    </section>
+
+                    <section class="card">
+                        <h2>Your Collections</h2>
+                        <div id="dashboard-collections">
+                            <p class="settings-note">No collections yet — process a ManaBox CSV to add one.</p>
+                        </div>
+                    </section>
                 </div>
 
                 <!-- Process CSV View -->
                 <div id="process-view" class="view">
-                    <div class="card">
+                    <section class="card">
                         <h2>Process Collection CSV</h2>
 
                         <!-- Upload Zone -->
-                        <div id="upload-zone" class="upload-zone">
+                        <div id="upload-zone" class="upload-zone" tabindex="0" role="button" aria-label="Upload CSV file">
                             <input type="file" id="file-input" accept=".csv" aria-label="Choose CSV file to process" hidden>
                             <div class="upload-content">
-                                <span class="upload-icon">📂</span>
-                                <p>Drag and drop your CSV file here</p>
+                                <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                                    <path d="M12 16V4m0 0l-4 4m4-4l4 4" stroke-linecap="round" stroke-linejoin="round"/>
+                                    <path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke-linecap="round"/>
+                                </svg>
+                                <p class="upload-title">Drop your ManaBox CSV here</p>
                                 <p class="upload-hint">or click to browse</p>
                             </div>
                         </div>
@@ -101,76 +126,252 @@
                                 </div>
                                 <p class="progress-text" id="process-progress-text">0%</p>
                             </div>
-                            <div class="processing-info">
-                                <p><strong>Current:</strong> <span id="current-card">-</span></p>
-                                <p><strong>Progress:</strong> <span id="card-counter">0 / 0</span></p>
-                                <p><strong>Errors:</strong> <span id="error-count">0</span></p>
-                            </div>
+                            <dl class="processing-info">
+                                <div><dt>Current</dt><dd id="current-card">&mdash;</dd></div>
+                                <div><dt>Progress</dt><dd id="card-counter">0 / 0</dd></div>
+                                <div><dt>Errors</dt><dd id="error-count">0</dd></div>
+                            </dl>
                         </div>
 
                         <!-- Results -->
                         <div id="results-display" style="display: none;">
                             <div class="results-success">
-                                <h3>✓ Processing Complete!</h3>
-                                <p><strong>Total Processed:</strong> <span id="total-processed">0</span></p>
-                                <p><strong>Successful:</strong> <span id="success-count">0</span></p>
-                                <p><strong>Errors:</strong> <span id="final-error-count">0</span></p>
+                                <h3>Processing Complete</h3>
+                                <dl class="results-stats">
+                                    <div><dt>Total Processed</dt><dd id="total-processed">0</dd></div>
+                                    <div><dt>Successful</dt><dd id="success-count">0</dd></div>
+                                    <div><dt>Errors</dt><dd id="final-error-count">0</dd></div>
+                                </dl>
                             </div>
                             <div class="actions">
                                 <button id="download-result" class="btn btn-primary">Download Enhanced CSV</button>
                                 <button id="process-another" class="btn btn-secondary">Process Another</button>
                             </div>
                         </div>
-                    </div>
+                    </section>
                 </div>
 
                 <!-- Collection Viewer View -->
                 <div id="viewer-view" class="view">
-                    <div class="card">
+                    <section class="card">
                         <h2>Collection Viewer</h2>
 
-                        <!-- Search -->
                         <div class="viewer-controls">
-                            <input type="text" id="viewer-search" class="search-input" placeholder="Search cards...">
-                            <div class="view-toggle">
-                                <button class="toggle-btn active" data-mode="grid">Grid</button>
-                                <button class="toggle-btn" data-mode="list">List</button>
+                            <select id="viewer-source" class="filter-select" aria-label="Card source">
+                                <option value="">All Cards (Archive)</option>
+                            </select>
+                            <input type="search" id="viewer-search" class="search-input" placeholder="Search cards by name&hellip;" aria-label="Search cards">
+                            <select id="viewer-sort" class="sort-select" aria-label="Sort cards">
+                                <option value="">Sort: Default</option>
+                                <option value="name">Sort: Name A&ndash;Z</option>
+                                <option value="price">Sort: Price &darr; High</option>
+                                <option value="price_asc">Sort: Price &uarr; Low</option>
+                            </select>
+                            <button id="viewer-shuffle" class="btn btn-secondary btn-compact" title="Show a random hand of cards">Shuffle</button>
+                            <div class="view-toggle" role="group" aria-label="Display mode">
+                                <button class="toggle-btn active" data-mode="grid" aria-pressed="true">Grid</button>
+                                <button class="toggle-btn" data-mode="list" aria-pressed="false">List</button>
                             </div>
                         </div>
 
-                        <!-- Grid View -->
-                        <div id="card-grid" class="card-grid"></div>
+                        <div class="viewer-filters" role="group" aria-label="Filters">
+                            <select id="filter-type" class="filter-select" aria-label="Filter by card type">
+                                <option value="">Type: Any</option>
+                                <option value="creature">Creature</option>
+                                <option value="instant">Instant</option>
+                                <option value="sorcery">Sorcery</option>
+                                <option value="artifact">Artifact</option>
+                                <option value="enchantment">Enchantment</option>
+                                <option value="planeswalker">Planeswalker</option>
+                                <option value="land">Land</option>
+                            </select>
+                            <select id="filter-color" class="filter-select" aria-label="Filter by color">
+                                <option value="">Color: Any</option>
+                                <option value="W">White</option>
+                                <option value="U">Blue</option>
+                                <option value="B">Black</option>
+                                <option value="R">Red</option>
+                                <option value="G">Green</option>
+                                <option value="C">Colorless</option>
+                            </select>
+                            <select id="filter-rarity" class="filter-select" aria-label="Filter by rarity">
+                                <option value="">Rarity: Any</option>
+                                <option value="common">Common</option>
+                                <option value="uncommon">Uncommon</option>
+                                <option value="rare">Rare</option>
+                                <option value="mythic">Mythic</option>
+                            </select>
+                            <select id="filter-foil" class="filter-select" aria-label="Filter by foil" hidden>
+                                <option value="">Foil: Any</option>
+                                <option value="foil">Foil only</option>
+                                <option value="normal">Non-foil</option>
+                            </select>
+                            <button id="filter-clear" class="btn btn-secondary btn-compact" hidden>Clear Filters</button>
+                        </div>
 
-                        <!-- List View -->
-                        <div id="card-list" class="card-list" style="display: none;"></div>
-                    </div>
+                        <p class="viewer-context" id="viewer-context"></p>
+
+                        <div id="card-grid" class="card-grid" aria-live="polite"></div>
+                        <div id="card-list" class="card-list" style="display: none;" aria-live="polite"></div>
+
+                        <div id="scroll-sentinel" class="scroll-sentinel" aria-hidden="true">
+                            <span class="loading-rune"></span>
+                        </div>
+                    </section>
+                </div>
+
+                <!-- Deck Forge View -->
+                <div id="forge-view" class="view">
+                    <section class="card">
+                        <h2>Deck Forge</h2>
+                        <p class="settings-note"><strong>Forge Deck</strong> builds instantly from the rules engine — no AI needed. With a local model running (via Ollama), <strong>Let the AI Forge</strong> hands your collection to the model and lets it <em>write the decklist itself</em>, card by card.</p>
+
+                        <div class="forge-controls">
+                            <select id="forge-collection" class="filter-select" aria-label="Collection to forge from"></select>
+                            <select id="forge-format" class="filter-select" aria-label="Deck format">
+                                <option value="commander">Commander (100)</option>
+                                <option value="brawl">Brawl (60)</option>
+                                <option value="sixty">Casual 60</option>
+                                <option value="pauper">Pauper (commons only)</option>
+                                <option value="custom">Custom&hellip;</option>
+                            </select>
+                            <select id="forge-commander" class="filter-select" aria-label="Commander">
+                                <option value="">Commander: Auto-pick</option>
+                            </select>
+                            <button id="forge-build" class="btn btn-primary">Forge Deck</button>
+                            <button class="ai-status" id="ai-status" title="Local AI via Ollama — click for details" aria-expanded="false">
+                                <span class="ai-dot"></span>
+                                <span id="ai-status-text">Checking local AI&hellip;</span>
+                            </button>
+                        </div>
+
+                        <!-- Custom format knobs -->
+                        <div id="custom-panel" class="custom-panel" hidden>
+                            <label class="custom-field">
+                                <span>Deck size</span>
+                                <input type="number" id="custom-size" min="40" max="250" value="60">
+                            </label>
+                            <label class="custom-field">
+                                <span>Max copies</span>
+                                <select id="custom-copies" class="filter-select">
+                                    <option value="4">4</option>
+                                    <option value="3">3</option>
+                                    <option value="2">2</option>
+                                    <option value="1">1 (singleton)</option>
+                                </select>
+                            </label>
+                            <div class="custom-field">
+                                <span>Colors <small>(none = auto)</small></span>
+                                <div class="color-picker" role="group" aria-label="Deck colors">
+                                    <button class="pip pip-w color-chip" data-color="W" aria-pressed="false" title="White"></button>
+                                    <button class="pip pip-u color-chip" data-color="U" aria-pressed="false" title="Blue"></button>
+                                    <button class="pip pip-b color-chip" data-color="B" aria-pressed="false" title="Black"></button>
+                                    <button class="pip pip-r color-chip" data-color="R" aria-pressed="false" title="Red"></button>
+                                    <button class="pip pip-g color-chip" data-color="G" aria-pressed="false" title="Green"></button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- AI Forge: the local model authors the decklist itself -->
+                        <div id="ai-forge" class="ai-forge" hidden>
+                            <p class="ai-forge-intro">The local AI writes the deck for the format selected above, choosing the actual cards from your collection. Every pick is verified to be real and owned.</p>
+                            <div class="ai-forge-row">
+                                <input type="text" id="ai-wish" class="search-input"
+                                       placeholder="Tell the grimoire what you crave&hellip; e.g. “something aggressive with tokens”">
+                                <button id="ai-forge-btn" class="btn btn-primary">Let the AI Forge</button>
+                            </div>
+                            <p class="ai-forge-status" id="ai-forge-status" hidden></p>
+                        </div>
+
+                        <div id="ai-help" class="ai-help" hidden>
+                            <p>Deck explanations run on a <strong>local model</strong> via
+                                <a href="https://ollama.com" target="_blank" rel="noopener noreferrer">Ollama</a>
+                                — nothing ever leaves your machine. To enable it:</p>
+                            <ol>
+                                <li>Install Ollama: <code>brew install ollama</code> (or grab the app from ollama.com)</li>
+                                <li>Pull a model: <code>ollama pull llama3.1:8b</code> (~5&nbsp;GB, one-time)</li>
+                                <li>Make sure it's running: <code>ollama serve</code> (the desktop app runs automatically)</li>
+                            </ol>
+                            <p>Then hit re-check — the forge will grow an <em>Explain with Local AI</em> button.</p>
+                            <button id="ai-recheck" class="btn btn-secondary btn-compact">Re-check</button>
+                        </div>
+
+                        <p id="forge-empty" class="settings-note" hidden>
+                            No collection loaded yet — head to <strong>Process CSV</strong> and upload your ManaBox export first.
+                        </p>
+
+                        <div id="forge-result" hidden>
+                            <div class="forge-header">
+                                <h3 id="forge-title"></h3>
+                                <div class="theme-chips" id="forge-themes"></div>
+                            </div>
+
+                            <div class="curve-chart" id="forge-curve" aria-label="Mana curve"></div>
+
+                            <ul class="forge-notes" id="forge-notes"></ul>
+
+                            <div class="deck-columns" id="forge-categories"></div>
+
+                            <div class="actions forge-actions">
+                                <button id="forge-export" class="btn btn-secondary">Copy Decklist</button>
+                                <button id="forge-explain" class="btn btn-secondary" hidden>Explain with Local AI</button>
+                            </div>
+
+                            <div id="forge-explanation" class="forge-explanation" hidden></div>
+
+                            <!-- Conversational deck tuning with the local AI -->
+                            <div id="refine-chat" class="refine-chat" hidden>
+                                <h4 class="refine-title">Tune with the Grimoire</h4>
+                                <p class="refine-hint">Ask for changes and the AI reshapes the deck — every swap checked against your collection.</p>
+                                <div id="refine-log" class="refine-log" aria-live="polite"></div>
+                                <div class="refine-row">
+                                    <input type="text" id="refine-input" class="search-input"
+                                           placeholder="&ldquo;more removal&rdquo; &hellip; &ldquo;make it faster&rdquo; &hellip; &ldquo;why this card?&rdquo;">
+                                    <button id="refine-send" class="btn btn-secondary btn-compact">Send</button>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
                 </div>
 
                 <!-- Settings View -->
                 <div id="settings-view" class="view">
-                    <div class="card">
+                    <section class="card">
                         <h2>Settings</h2>
                         <div class="settings-section">
                             <h3>About</h3>
-                            <p><strong>Version:</strong> 1.0.0</p>
-                            <p><strong>Powered by:</strong> <a href="https://scryfall.com" target="_blank" rel="noopener noreferrer">Scryfall API</a></p>
+                            <p><strong>Version</strong> 1.0.0</p>
+                            <p><strong>Powered by</strong> <a href="https://scryfall.com" target="_blank" rel="noopener noreferrer">Scryfall</a></p>
                         </div>
                         <div class="settings-section">
                             <h3>Data Management</h3>
-                            <button class="btn btn-danger">Clear All Data</button>
+                            <p class="settings-note">Removes the downloaded bulk data cache and forgets your last processed collection.</p>
+                            <button id="clear-all-data" class="btn btn-danger">Clear All Data</button>
                         </div>
-                    </div>
+                    </section>
                 </div>
             </div>
         </main>
 
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="container">
+                <p>Card data &amp; imagery courtesy of <a href="https://scryfall.com" target="_blank" rel="noopener noreferrer">Scryfall</a>. Not affiliated with Wizards of the Coast.</p>
+            </div>
+        </footer>
+
+        <!-- Consult the Grimoire — draws a random card -->
+        <button id="consult-grimoire" class="consult-btn" title="Consult the Grimoire" aria-label="Draw a random card from the archive">
+            <img src="/favicon.svg" alt="" width="30" height="30">
+        </button>
+
         <!-- Toast Notifications -->
-        <div id="toast-container"></div>
+        <div id="toast-container" aria-live="polite"></div>
 
         <!-- Card Detail Modal -->
-        <div id="card-modal" class="modal">
+        <div id="card-modal" class="modal" role="dialog" aria-modal="true" aria-label="Card details">
             <div class="modal-content">
-                <span class="modal-close">&times;</span>
+                <button class="modal-close" aria-label="Close card details">&times;</button>
                 <div id="modal-card-details"></div>
             </div>
         </div>
