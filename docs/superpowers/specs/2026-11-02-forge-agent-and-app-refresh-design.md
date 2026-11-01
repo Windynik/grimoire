@@ -425,7 +425,7 @@ lives in a `backend/forge/` package. Its structure is the builder's call.
 ## 7. Forge screen (approved design)
 
 The owner approved the "Orbit + Synergy Web" mockup
-(`.superpowers/brainstorm/*/content/forge-hybrid.html`). The forge screen
+(`docs/superpowers/specs/assets/forge-hybrid.html`). The forge screen
 implements it with real events:
 
 - **Stage (left):** the commander, or in 60-card formats the top backbone card, sits
@@ -457,9 +457,11 @@ implements it with real events:
 
 ### 8.1 Visual language
 
-- Keep the dark "moonlit grimoire" identity: Cinzel for display, Inter for UI, a
-  gold accent (`#e8c26a`), a violet accent (`#9b8cff`), and green for success.
-  Dark theme only (designer's call).
+- Keep the dark "moonlit grimoire" identity. Adopt the fonts and accents of the
+  approved mockups: Cinzel for display, Inter for UI, gold `#e8c26a`, violet
+  `#9b8cff`, and green for success. The current app uses Marcellus, Figtree, IBM
+  Plex Mono, and a blue `--gold` token; Plan 3 replaces them app-wide. Dark theme
+  only (designer's call).
 - Define color, spacing, radius, and shadow tokens once in CSS custom properties.
 - **Motion system:** tokens for duration (fast 150 ms, base 250 ms, slow 600 ms) and
   easing. All movement uses `transform` and `opacity`. Every animation has a

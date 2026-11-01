@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Forge Hybrid</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0b0d14; --panel: #12151f; --line: #262b3d; --text: #e9e6f2; --muted: #9a98ad;
+    --gold: #e8c26a; --gold-soft: rgba(232,194,106,.16); --violet: #9b8cff; --green: #6fd39a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: radial-gradient(1200px 600px at 50% -10%, #1b1f33 0%, var(--bg) 60%); color: var(--text);
+         font: 14px/1.5 Inter, system-ui, sans-serif; padding: 28px 16px 60px; min-height: 100vh; }
+  .wrap { max-width: 1120px; margin: 0 auto; }
+  h1 { font-family: Cinzel, serif; font-size: 26px; }
+  .lead { color: var(--muted); margin: 6px 0 20px; max-width: 820px; }
+  .frame { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+  .scene { position: relative; height: 600px; display: grid; grid-template-columns: 1fr 330px; }
+  .stage { position: relative; overflow: hidden; background: radial-gradient(500px 340px at 50% 48%, #161a2a, #0b0d14 70%); }
+  .stage svg.links { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+  .links line { stroke-width: 1.7; stroke-dasharray: 600; stroke-dashoffset: 600; transition: stroke-dashoffset 1s ease, opacity .6s; }
+  .links line.on { stroke-dashoffset: 0; }
+  .links line.gold { stroke: rgba(232,194,106,.85); }
+  .links line.violet { stroke: rgba(155,140,255,.75); }
+  .links line.off { opacity: 0; }
+
+  .mtg { position: absolute; left: 0; top: 0; width: 62px; aspect-ratio: 63/88; border-radius: 5px; background-size: cover;
+         box-shadow: 0 8px 20px rgba(0,0,0,.55); transition: opacity .8s, filter .6s, box-shadow .4s; will-change: transform; z-index: 2; }
+  .mtg.read { box-shadow: 0 0 0 2px var(--violet), 0 0 20px rgba(155,140,255,.6); }
+  .mtg.glow { box-shadow: 0 0 0 2px var(--gold), 0 0 22px rgba(232,194,106,.55); }
+  .mtg.dim { opacity: 0; filter: grayscale(1); }
+
+  .core { position: absolute; left: 50%; top: 47%; transform: translate(-50%,-50%); z-index: 3; text-align: center; }
+  .commander { width: 116px; aspect-ratio: 63/88; border-radius: 8px; background-size: cover; margin: 0 auto;
+               box-shadow: 0 0 0 2px var(--gold), 0 0 50px rgba(232,194,106,.3); animation: breathe 4s ease-in-out infinite; }
+  @keyframes breathe { 50% { box-shadow: 0 0 0 2px var(--gold), 0 0 70px rgba(232,194,106,.45); } }
+  .ring { position: absolute; left: 50%; top: 47%; transform: translate(-50%,-50%) rotate(-90deg); z-index: 2; pointer-events: none; }
+  .ring circle { fill: none; stroke-width: 4; }
+  .ring .prog { transition: stroke-dashoffset .6s linear; }
+  .core-meta { position: absolute; left: 50%; top: calc(47% + 118px); transform: translateX(-50%); text-align: center; z-index: 3; white-space: nowrap; }
+  .core-meta .pct { font-variant-numeric: tabular-nums; font-size: 13px; }
+  .core-meta .cnt { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  .halo { position: absolute; border-radius: 50%; pointer-events: none; transition: opacity .7s, transform .7s; opacity: 0; transform: scale(.85); z-index: 0; }
+  .halo.show { opacity: 1; transform: none; }
+  .halo.gold { border: 1px dashed rgba(232,194,106,.5); background: radial-gradient(closest-side, rgba(232,194,106,.07), transparent); }
+  .halo.violet { border: 1px dashed rgba(155,140,255,.5); background: radial-gradient(closest-side, rgba(155,140,255,.07), transparent); }
+  .halo .lbl { position: absolute; left: 50%; top: -11px; transform: translateX(-50%); font-size: 11.5px; padding: 0 8px; background: #0f1220; white-space: nowrap; }
+  .halo.gold .lbl { color: var(--gold); } .halo.violet .lbl { color: #cfc8ff; }
+  .halo.pulse { animation: hpulse 1.2s ease-in-out infinite; }
+  @keyframes hpulse { 50% { transform: scale(1.03); } }
+
+  .timeline { position: absolute; left: 18px; right: 18px; bottom: 16px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; z-index: 4; }
+  .seg { font-size: 11px; color: var(--muted); transition: color .3s; }
+  .seg i { display: block; height: 4px; border-radius: 4px; background: #1d2233; margin-bottom: 6px; overflow: hidden; }
+  .seg i b { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--violet), var(--gold)); transition: width .35s linear; }
+  .seg.active { color: var(--text); } .seg.done { color: var(--green); }
+  .top { position: absolute; left: 18px; right: 18px; top: 14px; display: flex; gap: 10px; align-items: center; z-index: 4; }
+  .status { font-size: 12.5px; color: var(--muted); } .status b { color: var(--text); font-weight: 500; }
+  .eta { margin-left: auto; font-size: 12.5px; font-variant-numeric: tabular-nums; } .eta small { color: var(--muted); }
+
+  .feed { border-left: 1px solid var(--line); background: rgba(16,19,29,.85); padding: 16px; display: flex; flex-direction: column; gap: 9px; overflow: hidden; }
+  .feed h5 { font-family: Cinzel, serif; font-size: 13px; color: var(--gold); letter-spacing: .5px; display: flex; align-items: center; gap: 8px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 10px var(--green); animation: blink 1.2s infinite; }
+  @keyframes blink { 50% { opacity: .3; } }
+  .thought { font-size: 12.5px; color: #cfcbe0; border-left: 2px solid #3b4262; padding: 2px 0 2px 10px; opacity: 0; transform: translateY(8px); transition: opacity .4s, transform .4s; }
+  .thought.show { opacity: 1; transform: none; }
+  .thought b { color: var(--text); font-weight: 600; }
+  .thought.ask { border-left-color: var(--gold); background: var(--gold-soft); border-radius: 0 10px 10px 0; padding: 10px; }
+  .thought.ask .q { color: var(--text); font-weight: 500; margin-bottom: 8px; }
+  .opt { display: block; border: 1px solid #4a4f6a; border-radius: 8px; padding: 7px 9px; margin-top: 6px; transition: all .3s; }
+  .opt small { display: block; color: var(--muted); font-size: 11px; }
+  .opt.chosen { border-color: var(--gold); background: rgba(232,194,106,.18); }
+  .opt .sw { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+  .timer { font-size: 11px; color: var(--muted); margin-top: 8px; }
+  .timer i { display: block; height: 2px; background: var(--gold); width: 100%; margin-top: 4px; transition: width 2.2s linear; }
+  .curve { display: flex; align-items: flex-end; gap: 5px; height: 54px; margin-top: 6px; }
+  .curve span { flex: 1; background: linear-gradient(180deg, var(--gold), #8a6f2f); border-radius: 3px 3px 0 0; height: 0; transition: height .7s cubic-bezier(.2,.8,.2,1); }
+  .curve-x { display: flex; gap: 5px; font-size: 10px; color: var(--muted); } .curve-x span { flex: 1; text-align: center; }
+  .reveal { font-family: Cinzel, serif; font-size: 16px; color: var(--gold); }
+
+  @media (max-width: 820px) { .scene { grid-template-columns: 1fr; height: auto; } .stage { height: 560px; } .feed { height: 320px; border-left: 0; border-top: 1px solid var(--line); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Forge: Orbit + Synergy Web</h1>
+  <p class="lead">One screen, five acts. Cards orbit the commander while the agent reads them. To find backbones, the orbit opens into a web: lines show which cards work together. You answer one question in the feed. The chosen web then pulls into the inner orbit as the deck forms. In 60-card formats, the center holds the backbone card instead of a commander.</p>
+  <div class="frame">
+    <div class="scene">
+      <div class="stage" id="stage">
+        <svg class="links"></svg>
+        <div class="halo gold" id="haloA"><span class="lbl">Enchantress engine · 31 cards</span></div>
+        <div class="halo violet" id="haloB"><span class="lbl">Lifegain counters · 27 cards</span></div>
+        <svg class="ring" width="200" height="200" viewBox="0 0 200 200">
+          <circle cx="100" cy="100" r="92" stroke="#1d2233"></circle>
+          <circle class="prog" cx="100" cy="100" r="92" stroke="url(#g)" stroke-linecap="round" stroke-dasharray="578" stroke-dashoffset="578"></circle>
+          <defs><linearGradient id="g"><stop offset="0" stop-color="#9b8cff"/><stop offset="1" stop-color="#e8c26a"/></linearGradient></defs>
+        </svg>
+        <div class="core"><div class="commander" id="cmd"></div></div>
+        <div class="core-meta"><div class="pct" id="pct">0%</div><div class="cnt" id="cnt">0 / 100 cards</div></div>
+        <div class="top"><div class="status" id="status"></div><div class="eta" id="eta"></div></div>
+        <div class="timeline" id="timeline"></div>
+      </div>
+      <div class="feed" id="feed"><h5><span class="dot"></span>Thinking</h5></div>
+    </div>
+  </div>
+</div>
+<script>
+const IMG = {
+  dyadrine: "https://cards.scryfall.io/normal/front/3/c/3cba1ffa-9b43-41f9-a5ea-57cd48013c1c.jpg?1752947760",
+  pridemate: "https://cards.scryfall.io/normal/front/2/2/222c1a68-e34c-4103-b1be-17d4ceaef6ce.jpg?1730489107",
+  archon: "https://cards.scryfall.io/normal/front/3/c/3c00d4e6-1922-4b18-b3f7-af868b058913.jpg?1692934527",
+  eidolon: "https://cards.scryfall.io/normal/front/5/8/586c639e-9050-4f45-aa65-0947a2d2a57a.jpg?1692935474",
+  presence: "https://cards.scryfall.io/normal/front/6/0/602bd27a-7ae1-4081-8d68-bb2539cd5965.jpg?1692935491",
+  spiritdancer: "https://cards.scryfall.io/normal/front/8/c/8ca4e4d4-84b0-4a38-ad48-4a963c977471.jpg?1692934642",
+  tithe: "https://cards.scryfall.io/normal/front/6/c/6c817300-c9be-4ff4-b59d-85eb21152c40.jpg?1692934805",
+  chaplain: "https://cards.scryfall.io/normal/front/8/3/83719626-3ff8-4566-9911-88212e753c69.jpg?1752946709",
+  embrace: "https://cards.scryfall.io/normal/front/b/3/b36f2399-bf72-48ab-9314-834b69194d5d.jpg?1692935659",
+  shalai: "https://cards.scryfall.io/normal/front/f/9/f963ccb2-4ac3-41b3-8ecb-7879b50663a3.jpg?1692934714",
+  banish: "https://cards.scryfall.io/normal/front/c/4/c45f11cd-a0aa-4d14-aa21-57f0969f3e2b.jpg?1752946576",
+  starfield: "https://cards.scryfall.io/normal/front/1/1/111bc4a3-5318-4c85-b5d4-d85242bff05f.jpg?1726284598",
+  ouroboroid: "https://cards.scryfall.io/normal/front/2/0/209c591a-4ab2-4e89-9523-a7b766cf4e51.jpg?1752947376",
+  ouphe: "https://cards.scryfall.io/normal/front/0/8/08fe7e9c-7c3b-435f-bc0d-e380e6b852c0.jpg?1692933867",
+  krenko: "https://cards.scryfall.io/normal/front/8/2/824b2d73-2151-4e5e-9f05-8f63e2bdcaa9.jpg?1730632010",
+  lathril: "https://cards.scryfall.io/normal/front/8/d/8d4e5480-a287-4a25-b855-a26dae555b1c.jpg?1730489505",
+};
+const A = ["presence", "eidolon", "spiritdancer", "embrace", "archon", "banish"];
+const B = ["pridemate", "chaplain", "tithe", "shalai", "starfield", "ouroboroid"];
+const X = ["ouphe", "krenko", "lathril"];
+const LINKS_A = [["presence", "eidolon"], ["eidolon", "archon"], ["spiritdancer", "embrace"], ["presence", "embrace"], ["banish", "eidolon"], ["archon", "presence"], ["spiritdancer", "presence"]];
+const LINKS_B = [["pridemate", "chaplain"], ["chaplain", "tithe"], ["ouroboroid", "pridemate"], ["shalai", "starfield"], ["starfield", "tithe"]];
+const STAGES = ["Study cards", "Find backbones", "Ask you", "Build", "Review"];
+const TOTAL = 110;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const fmt = s => s >= 60 ? `${Math.floor(s / 60)} min ${String(Math.round(s % 60)).padStart(2, "0")} s` : `${Math.max(0, Math.round(s))} s`;
+const $ = id => document.getElementById(id);
+const stage = $("stage"), svg = stage.querySelector("svg.links"), feed = $("feed");
+$("cmd").style.backgroundImage = `url(${IMG.dyadrine})`;
+$("timeline").innerHTML = STAGES.map(s => `<div class="seg"><i><b></b></i>${s}</div>`).join("");
+const segs = [...$("timeline").children];
+
+// Card bodies: each either orbits (angle + radius) or flies to a fixed point
+const keys = [...A, ...B, ...X];
+const cards = keys.map((k, i) => {
+  const el = document.createElement("div"); el.className = "mtg"; el.style.backgroundImage = `url(${IMG[k]})`; stage.appendChild(el);
+  return { k, el, a: i / keys.length * Math.PI * 2, r: 1, mode: "orbit", fx: 0, fy: 0, x: 0, y: 0, speed: 1 };
+});
+const byKey = Object.fromEntries(cards.map(c => [c.k, c]));
+let orbitSpeed = 0.0035;
+const lines = [];
+
+function layoutClusters() {
+  const W = stage.clientWidth, H = stage.clientHeight, cx = W / 2, cy = H * 0.47;
+  const place = (group, ox, color) => group.forEach((k, i) => {
+    const c = byKey[k], col = i % 2, row = Math.floor(i / 2);
+    c.mode = "fixed"; c.fx = ox + (col - 0.5) * 78 + (row % 2) * 14; c.fy = cy + (row - 1) * 98;
+  });
+  const off = Math.min(W * 0.31, 250);
+  place(A, cx - off, "gold"); place(B, cx + off, "violet");
+  X.forEach((k, i) => { const c = byKey[k]; c.mode = "fixed"; c.fx = cx + (i - 1) * 80; c.fy = H + 80; });
+  const halo = (id, x) => Object.assign($(id).style, { left: (x - 125) + "px", top: (cy - 165) + "px", width: "250px", height: "330px" });
+  halo("haloA", cx - off); halo("haloB", cx + off);
+}
+
+(function frame() {
+  const W = stage.clientWidth, H = stage.clientHeight, cx = W / 2, cy = H * 0.47;
+  const R = Math.min(W * 0.42, 330);
+  cards.forEach(c => {
+    let tx, ty;
+    if (c.mode === "orbit" || c.mode === "inner") {
+      c.a += orbitSpeed * (c.mode === "inner" ? 1.4 : 1);
+      const rr = (c.mode === "inner" ? 0.5 : c.r) * R;
+      tx = cx + Math.cos(c.a) * rr; ty = cy + Math.sin(c.a) * rr * 0.55;
+    } else { tx = c.fx; ty = c.fy; }
+    c.x += (tx - c.x) * 0.06; c.y += (ty - c.y) * 0.06;
+    const depth = c.mode === "fixed" ? 1 : 0.85 + Math.sin(c.a) * 0.15;
+    c.el.style.transform = `translate(${c.x - 31}px, ${c.y - 43}px) scale(${depth}) rotate(${c.mode === "fixed" ? 0 : Math.cos(c.a) * 5}deg)`;
+    c.el.style.zIndex = c.mode !== "fixed" && Math.sin(c.a) < 0 ? 1 : 3;
+  });
+  lines.forEach(l => {
+    const a = byKey[l.a], b = byKey[l.b];
+    l.el.setAttribute("x1", a.x); l.el.setAttribute("y1", a.y); l.el.setAttribute("x2", b.x); l.el.setAttribute("y2", b.y);
+  });
+  requestAnimationFrame(frame);
+})();
+
+const setStage = (i, pct) => segs.forEach((s, n) => {
+  s.classList.toggle("active", n === i); s.classList.toggle("done", n < i);
+  s.querySelector("b").style.width = n < i ? "100%" : n === i ? pct + "%" : "0";
+});
+const setProg = (p, left, cnt) => {
+  stage.querySelector(".prog").style.strokeDashoffset = 578 * (1 - p / 100);
+  $("pct").textContent = Math.round(p) + "%";
+  $("eta").innerHTML = left > 0 ? `About ${fmt(left)} left` : "Done";
+  if (cnt !== undefined) $("cnt").textContent = `${cnt} / 100 cards`;
+};
+const status = html => $("status").innerHTML = html;
+async function think(html, cls = "") {
+  const el = document.createElement("div"); el.className = "thought " + cls; el.innerHTML = html; feed.appendChild(el);
+  while (feed.children.length > 8) feed.children[1].remove();
+  await sleep(30); el.classList.add("show"); return el;
+}
+function link(pairs, color) {
+  pairs.forEach(([a, b]) => {
+    const el = document.createElementNS("http://www.w3.org/2000/svg", "line"); el.classList.add(color); svg.appendChild(el);
+    lines.push({ a, b, el, color }); requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add("on")));
+  });
+}
+
+async function run() {
+  while (true) {
+    // reset
+    svg.innerHTML = ""; lines.length = 0; [...feed.querySelectorAll(".thought")].forEach(e => e.remove());
+    ["haloA", "haloB"].forEach(h => $(h).classList.remove("show", "pulse"));
+    cards.forEach((c, i) => { c.mode = "orbit"; c.r = 0.92 + (i % 3) * 0.06; c.el.classList.remove("dim", "glow", "read"); });
+    orbitSpeed = 0.0035; setProg(0, TOTAL, 0);
+
+    // 1. Study
+    setStage(0, 0); status("Reading <b>840</b> cards…");
+    await think("Reading every card's full rules text, not just its name.");
+    for (let i = 0; i < cards.length; i++) {
+      const c = cards[(i * 5) % cards.length]; c.el.classList.add("read"); setTimeout(() => c.el.classList.remove("read"), 600);
+      setStage(0, (i + 1) / cards.length * 100); setProg(2 + i * 0.9, TOTAL - i * 1.5); await sleep(170);
+      if (i === 7) await think("Found <b>21</b> cards that care about enchantments, and <b>17</b> that care about life gain.");
+    }
+
+    // 2. Find backbones: the orbit opens into a web
+    setStage(1, 10); status("Finding which cards make each other better…"); orbitSpeed = 0.001;
+    layoutClusters(); await sleep(900);
+    for (const p of LINKS_A) { link([p], "gold"); setStage(1, 10 + lines.length * 7); await sleep(260); }
+    await think("<b>Enchantress's Presence</b> + <b>Eidolon of Blossoms</b>: every enchantment draws a card.");
+    for (const p of LINKS_B) { link([p], "violet"); setStage(1, 10 + lines.length * 7); await sleep(260); }
+    await think("<b>Ajani's Pridemate</b> grows each time you gain life. <b>Tithe Taker</b> and <b>Starfield Mystic</b> feed it.");
+    $("haloA").classList.add("show"); $("haloB").classList.add("show"); setProg(32, 75);
+    await think("Krenko and Lathril are strong, but they fit neither backbone in these colors."); await sleep(800);
+
+    // 3. Ask
+    setStage(2, 30); status("Waiting for your choice…"); $("haloA").classList.add("pulse"); $("haloB").classList.add("pulse");
+    const ask = await think(`<div class="q">Two backbones look strong. Which way?</div>
+      <span class="opt"><span class="sw" style="background:var(--gold)"></span>Enchantress engine<small>Draw a card for each enchantment. Slower, deep value.</small></span>
+      <span class="opt"><span class="sw" style="background:var(--violet)"></span>Lifegain counters<small>Gain life, grow creatures. Faster, more direct.</small></span>
+      <div class="timer">I'll choose for you in 20 s<i></i></div>`, "ask");
+    await sleep(60); ask.querySelector(".timer i").style.width = "40%";
+    await sleep(2300); ask.querySelector(".opt").classList.add("chosen"); setStage(2, 100);
+    ["haloA", "haloB"].forEach(h => $(h).classList.remove("pulse")); await sleep(700);
+
+    // 4. Build: the chosen web pulls into the inner orbit
+    setStage(3, 0); status("Building on the <b>Enchantress engine</b>…");
+    $("haloB").classList.remove("show");
+    lines.forEach(l => { if (l.color === "violet") l.el.classList.add("off"); });
+    [...B, ...X].forEach(k => byKey[k].el.classList.add("dim"));
+    await sleep(600); $("haloA").classList.remove("show");
+    lines.forEach(l => l.el.classList.add("off"));
+    orbitSpeed = 0.004;
+    for (let i = 0; i < A.length; i++) {
+      const c = byKey[A[i]]; c.mode = "inner"; c.a = i / A.length * Math.PI * 2; c.el.classList.add("glow");
+      setStage(3, (i + 1) / A.length * 60); setProg(40 + i * 5, 60 - i * 6, 6 + i * 6); await sleep(420);
+    }
+    await think("Added the engine first, then <b>10</b> ramp, <b>10</b> draw, <b>9</b> removal around it.");
+    for (let n = 42; n <= 100; n += 3) { $("cnt").textContent = `${Math.min(n, 100)} / 100 cards`; setStage(3, 60 + (n - 42) * 0.7); setProg(70 + (n - 42) * 0.38, 30 - (n - 42) * 0.38); await sleep(50); }
+    setProg(92, 8, 100);
+
+    // 5. Review
+    setStage(4, 30); status("Checking the curve and the mana…");
+    const cv = await think(`Mana curve looks healthy. Peak at 3.<div class="curve">${"<span></span>".repeat(7)}</div><div class="curve-x"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7+</span></div>`);
+    const hts = [30, 70, 100, 70, 45, 25, 15];
+    await sleep(100); cv.querySelectorAll(".curve span").forEach((s, i) => setTimeout(() => s.style.height = hts[i] + "%", i * 90));
+    await sleep(1400); setStage(4, 100); setStage(5, 0);
+    setProg(100, 0); status("Deck ready.");
+    await think(`<div class="reveal">The Blooming Grimoire</div>100 cards, all owned. Every card has a reason you can read.`);
+    await sleep(4000);
+  }
+}
+run();
+</script>
+</body>
+</html>
