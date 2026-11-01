@@ -1,0 +1,83 @@
+from backend.forge.cards import (
+    front_types, hydrate, is_game_card, quality_prior,
+)
+from tests.forge.conftest import hydrate_one, make_pool, make_record
+
+
+def test_lander_token_is_not_a_card(oracle):
+    assert not is_game_card(oracle["Lander"])
+
+
+def test_land_detection_is_whole_word():
+    assert front_types("Token Artifact — Lander")[0] == frozenset({"Token", "Artifact"})
+    assert "Land" in front_types("Basic Land — Forest")[0]
+
+
+def test_front_types_first_face_only():
+    types, subtypes = front_types("Creature — Human Rogue // Land")
+    assert types == frozenset({"Creature"}) and subtypes == ("Human", "Rogue")
+
+
+def test_mdfc_land_back_counts_as_spell(oracle, rules):
+    card = hydrate_one(oracle["Blackbloom Rogue // Blackbloom Bog"], rules["commander"])
+    assert not card.is_land and card.mdfc_land_back and card.color_identity == frozenset({"B"})
+
+
+def test_basic_land(oracle, rules):
+    card = hydrate_one(oracle["Forest"], rules["commander"])
+    assert card.is_land and card.is_basic and not card.mdfc_land_back
+
+
+def test_printings_merge_by_oracle_id(rules):
+    a = make_record("Bolt", oracle_text="Deal 3.")
+    b = dict(a, id="other-print")
+    collection = [{"scryfall_id": a["id"], "quantity": "2"}, {"scryfall_id": b["id"], "quantity": 1}]
+    cards = hydrate(collection, {a["id"]: a, b["id"]: b}, rules["modern"])
+    assert len(cards) == 1 and cards[0].owned == 3
+
+
+def test_missing_ids_skipped(rules):
+    a = make_record("Bolt")
+    cards = hydrate([{"scryfall_id": "nope", "quantity": 1},
+                     {"scryfall_id": a["id"], "quantity": 1}], {a["id"]: a}, rules["modern"])
+    assert [c.name for c in cards] == ["Bolt"]
+
+
+def test_illegal_cards_dropped_and_restricted_kept(rules):
+    only_cmdr = make_record("Cmdr Only", legal=("commander",))
+    vintage = make_record("Black Lotus", legal=())
+    vintage["legalities"]["vintage"] = "restricted"
+    collection, index = make_pool([only_cmdr, vintage])
+    pauper = hydrate(collection, index, rules["pauper"])
+    assert pauper == []
+    cmdr = hydrate(collection, index, rules["commander"])
+    assert [c.name for c in cmdr] == ["Cmdr Only"]
+    vint = hydrate(collection, index, rules["vintage"])
+    assert [(c.name, c.legality) for c in vint] == [("Black Lotus", "restricted")]
+
+
+def test_casual_has_no_legality_filter(rules):
+    card = make_record("Nowhere", legal=())
+    collection, index = make_pool([card])
+    cards = hydrate(collection, index, rules["casual"])
+    assert len(cards) == 1 and cards[0].legality == "legal"
+
+
+def test_quality_prior_bounds():
+    assert quality_prior(None) == 0.5 and quality_prior(1) == 1.0 and quality_prior(10**6) == 0.0
+
+
+def test_any_number_flag(oracle, rules):
+    assert hydrate_one(oracle["Relentless Rats"], rules["modern"]).any_number
+
+
+def test_pips_hybrid_counts_each_color(rules):
+    card = hydrate_one(make_record("Hybrid", mana_cost="{2}{G/W}{G}{B/P}"), rules["modern"])
+    assert card.pips == {"G": 2, "W": 1, "B": 1}
+
+
+def test_price_is_best_available(rules):
+    rec = make_record("Priced")
+    rec["prices"] = {"usd": "1.50", "usd_foil": "3.00", "eur": None, "tix": "0.2"}
+    assert hydrate_one(rec, rules["modern"]).price == 3.0
+    assert hydrate_one(make_record("Free"), rules["modern"]).price is None

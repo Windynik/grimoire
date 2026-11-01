@@ -1,0 +1,1904 @@
+{
+ "Llanowar Elves": {
+  "id": "01c6f877-6b00-4d57-8a88-36cd3b16edbc",
+  "oracle_id": "68954295-54e3-4303-a6bc-fc4547a4e3a3",
+  "name": "Llanowar Elves",
+  "mana_cost": "{G}",
+  "oracle_text": "{T}: Add {G}.",
+  "type_line": "Creature — Elf Druid",
+  "image_url": "https://cards.scryfall.io/normal/front/0/1/01c6f877-6b00-4d57-8a88-36cd3b16edbc.jpg?1562630529",
+  "back_image_url": "",
+  "rarity": "common",
+  "set": "m12",
+  "layout": "normal",
+  "cmc": 1.0,
+  "color_identity": [
+   "G"
+  ],
+  "keywords": [],
+  "produced_mana": [
+   "G"
+  ],
+  "edhrec_rank": 62,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "legal",
+   "pauper": "legal",
+   "standard": "legal",
+   "pioneer": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "0.35",
+   "usd_foil": "1.03",
+   "eur": "0.18",
+   "tix": "0.08"
+  }
+ },
+ "Cultivate": {
+  "id": "075cac04-9397-4edb-b49a-485dd58dcae1",
+  "oracle_id": "8b755881-a72d-4e21-a369-d2924eb4585a",
+  "name": "Cultivate",
+  "mana_cost": "{2}{G}",
+  "oracle_text": "Search your library for up to two basic land cards, reveal those cards, put one onto the battlefield tapped and the other into your hand, then shuffle.",
+  "type_line": "Sorcery",
+  "image_url": "https://cards.scryfall.io/normal/front/0/7/075cac04-9397-4edb-b49a-485dd58dcae1.jpg?1675651349",
+  "back_image_url": "",
+  "rarity": "common",
+  "set": "j22",
+  "layout": "normal",
+  "cmc": 3.0,
+  "color_identity": [
+   "G"
+  ],
+  "keywords": [],
+  "produced_mana": [],
+  "edhrec_rank": 20,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "not_legal",
+   "pauper": "legal",
+   "standard": "not_legal",
+   "pioneer": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "0.70",
+   "usd_foil": null,
+   "eur": "0.66",
+   "tix": null
+  }
+ },
+ "Sol Ring": {
+  "id": "04002706-2236-4b79-bdea-4f263e43cb9c",
+  "oracle_id": "6ad8011d-3471-4369-9d68-b264cc027487",
+  "name": "Sol Ring",
+  "mana_cost": "{1}",
+  "oracle_text": "{T}: Add {C}{C}.",
+  "type_line": "Artifact",
+  "image_url": "https://cards.scryfall.io/normal/front/0/4/04002706-2236-4b79-bdea-4f263e43cb9c.jpg?1767730264",
+  "back_image_url": "",
+  "rarity": "uncommon",
+  "set": "ecc",
+  "layout": "normal",
+  "cmc": 1.0,
+  "color_identity": [],
+  "keywords": [],
+  "produced_mana": [
+   "C"
+  ],
+  "edhrec_rank": 1,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "not_legal",
+   "standardbrawl": "not_legal",
+   "pauper": "not_legal",
+   "standard": "not_legal",
+   "pioneer": "not_legal",
+   "modern": "not_legal",
+   "legacy": "banned",
+   "vintage": "restricted"
+  },
+  "prices": {
+   "usd": "1.47",
+   "usd_foil": null,
+   "eur": "2.29",
+   "tix": "0.12"
+  }
+ },
+ "Arcane Signet": {
+  "id": "01b186af-8825-4257-80fd-9c1ecdb21414",
+  "oracle_id": "0bc7f093-bef0-4f1a-852c-4b75ebf54838",
+  "name": "Arcane Signet",
+  "mana_cost": "{2}",
+  "oracle_text": "{T}: Add one mana of any color in your commander's color identity.",
+  "type_line": "Artifact",
+  "image_url": "https://cards.scryfall.io/normal/front/0/1/01b186af-8825-4257-80fd-9c1ecdb21414.jpg?1625978253",
+  "back_image_url": "",
+  "rarity": "common",
+  "set": "c21",
+  "layout": "normal",
+  "cmc": 2.0,
+  "color_identity": [],
+  "keywords": [],
+  "produced_mana": [
+   "B",
+   "G",
+   "R",
+   "U",
+   "W"
+  ],
+  "edhrec_rank": 3,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "legal",
+   "pauper": "legal",
+   "standard": "not_legal",
+   "pioneer": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "0.72",
+   "usd_foil": null,
+   "eur": "0.32",
+   "tix": "0.06"
+  }
+ },
+ "Lotus Cobra": {
+  "id": "151bdf3a-4445-43b1-8cea-2737c13d9dee",
+  "oracle_id": "8ad91f64-ccab-4edc-bd54-b2ee9267d614",
+  "name": "Lotus Cobra",
+  "mana_cost": "{1}{G}",
+  "oracle_text": "Landfall — Whenever a land you control enters, add one mana of any color.",
+  "type_line": "Creature — Snake",
+  "image_url": "https://cards.scryfall.io/normal/front/1/5/151bdf3a-4445-43b1-8cea-2737c13d9dee.jpg?1604202856",
+  "back_image_url": "",
+  "rarity": "rare",
+  "set": "znr",
+  "layout": "normal",
+  "cmc": 2.0,
+  "color_identity": [
+   "G"
+  ],
+  "keywords": [
+   "Landfall"
+  ],
+  "produced_mana": [
+   "B",
+   "G",
+   "R",
+   "U",
+   "W"
+  ],
+  "edhrec_rank": 319,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "not_legal",
+   "pauper": "not_legal",
+   "standard": "not_legal",
+   "pioneer": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "5.80",
+   "usd_foil": "9.78",
+   "eur": "6.58",
+   "tix": null
+  }
+ },
+ "Glacier Godmaw": {
+  "id": "d3291c51-e963-4970-813d-9a06a47aa71e",
+  "oracle_id": "300e48df-7f7f-47ff-b450-8ba7bd1b1c67",
+  "name": "Glacier Godmaw",
+  "mana_cost": "{5}{G}{G}",
+  "oracle_text": "Trample\nWhen this creature enters, create a Lander token. (It's an artifact with \"{2}, {T}, Sacrifice this token: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.\")\nLandfall — Whenever a land you control enters, creatures you control get +1/+1 and gain vigilance and haste until end of turn.",
+  "type_line": "Creature — Leviathan",
+  "image_url": "https://cards.scryfall.io/normal/front/d/3/d3291c51-e963-4970-813d-9a06a47aa71e.jpg?1752947322",
+  "back_image_url": "",
+  "rarity": "uncommon",
+  "set": "eoe",
+  "layout": "normal",
+  "cmc": 7.0,
+  "color_identity": [
+   "G"
+  ],
+  "keywords": [
+   "Trample",
+   "Landfall"
+  ],
+  "produced_mana": [],
+  "edhrec_rank": 5782,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "legal",
+   "pauper": "not_legal",
+   "standard": "legal",
+   "pioneer": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "0.30",
+   "usd_foil": "0.31",
+   "eur": "0.18",
+   "tix": "0.03"
+  }
+ },
+ "Dauntless Scrapbot": {
+  "id": "0efe5342-42b7-4f49-b4b4-d77055508c4d",
+  "oracle_id": "b75ca527-4494-4957-b2e3-8c590df42e95",
+  "name": "Dauntless Scrapbot",
+  "mana_cost": "{3}",
+  "oracle_text": "When this creature enters, exile each opponent's graveyard. Create a Lander token. (It's an artifact with \"{2}, {T}, Sacrifice this token: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.\")",
+  "type_line": "Artifact Creature — Robot",
+  "image_url": "https://cards.scryfall.io/normal/front/0/e/0efe5342-42b7-4f49-b4b4-d77055508c4d.jpg?1752947526",
+  "back_image_url": "",
+  "rarity": "uncommon",
+  "set": "eoe",
+  "layout": "normal",
+  "cmc": 3.0,
+  "color_identity": [],
+  "keywords": [],
+  "produced_mana": [],
+  "edhrec_rank": 6112,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "legal",
+   "pauper": "not_legal",
+   "standard": "legal",
+   "pioneer": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "0.30",
+   "usd_foil": "0.34",
+   "eur": "0.18",
+   "tix": "0.03"
+  }
+ },
+ "Staff of Compleation": {
+  "id": "0c475639-1368-4e29-adeb-8973e343bca5",
+  "oracle_id": "11c7662f-e688-40a6-98fd-6ae89d231b44",
+  "name": "Staff of Compleation",
+  "mana_cost": "{3}",
+  "oracle_text": "{T}, Pay 1 life: Destroy target permanent you own.\n{T}, Pay 2 life: Add one mana of any color.\n{T}, Pay 3 life: Proliferate.\n{T}, Pay 4 life: Draw a card.\n{5}: Untap this artifact.",
+  "type_line": "Artifact",
+  "image_url": "https://cards.scryfall.io/normal/front/0/c/0c475639-1368-4e29-adeb-8973e343bca5.jpg?1743207357",
+  "back_image_url": "",
+  "rarity": "mythic",
+  "set": "tdc",
+  "layout": "normal",
+  "cmc": 3.0,
+  "color_identity": [],
+  "keywords": [
+   "Proliferate"
+  ],
+  "produced_mana": [
+   "B",
+   "G",
+   "R",
+   "U",
+   "W"
+  ],
+  "edhrec_rank": 1341,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "not_legal",
+   "pauper": "not_legal",
+   "standard": "not_legal",
+   "pioneer": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "3.98",
+   "usd_foil": null,
+   "eur": "3.77",
+   "tix": "0.35"
+  }
+ },
+ "Divination": {
+  "id": "1252243c-34e3-447b-b323-fffcbe128278",
+  "oracle_id": "273b339c-964b-4a18-8eb5-ceb8abcdfd9e",
+  "name": "Divination",
+  "mana_cost": "{2}{U}",
+  "oracle_text": "Draw two cards.",
+  "type_line": "Sorcery",
+  "image_url": "https://cards.scryfall.io/normal/front/1/2/1252243c-34e3-447b-b323-fffcbe128278.jpg?1562632962",
+  "back_image_url": "",
+  "rarity": "common",
+  "set": "m12",
+  "layout": "normal",
+  "cmc": 3.0,
+  "color_identity": [
+   "U"
+  ],
+  "keywords": [],
+  "produced_mana": [],
+  "edhrec_rank": 6106,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "not_legal",
+   "pauper": "legal",
+   "standard": "not_legal",
+   "pioneer": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "0.14",
+   "usd_foil": "0.36",
+   "eur": "0.10",
+   "tix": "0.04"
+  }
+ },
+ "Phyrexian Arena": {
+  "id": "0784b6f0-9ebf-43d2-ba0f-a6bc93ba0c48",
+  "oracle_id": "ee579a32-a048-4335-b966-231ba731cdea",
+  "name": "Phyrexian Arena",
+  "mana_cost": "{1}{B}{B}",
+  "oracle_text": "At the beginning of your upkeep, you draw a card and you lose 1 life.",
+  "type_line": "Enchantment",
+  "image_url": "https://cards.scryfall.io/normal/front/0/7/0784b6f0-9ebf-43d2-ba0f-a6bc93ba0c48.jpg?1730489269",
+  "back_image_url": "",
+  "rarity": "rare",
+  "set": "fdn",
+  "layout": "normal",
+  "cmc": 3.0,
+  "color_identity": [
+   "B"
+  ],
+  "keywords": [],
+  "produced_mana": [],
+  "edhrec_rank": 97,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "legal",
+   "pauper": "not_legal",
+   "standard": "legal",
+   "pioneer": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "3.96",
+   "usd_foil": "4.31",
+   "eur": "3.38",
+   "tix": "0.02"
+  }
+ },
+ "Skullclamp": {
+  "id": "005dae9a-dddc-4a11-95bb-cce319edcce4",
+  "oracle_id": "65986c1b-8e51-4604-b685-d82fa7d1263a",
+  "name": "Skullclamp",
+  "mana_cost": "{1}",
+  "oracle_text": "Equipped creature gets +1/-1.\nWhenever equipped creature dies, draw two cards.\nEquip {1}",
+  "type_line": "Artifact — Equipment",
+  "image_url": "https://cards.scryfall.io/normal/front/0/0/005dae9a-dddc-4a11-95bb-cce319edcce4.jpg?1561930373",
+  "back_image_url": "",
+  "rarity": "uncommon",
+  "set": "c14",
+  "layout": "normal",
+  "cmc": 1.0,
+  "color_identity": [],
+  "keywords": [
+   "Equip"
+  ],
+  "produced_mana": [],
+  "edhrec_rank": 42,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "not_legal",
+   "standardbrawl": "not_legal",
+   "pauper": "not_legal",
+   "standard": "not_legal",
+   "pioneer": "not_legal",
+   "modern": "banned",
+   "legacy": "banned",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "5.65",
+   "usd_foil": null,
+   "eur": "5.17",
+   "tix": "1.41"
+  }
+ },
+ "Preordain": {
+  "id": "0d375d5d-c98b-43ef-94d0-2daca974ba15",
+  "oracle_id": "ac641490-ca14-48d7-8cc4-b69ce984befa",
+  "name": "Preordain",
+  "mana_cost": "{U}",
+  "oracle_text": "Scry 2, then draw a card. (To scry 2, look at the top two cards of your library, then put any number of them on the bottom and the rest on top in any order.)",
+  "type_line": "Sorcery",
+  "image_url": "https://cards.scryfall.io/normal/front/0/d/0d375d5d-c98b-43ef-94d0-2daca974ba15.jpg?1630638085",
+  "back_image_url": "",
+  "rarity": "common",
+  "set": "prm",
+  "layout": "normal",
+  "cmc": 1.0,
+  "color_identity": [
+   "U"
+  ],
+  "keywords": [
+   "Scry"
+  ],
+  "produced_mana": [],
+  "edhrec_rank": 219,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "not_legal",
+   "pauper": "legal",
+   "standard": "not_legal",
+   "pioneer": "not_legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": "3.00"
+  }
+ },
+ "Lightning Bolt": {
+  "id": "0277c0b1-da97-49c1-a539-7fbaa1f77419",
+  "oracle_id": "4457ed35-7c10-48c8-9776-456485fdf070",
+  "name": "Lightning Bolt",
+  "mana_cost": "{R}",
+  "oracle_text": "Lightning Bolt deals 3 damage to any target.",
+  "type_line": "Instant",
+  "image_url": "https://cards.scryfall.io/normal/front/0/2/0277c0b1-da97-49c1-a539-7fbaa1f77419.jpg?1778748653",
+  "back_image_url": "",
+  "rarity": "rare",
+  "set": "sld",
+  "layout": "normal",
+  "cmc": 1.0,
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "produced_mana": [],
+  "edhrec_rank": 155,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "not_legal",
+   "pauper": "legal",
+   "standard": "not_legal",
+   "pioneer": "not_legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": null,
+   "usd_foil": "13.78",
+   "eur": null,
+   "tix": null
+  }
+ },
+ "Swords to Plowshares": {
+  "id": "04e0738b-b856-401e-8b41-096e2c48cf96",
+  "oracle_id": "b1544f21-7e98-461b-aed5-e748b0168c52",
+  "name": "Swords to Plowshares",
+  "mana_cost": "{W}",
+  "oracle_text": "Exile target creature. Its controller gains life equal to its power.",
+  "type_line": "Instant",
+  "image_url": "https://cards.scryfall.io/normal/front/0/4/04e0738b-b856-401e-8b41-096e2c48cf96.jpg?1562895965",
+  "back_image_url": "",
+  "rarity": "uncommon",
+  "set": "ptc",
+  "layout": "normal",
+  "cmc": 1.0,
+  "color_identity": [
+   "W"
+  ],
+  "keywords": [],
+  "produced_mana": [],
+  "edhrec_rank": 11,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "not_legal",
+   "pauper": "not_legal",
+   "standard": "not_legal",
+   "pioneer": "not_legal",
+   "modern": "not_legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "4.07",
+   "usd_foil": null,
+   "eur": "3.90",
+   "tix": null
+  }
+ },
+ "Murder": {
+  "id": "0b5579cf-4e3f-4b65-a253-465459f3da81",
+  "oracle_id": "938b4e2c-88d9-4637-bc00-e228920c9a78",
+  "name": "Murder",
+  "mana_cost": "{1}{B}{B}",
+  "oracle_text": "Destroy target creature.",
+  "type_line": "Instant",
+  "image_url": "https://cards.scryfall.io/normal/front/0/b/0b5579cf-4e3f-4b65-a253-465459f3da81.jpg?1604193264",
+  "back_image_url": "",
+  "rarity": "common",
+  "set": "znc",
+  "layout": "normal",
+  "cmc": 3.0,
+  "color_identity": [
+   "B"
+  ],
+  "keywords": [],
+  "produced_mana": [],
+  "edhrec_rank": 790,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "legal",
+   "pauper": "legal",
+   "standard": "legal",
+   "pioneer": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "0.11",
+   "usd_foil": null,
+   "eur": "0.19",
+   "tix": null
+  }
+ },
+ "Wrath of God": {
+  "id": "0619d670-7b53-4185-a25d-2fab5db1aab5",
+  "oracle_id": "34515b16-c9a4-4f98-8c77-416a7a523407",
+  "name": "Wrath of God",
+  "mana_cost": "{2}{W}{W}",
+  "oracle_text": "Destroy all creatures. They can't be regenerated.",
+  "type_line": "Sorcery",
+  "image_url": "https://cards.scryfall.io/normal/front/0/6/0619d670-7b53-4185-a25d-2fab5db1aab5.jpg?1562896185",
+  "back_image_url": "",
+  "rarity": "rare",
+  "set": "8ed",
+  "layout": "normal",
+  "cmc": 4.0,
+  "color_identity": [
+   "W"
+  ],
+  "keywords": [],
+  "produced_mana": [],
+  "edhrec_rank": 626,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "not_legal",
+   "pauper": "not_legal",
+   "standard": "not_legal",
+   "pioneer": "not_legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "4.06",
+   "usd_foil": null,
+   "eur": "1.55",
+   "tix": "0.02"
+  }
+ },
+ "Blasphemous Act": {
+  "id": "0b98a8ac-9255-416d-b86a-46621c4bea4f",
+  "oracle_id": "7a2484a9-04fd-41a0-8224-610c1c07ed10",
+  "name": "Blasphemous Act",
+  "mana_cost": "{8}{R}",
+  "oracle_text": "This spell costs {1} less to cast for each creature on the battlefield.\nBlasphemous Act deals 13 damage to each creature.",
+  "type_line": "Sorcery",
+  "image_url": "https://cards.scryfall.io/normal/front/0/b/0b98a8ac-9255-416d-b86a-46621c4bea4f.jpg?1673484303",
+  "back_image_url": "",
+  "rarity": "rare",
+  "set": "ncc",
+  "layout": "normal",
+  "cmc": 9.0,
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "produced_mana": [],
+  "edhrec_rank": 22,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "not_legal",
+   "pauper": "not_legal",
+   "standard": "not_legal",
+   "pioneer": "not_legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "2.31",
+   "usd_foil": null,
+   "eur": "1.47",
+   "tix": null
+  }
+ },
+ "Counterspell": {
+  "id": "02da8709-4228-4fed-9d2d-781e686661df",
+  "oracle_id": "cc187110-1148-4090-bbb8-e205694a39f5",
+  "name": "Counterspell",
+  "mana_cost": "{U}{U}",
+  "oracle_text": "Counter target spell.",
+  "type_line": "Instant",
+  "image_url": "https://cards.scryfall.io/normal/front/0/2/02da8709-4228-4fed-9d2d-781e686661df.jpg?1675199223",
+  "back_image_url": "",
+  "rarity": "common",
+  "set": "dmr",
+  "layout": "normal",
+  "cmc": 2.0,
+  "color_identity": [
+   "U"
+  ],
+  "keywords": [],
+  "produced_mana": [],
+  "edhrec_rank": 16,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "not_legal",
+   "pauper": "legal",
+   "standard": "not_legal",
+   "pioneer": "not_legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "3.80",
+   "usd_foil": "3.04",
+   "eur": "2.42",
+   "tix": "0.04"
+  }
+ },
+ "Heroic Intervention": {
+  "id": "02f7ffb0-ad48-4f2c-af43-a86a9546a1b2",
+  "oracle_id": "24882fa2-3fe9-4c1b-aa3d-0e6488b9db27",
+  "name": "Heroic Intervention",
+  "mana_cost": "{1}{G}",
+  "oracle_text": "Permanents you control gain hexproof and indestructible until end of turn.",
+  "type_line": "Instant",
+  "image_url": "https://cards.scryfall.io/normal/front/0/2/02f7ffb0-ad48-4f2c-af43-a86a9546a1b2.jpg?1729295822",
+  "back_image_url": "",
+  "rarity": "rare",
+  "set": "sld",
+  "layout": "normal",
+  "cmc": 2.0,
+  "color_identity": [
+   "G"
+  ],
+  "keywords": [],
+  "produced_mana": [],
+  "edhrec_rank": 31,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "not_legal",
+   "pauper": "not_legal",
+   "standard": "not_legal",
+   "pioneer": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "17.77",
+   "usd_foil": null,
+   "eur": "14.63",
+   "tix": null
+  }
+ },
+ "Lightning Greaves": {
+  "id": "047de2fe-6fc1-40c5-98d4-6203b4a83445",
+  "oracle_id": "ca204b66-8d0c-431a-8d34-282f7c2d17da",
+  "name": "Lightning Greaves",
+  "mana_cost": "{2}",
+  "oracle_text": "Equipped creature has haste and shroud. (It can't be the target of spells or abilities.)\nEquip {0}",
+  "type_line": "Artifact — Equipment",
+  "image_url": "https://cards.scryfall.io/normal/front/0/4/047de2fe-6fc1-40c5-98d4-6203b4a83445.jpg?1592673627",
+  "back_image_url": "",
+  "rarity": "uncommon",
+  "set": "cma",
+  "layout": "normal",
+  "cmc": 2.0,
+  "color_identity": [],
+  "keywords": [
+   "Equip"
+  ],
+  "produced_mana": [],
+  "edhrec_rank": 13,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "not_legal",
+   "pauper": "not_legal",
+   "standard": "not_legal",
+   "pioneer": "not_legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "5.15",
+   "usd_foil": null,
+   "eur": "4.13",
+   "tix": null
+  }
+ },
+ "Eternal Witness": {
+  "id": "02902fcc-eefc-4e81-aafd-59fa203a71d7",
+  "oracle_id": "30b24e8e-3b0e-4d8e-90f3-f66eb7c1858c",
+  "name": "Eternal Witness",
+  "mana_cost": "{1}{G}{G}",
+  "oracle_text": "When this creature enters, you may return target card from your graveyard to your hand.",
+  "type_line": "Creature — Human Shaman",
+  "image_url": "https://cards.scryfall.io/normal/front/0/2/02902fcc-eefc-4e81-aafd-59fa203a71d7.jpg?1561965992",
+  "back_image_url": "",
+  "rarity": "uncommon",
+  "set": "mma",
+  "layout": "normal",
+  "cmc": 3.0,
+  "color_identity": [
+   "G"
+  ],
+  "keywords": [],
+  "produced_mana": [],
+  "edhrec_rank": 105,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "not_legal",
+   "pauper": "not_legal",
+   "standard": "not_legal",
+   "pioneer": "not_legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "2.64",
+   "usd_foil": "10.24",
+   "eur": "1.00",
+   "tix": "0.03"
+  }
+ },
+ "Demonic Tutor": {
+  "id": "085ed548-a8c8-40b3-8183-51c060bc95cb",
+  "oracle_id": "82004860-e589-4e38-8d61-8c0210e4ea39",
+  "name": "Demonic Tutor",
+  "mana_cost": "{1}{B}",
+  "oracle_text": "Search your library for a card, put that card into your hand, then shuffle.",
+  "type_line": "Sorcery",
+  "image_url": "https://cards.scryfall.io/normal/front/0/8/085ed548-a8c8-40b3-8183-51c060bc95cb.jpg?1664927814",
+  "back_image_url": "",
+  "rarity": "uncommon",
+  "set": "30a",
+  "layout": "normal",
+  "cmc": 2.0,
+  "color_identity": [
+   "B"
+  ],
+  "keywords": [],
+  "produced_mana": [],
+  "edhrec_rank": 59,
+  "game_changer": true,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "banned",
+   "standardbrawl": "not_legal",
+   "pauper": "not_legal",
+   "standard": "not_legal",
+   "pioneer": "not_legal",
+   "modern": "not_legal",
+   "legacy": "banned",
+   "vintage": "restricted"
+  },
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  }
+ },
+ "Viscera Seer": {
+  "id": "24277de8-7412-496c-bd44-61d9629a3473",
+  "oracle_id": "f82a4e85-526d-4456-b700-7760043a31be",
+  "name": "Viscera Seer",
+  "mana_cost": "{B}",
+  "oracle_text": "Sacrifice a creature: Scry 1. (Look at the top card of your library. You may put that card on the bottom.)",
+  "type_line": "Creature — Vampire Wizard",
+  "image_url": "https://cards.scryfall.io/normal/front/2/4/24277de8-7412-496c-bd44-61d9629a3473.jpg?1583453541",
+  "back_image_url": "",
+  "rarity": "common",
+  "set": "plst",
+  "layout": "normal",
+  "cmc": 1.0,
+  "color_identity": [
+   "B"
+  ],
+  "keywords": [
+   "Scry"
+  ],
+  "produced_mana": [],
+  "edhrec_rank": 254,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "not_legal",
+   "standardbrawl": "not_legal",
+   "pauper": "legal",
+   "standard": "not_legal",
+   "pioneer": "not_legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": null,
+   "usd_foil": "2.24",
+   "eur": null,
+   "tix": null
+  }
+ },
+ "Village Rites": {
+  "id": "0fab9ee8-776a-48e5-b309-bcd381e67bf7",
+  "oracle_id": "365548fb-5acc-4a8a-b20b-26d28b7d029f",
+  "name": "Village Rites",
+  "mana_cost": "{B}",
+  "oracle_text": "As an additional cost to cast this spell, sacrifice a creature.\nDraw two cards.",
+  "type_line": "Instant",
+  "image_url": "https://cards.scryfall.io/normal/front/0/f/0fab9ee8-776a-48e5-b309-bcd381e67bf7.jpg?1631048783",
+  "back_image_url": "",
+  "rarity": "common",
+  "set": "khm",
+  "layout": "normal",
+  "cmc": 1.0,
+  "color_identity": [
+   "B"
+  ],
+  "keywords": [],
+  "produced_mana": [],
+  "edhrec_rank": 194,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "not_legal",
+   "pauper": "legal",
+   "standard": "not_legal",
+   "pioneer": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "0.36",
+   "usd_foil": "0.41",
+   "eur": "0.28",
+   "tix": "0.03"
+  }
+ },
+ "Blood Artist": {
+  "id": "036f387a-8dee-482e-b3e3-cf79b54c61e1",
+  "oracle_id": "310f141c-7f37-4729-aed6-dd9c09db448d",
+  "name": "Blood Artist",
+  "mana_cost": "{1}{B}",
+  "oracle_text": "Whenever this creature or another creature dies, target player loses 1 life and you gain 1 life.",
+  "type_line": "Creature — Vampire",
+  "image_url": "https://cards.scryfall.io/normal/front/0/3/036f387a-8dee-482e-b3e3-cf79b54c61e1.jpg?1736467880",
+  "back_image_url": "",
+  "rarity": "uncommon",
+  "set": "inr",
+  "layout": "normal",
+  "cmc": 2.0,
+  "color_identity": [
+   "B"
+  ],
+  "keywords": [],
+  "produced_mana": [],
+  "edhrec_rank": 138,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "not_legal",
+   "standardbrawl": "not_legal",
+   "pauper": "not_legal",
+   "standard": "not_legal",
+   "pioneer": "not_legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "2.26",
+   "usd_foil": "3.71",
+   "eur": "2.24",
+   "tix": "0.04"
+  }
+ },
+ "Zulaport Cutthroat": {
+  "id": "08fca446-fee8-4617-91bc-5f1b18daf2ec",
+  "oracle_id": "76b003e0-15af-4f22-bdf2-1ade5430964a",
+  "name": "Zulaport Cutthroat",
+  "mana_cost": "{1}{B}",
+  "oracle_text": "Whenever this creature or another creature you control dies, each opponent loses 1 life and you gain 1 life.",
+  "type_line": "Creature — Human Rogue Ally",
+  "image_url": "https://cards.scryfall.io/normal/front/0/8/08fca446-fee8-4617-91bc-5f1b18daf2ec.jpg?1733179548",
+  "back_image_url": "",
+  "rarity": "uncommon",
+  "set": "pio",
+  "layout": "normal",
+  "cmc": 2.0,
+  "color_identity": [
+   "B"
+  ],
+  "keywords": [],
+  "produced_mana": [],
+  "edhrec_rank": 233,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "not_legal",
+   "pauper": "not_legal",
+   "standard": "not_legal",
+   "pioneer": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  }
+ },
+ "Raise the Alarm": {
+  "id": "23a3e9e3-5ec1-4f4c-9bbd-84908fa09ed3",
+  "oracle_id": "5b2364d7-a811-4595-a1b4-224c70555ffa",
+  "name": "Raise the Alarm",
+  "mana_cost": "{1}{W}",
+  "oracle_text": "Create two 1/1 white Soldier creature tokens.",
+  "type_line": "Instant",
+  "image_url": "https://cards.scryfall.io/normal/front/2/3/23a3e9e3-5ec1-4f4c-9bbd-84908fa09ed3.jpg?1562385573",
+  "back_image_url": "",
+  "rarity": "common",
+  "set": "md1",
+  "layout": "normal",
+  "cmc": 2.0,
+  "color_identity": [
+   "W"
+  ],
+  "keywords": [],
+  "produced_mana": [],
+  "edhrec_rank": 4558,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "not_legal",
+   "pauper": "legal",
+   "standard": "not_legal",
+   "pioneer": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "0.18",
+   "usd_foil": null,
+   "eur": "0.20",
+   "tix": null
+  }
+ },
+ "Young Pyromancer": {
+  "id": "218af707-cc60-407e-af20-e21879a0e902",
+  "oracle_id": "5fac139a-07d3-4e6c-98e3-d98b199f7a6f",
+  "name": "Young Pyromancer",
+  "mana_cost": "{1}{R}",
+  "oracle_text": "Whenever you cast an instant or sorcery spell, create a 1/1 red Elemental creature token.",
+  "type_line": "Creature — Human Shaman",
+  "image_url": "https://cards.scryfall.io/normal/front/2/1/218af707-cc60-407e-af20-e21879a0e902.jpg?1601078849",
+  "back_image_url": "",
+  "rarity": "uncommon",
+  "set": "jmp",
+  "layout": "normal",
+  "cmc": 2.0,
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "produced_mana": [],
+  "edhrec_rank": 780,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "not_legal",
+   "pauper": "not_legal",
+   "standard": "not_legal",
+   "pioneer": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "0.34",
+   "usd_foil": null,
+   "eur": "0.22",
+   "tix": null
+  }
+ },
+ "Impact Tremors": {
+  "id": "46db3811-db1d-4f69-8143-a93f64d0297b",
+  "oracle_id": "9242cd3e-1a71-4700-8182-9c1005616033",
+  "name": "Impact Tremors",
+  "mana_cost": "{1}{R}",
+  "oracle_text": "Whenever a creature you control enters, this enchantment deals 1 damage to each opponent.",
+  "type_line": "Enchantment",
+  "image_url": "https://cards.scryfall.io/normal/front/4/6/46db3811-db1d-4f69-8143-a93f64d0297b.jpg?1682209381",
+  "back_image_url": "",
+  "rarity": "common",
+  "set": "moc",
+  "layout": "normal",
+  "cmc": 2.0,
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "produced_mana": [],
+  "edhrec_rank": 186,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "legal",
+   "pauper": "legal",
+   "standard": "legal",
+   "pioneer": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "4.96",
+   "usd_foil": null,
+   "eur": "2.92",
+   "tix": "0.26"
+  }
+ },
+ "Soul Warden": {
+  "id": "042ddabd-fea8-4f0a-8090-4680683dd574",
+  "oracle_id": "f3fad295-1af2-4ecc-8546-b121ad6be27b",
+  "name": "Soul Warden",
+  "mana_cost": "{W}",
+  "oracle_text": "Whenever another creature enters, you gain 1 life.",
+  "type_line": "Creature — Human Cleric",
+  "image_url": "https://cards.scryfall.io/normal/front/0/4/042ddabd-fea8-4f0a-8090-4680683dd574.jpg?1562057864",
+  "back_image_url": "",
+  "rarity": "uncommon",
+  "set": "psal",
+  "layout": "normal",
+  "cmc": 1.0,
+  "color_identity": [
+   "W"
+  ],
+  "keywords": [],
+  "produced_mana": [],
+  "edhrec_rank": 509,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "not_legal",
+   "pauper": "legal",
+   "standard": "not_legal",
+   "pioneer": "not_legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": "1.72",
+   "tix": null
+  }
+ },
+ "Ajani's Pridemate": {
+  "id": "1796b260-7053-4d68-9918-c7392e312d10",
+  "oracle_id": "95e94dea-5ac0-4d6f-adec-ca147aee861f",
+  "name": "Ajani's Pridemate",
+  "mana_cost": "{1}{W}",
+  "oracle_text": "Whenever you gain life, put a +1/+1 counter on this creature.",
+  "type_line": "Creature — Cat Soldier",
+  "image_url": "https://cards.scryfall.io/normal/front/1/7/1796b260-7053-4d68-9918-c7392e312d10.jpg?1706239703",
+  "back_image_url": "",
+  "rarity": "uncommon",
+  "set": "clu",
+  "layout": "normal",
+  "cmc": 2.0,
+  "color_identity": [
+   "W"
+  ],
+  "keywords": [],
+  "produced_mana": [],
+  "edhrec_rank": 2672,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "legal",
+   "pauper": "not_legal",
+   "standard": "legal",
+   "pioneer": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "0.22",
+   "usd_foil": null,
+   "eur": "0.20",
+   "tix": "0.02"
+  }
+ },
+ "Steel Overseer": {
+  "id": "107e90df-4cc7-4e58-9ab0-f7e641b8121b",
+  "oracle_id": "986ae327-f433-4c58-93dc-afc544b9bfcb",
+  "name": "Steel Overseer",
+  "mana_cost": "{2}",
+  "oracle_text": "{T}: Put a +1/+1 counter on each artifact creature you control.",
+  "type_line": "Artifact Creature — Construct",
+  "image_url": "https://cards.scryfall.io/normal/front/1/0/107e90df-4cc7-4e58-9ab0-f7e641b8121b.jpg?1564079759",
+  "back_image_url": "",
+  "rarity": "rare",
+  "set": "pm20",
+  "layout": "normal",
+  "cmc": 2.0,
+  "color_identity": [],
+  "keywords": [],
+  "produced_mana": [],
+  "edhrec_rank": 830,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "not_legal",
+   "pauper": "not_legal",
+   "standard": "not_legal",
+   "pioneer": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "1.05",
+   "usd_foil": "2.55",
+   "eur": "0.82",
+   "tix": null
+  }
+ },
+ "Hardened Scales": {
+  "id": "01c4a294-d8b5-4237-af09-f592029c917a",
+  "oracle_id": "a1f3da21-af6d-450e-bf0b-985d158418e6",
+  "name": "Hardened Scales",
+  "mana_cost": "{G}",
+  "oracle_text": "If one or more +1/+1 counters would be put on a creature you control, that many plus one +1/+1 counters are put on it instead.",
+  "type_line": "Enchantment",
+  "image_url": "https://cards.scryfall.io/normal/front/0/1/01c4a294-d8b5-4237-af09-f592029c917a.jpg?1562272002",
+  "back_image_url": "",
+  "rarity": "rare",
+  "set": "cm2",
+  "layout": "normal",
+  "cmc": 1.0,
+  "color_identity": [
+   "G"
+  ],
+  "keywords": [],
+  "produced_mana": [],
+  "edhrec_rank": 188,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "not_legal",
+   "pauper": "not_legal",
+   "standard": "not_legal",
+   "pioneer": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "2.80",
+   "usd_foil": null,
+   "eur": "2.64",
+   "tix": null
+  }
+ },
+ "Eidolon of Blossoms": {
+  "id": "0d82f171-b1f6-4e80-996a-c579a1be252c",
+  "oracle_id": "77ccbea1-70af-4194-adad-39a904221c75",
+  "name": "Eidolon of Blossoms",
+  "mana_cost": "{2}{G}{G}",
+  "oracle_text": "Constellation — Whenever this creature or another enchantment you control enters, draw a card.",
+  "type_line": "Enchantment Creature — Spirit",
+  "image_url": "https://cards.scryfall.io/normal/front/0/d/0d82f171-b1f6-4e80-996a-c579a1be252c.jpg?1592710863",
+  "back_image_url": "",
+  "rarity": "rare",
+  "set": "c18",
+  "layout": "normal",
+  "cmc": 4.0,
+  "color_identity": [
+   "G"
+  ],
+  "keywords": [
+   "Constellation"
+  ],
+  "produced_mana": [],
+  "edhrec_rank": 824,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "not_legal",
+   "pauper": "not_legal",
+   "standard": "not_legal",
+   "pioneer": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "3.93",
+   "usd_foil": null,
+   "eur": "2.54",
+   "tix": null
+  }
+ },
+ "Enchantress's Presence": {
+  "id": "3f50538b-f866-4e75-8856-2ad8af635011",
+  "oracle_id": "795b096a-2bce-4588-a2c9-abc5ea40dc0c",
+  "name": "Enchantress's Presence",
+  "mana_cost": "{2}{G}",
+  "oracle_text": "Whenever you cast an enchantment spell, draw a card.",
+  "type_line": "Enchantment",
+  "image_url": "https://cards.scryfall.io/normal/front/3/f/3f50538b-f866-4e75-8856-2ad8af635011.jpg?1690004818",
+  "back_image_url": "",
+  "rarity": "rare",
+  "set": "cmm",
+  "layout": "normal",
+  "cmc": 3.0,
+  "color_identity": [
+   "G"
+  ],
+  "keywords": [],
+  "produced_mana": [],
+  "edhrec_rank": 912,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "not_legal",
+   "pauper": "not_legal",
+   "standard": "not_legal",
+   "pioneer": "not_legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "1.36",
+   "usd_foil": null,
+   "eur": "0.78",
+   "tix": "0.37"
+  }
+ },
+ "Monastery Swiftspear": {
+  "id": "3c9899a8-f5b0-427f-ac87-09fc8afe0f23",
+  "oracle_id": "dafd2713-d1bc-474b-b390-d2ff20b5375e",
+  "name": "Monastery Swiftspear",
+  "mana_cost": "{R}",
+  "oracle_text": "Haste\nProwess (Whenever you cast a noncreature spell, this creature gets +1/+1 until end of turn.)",
+  "type_line": "Creature — Human Monk",
+  "image_url": "https://cards.scryfall.io/normal/front/3/c/3c9899a8-f5b0-427f-ac87-09fc8afe0f23.jpg?1674097314",
+  "back_image_url": "",
+  "rarity": "common",
+  "set": "2x2",
+  "layout": "normal",
+  "cmc": 1.0,
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [
+   "Prowess",
+   "Haste"
+  ],
+  "produced_mana": [],
+  "edhrec_rank": 7354,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "not_legal",
+   "pauper": "banned",
+   "standard": "not_legal",
+   "pioneer": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "0.33",
+   "usd_foil": "0.41",
+   "eur": "0.40",
+   "tix": null
+  }
+ },
+ "Entomb": {
+  "id": "06c0c35d-a26e-473a-9206-8fbda7191700",
+  "oracle_id": "299fc083-0834-4064-8344-f895aff68867",
+  "name": "Entomb",
+  "mana_cost": "{B}",
+  "oracle_text": "Search your library for a card, put that card into your graveyard, then shuffle.",
+  "type_line": "Instant",
+  "image_url": "https://cards.scryfall.io/normal/front/0/6/06c0c35d-a26e-473a-9206-8fbda7191700.jpg?1562896336",
+  "back_image_url": "",
+  "rarity": "rare",
+  "set": "pd3",
+  "layout": "normal",
+  "cmc": 1.0,
+  "color_identity": [
+   "B"
+  ],
+  "keywords": [],
+  "produced_mana": [],
+  "edhrec_rank": 321,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "not_legal",
+   "pauper": "not_legal",
+   "standard": "not_legal",
+   "pioneer": "not_legal",
+   "modern": "not_legal",
+   "legacy": "banned",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": null,
+   "usd_foil": "16.59",
+   "eur": null,
+   "tix": "0.10"
+  }
+ },
+ "Reanimate": {
+  "id": "04fc99dc-bfbe-4567-b791-6b1db96471ec",
+  "oracle_id": "a044474a-cd72-4e9d-bd8d-a08f2de9cdc0",
+  "name": "Reanimate",
+  "mana_cost": "{B}",
+  "oracle_text": "Put target creature card from a graveyard onto the battlefield under your control. You lose life equal to that card's mana value.",
+  "type_line": "Sorcery",
+  "image_url": "https://cards.scryfall.io/normal/front/0/4/04fc99dc-bfbe-4567-b791-6b1db96471ec.jpg?1547516995",
+  "back_image_url": "",
+  "rarity": "rare",
+  "set": "uma",
+  "layout": "normal",
+  "cmc": 1.0,
+  "color_identity": [
+   "B"
+  ],
+  "keywords": [],
+  "produced_mana": [],
+  "edhrec_rank": 57,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "not_legal",
+   "pauper": "not_legal",
+   "standard": "not_legal",
+   "pioneer": "not_legal",
+   "modern": "not_legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "9.24",
+   "usd_foil": "24.53",
+   "eur": "8.54",
+   "tix": "0.50"
+  }
+ },
+ "Frogmite": {
+  "id": "0665de15-bfd3-4b08-9712-dfcc7907607a",
+  "oracle_id": "a927fd33-f183-48d9-b582-55d379d70e13",
+  "name": "Frogmite",
+  "mana_cost": "{4}",
+  "oracle_text": "Affinity for artifacts (This spell costs {1} less to cast for each artifact you control.)",
+  "type_line": "Artifact Creature — Frog",
+  "image_url": "https://cards.scryfall.io/normal/front/0/6/0665de15-bfd3-4b08-9712-dfcc7907607a.jpg?1562269779",
+  "back_image_url": "",
+  "rarity": "common",
+  "set": "ddf",
+  "layout": "normal",
+  "cmc": 4.0,
+  "color_identity": [],
+  "keywords": [
+   "Affinity"
+  ],
+  "produced_mana": [],
+  "edhrec_rank": 9550,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "not_legal",
+   "pauper": "legal",
+   "standard": "not_legal",
+   "pioneer": "not_legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "0.41",
+   "usd_foil": null,
+   "eur": "0.24",
+   "tix": "0.04"
+  }
+ },
+ "Evolving Wilds": {
+  "id": "107cd283-de27-494f-90b8-0dec55745255",
+  "oracle_id": "a75445d3-1303-4bb5-89ad-26ea93fecd48",
+  "name": "Evolving Wilds",
+  "mana_cost": "",
+  "oracle_text": "{T}, Sacrifice this land: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.",
+  "type_line": "Land",
+  "image_url": "https://cards.scryfall.io/normal/front/1/0/107cd283-de27-494f-90b8-0dec55745255.jpg?1562839813",
+  "back_image_url": "",
+  "rarity": "common",
+  "set": "ddo",
+  "layout": "normal",
+  "cmc": 0.0,
+  "color_identity": [],
+  "keywords": [],
+  "produced_mana": [],
+  "edhrec_rank": 18,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "legal",
+   "pauper": "legal",
+   "standard": "legal",
+   "pioneer": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "0.23",
+   "usd_foil": null,
+   "eur": "0.15",
+   "tix": null
+  }
+ },
+ "Ephemerate": {
+  "id": "05578e28-2258-492d-9637-4f1ab7091247",
+  "oracle_id": "0fd57894-b917-41c8-a394-360d1d31b236",
+  "name": "Ephemerate",
+  "mana_cost": "{W}",
+  "oracle_text": "Exile target creature you control, then return it to the battlefield under its owner's control.\nRebound (If you cast this spell from your hand, exile it as it resolves. At the beginning of your next upkeep, you may cast this card from exile without paying its mana cost.)",
+  "type_line": "Instant",
+  "image_url": "https://cards.scryfall.io/normal/front/0/5/05578e28-2258-492d-9637-4f1ab7091247.jpg?1675614210",
+  "back_image_url": "",
+  "rarity": "rare",
+  "set": "psvc",
+  "layout": "normal",
+  "cmc": 1.0,
+  "color_identity": [
+   "W"
+  ],
+  "keywords": [
+   "Rebound"
+  ],
+  "produced_mana": [],
+  "edhrec_rank": 445,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "not_legal",
+   "pauper": "legal",
+   "standard": "not_legal",
+   "pioneer": "not_legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": null,
+   "usd_foil": "16.62",
+   "eur": null,
+   "tix": null
+  }
+ },
+ "Mulldrifter": {
+  "id": "02ec46dc-7551-41a0-97b3-ff3286e1755c",
+  "oracle_id": "24d0f5e7-0d9e-4b76-900e-a7274e80312d",
+  "name": "Mulldrifter",
+  "mana_cost": "{4}{U}",
+  "oracle_text": "Flying\nWhen this creature enters, draw two cards.\nEvoke {2}{U} (You may cast this spell for its evoke cost. If you do, it's sacrificed when it enters.)",
+  "type_line": "Creature — Elemental",
+  "image_url": "https://cards.scryfall.io/normal/front/0/2/02ec46dc-7551-41a0-97b3-ff3286e1755c.jpg?1562542593",
+  "back_image_url": "",
+  "rarity": "common",
+  "set": "prm",
+  "layout": "normal",
+  "cmc": 5.0,
+  "color_identity": [
+   "U"
+  ],
+  "keywords": [
+   "Flying",
+   "Evoke"
+  ],
+  "produced_mana": [],
+  "edhrec_rank": 569,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "not_legal",
+   "pauper": "legal",
+   "standard": "not_legal",
+   "pioneer": "not_legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": "0.05"
+  }
+ },
+ "Rancor": {
+  "id": "1d86ea97-0d7a-42ee-9d46-1c0dd10474c7",
+  "oracle_id": "9d2d6479-531c-4ce1-b52b-00e36fa63b64",
+  "name": "Rancor",
+  "mana_cost": "{G}",
+  "oracle_text": "Enchant creature\nEnchanted creature gets +2/+0 and has trample.\nWhen this Aura is put into a graveyard from the battlefield, return it to its owner's hand.",
+  "type_line": "Enchantment — Aura",
+  "image_url": "https://cards.scryfall.io/normal/front/1/d/1d86ea97-0d7a-42ee-9d46-1c0dd10474c7.jpg?1708745173",
+  "back_image_url": "",
+  "rarity": "uncommon",
+  "set": "pip",
+  "layout": "normal",
+  "cmc": 1.0,
+  "color_identity": [
+   "G"
+  ],
+  "keywords": [
+   "Enchant"
+  ],
+  "produced_mana": [],
+  "edhrec_rank": 787,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "not_legal",
+   "standardbrawl": "not_legal",
+   "pauper": "legal",
+   "standard": "not_legal",
+   "pioneer": "not_legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": null,
+   "usd_foil": "15.31",
+   "eur": null,
+   "tix": null
+  }
+ },
+ "Slippery Bogle": {
+  "id": "19714d6c-2bfa-4ee0-aa2f-5ccc196bc5d8",
+  "oracle_id": "f64878c1-1fba-44f7-a24f-d24bef2e03ae",
+  "name": "Slippery Bogle",
+  "mana_cost": "{G/U}",
+  "oracle_text": "Hexproof (This creature can't be the target of spells or abilities your opponents control.)",
+  "type_line": "Creature — Beast",
+  "image_url": "https://cards.scryfall.io/normal/front/1/9/19714d6c-2bfa-4ee0-aa2f-5ccc196bc5d8.jpg?1562900327",
+  "back_image_url": "",
+  "rarity": "common",
+  "set": "eve",
+  "layout": "normal",
+  "cmc": 1.0,
+  "color_identity": [
+   "G",
+   "U"
+  ],
+  "keywords": [
+   "Hexproof"
+  ],
+  "produced_mana": [],
+  "edhrec_rank": 11190,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "not_legal",
+   "pauper": "legal",
+   "standard": "not_legal",
+   "pioneer": "not_legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "1.01",
+   "usd_foil": "14.07",
+   "eur": "1.02",
+   "tix": "0.61"
+  }
+ },
+ "Kor Spiritdancer": {
+  "id": "03066fa1-ea16-4a87-9218-120efa976909",
+  "oracle_id": "2bfc7467-1316-43d3-9ca6-ff36cc2de607",
+  "name": "Kor Spiritdancer",
+  "mana_cost": "{1}{W}",
+  "oracle_text": "This creature gets +2/+2 for each Aura attached to it.\nWhenever you cast an Aura spell, you may draw a card.",
+  "type_line": "Creature — Kor Wizard",
+  "image_url": "https://cards.scryfall.io/normal/front/0/3/03066fa1-ea16-4a87-9218-120efa976909.jpg?1562700679",
+  "back_image_url": "",
+  "rarity": "rare",
+  "set": "roe",
+  "layout": "normal",
+  "cmc": 2.0,
+  "color_identity": [
+   "W"
+  ],
+  "keywords": [],
+  "produced_mana": [],
+  "edhrec_rank": 1936,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "not_legal",
+   "pauper": "not_legal",
+   "standard": "not_legal",
+   "pioneer": "not_legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "3.49",
+   "usd_foil": "18.24",
+   "eur": "2.30",
+   "tix": "0.02"
+  }
+ },
+ "Lander": {
+  "id": "49164e15-252a-46e2-8c5a-66e41e071072",
+  "oracle_id": "d7b177cf-59fd-44dc-9c56-1c4bcacb8468",
+  "name": "Lander",
+  "mana_cost": "",
+  "oracle_text": "{2}, {T}, Sacrifice this token: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.",
+  "type_line": "Token Artifact — Lander",
+  "image_url": "https://cards.scryfall.io/normal/front/4/9/49164e15-252a-46e2-8c5a-66e41e071072.jpg?1752946482",
+  "back_image_url": "",
+  "rarity": "common",
+  "set": "teoe",
+  "layout": "token",
+  "cmc": 0.0,
+  "color_identity": [],
+  "keywords": [],
+  "produced_mana": [],
+  "edhrec_rank": null,
+  "game_changer": false,
+  "legalities": {
+   "commander": "not_legal",
+   "brawl": "not_legal",
+   "standardbrawl": "not_legal",
+   "pauper": "not_legal",
+   "standard": "not_legal",
+   "pioneer": "not_legal",
+   "modern": "not_legal",
+   "legacy": "not_legal",
+   "vintage": "not_legal"
+  },
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  }
+ },
+ "Blackbloom Rogue // Blackbloom Bog": {
+  "id": "32779721-b021-4bd4-95d1-4a19b78d9faa",
+  "oracle_id": "34320ebf-da97-44a4-bbeb-a9da06548289",
+  "name": "Blackbloom Rogue // Blackbloom Bog",
+  "mana_cost": "{2}{B}",
+  "oracle_text": "Menace (This creature can't be blocked except by two or more creatures.)\nThis creature gets +3/+0 as long as an opponent has eight or more cards in their graveyard.\n//\nThis land enters tapped.\n{T}: Add {B}.",
+  "type_line": "Creature — Human Rogue // Land",
+  "image_url": "https://cards.scryfall.io/normal/front/3/2/32779721-b021-4bd4-95d1-4a19b78d9faa.jpg?1765629627",
+  "back_image_url": "https://cards.scryfall.io/normal/back/3/2/32779721-b021-4bd4-95d1-4a19b78d9faa.jpg?1765629627",
+  "rarity": "uncommon",
+  "set": "znr",
+  "layout": "modal_dfc",
+  "cmc": 3.0,
+  "color_identity": [
+   "B"
+  ],
+  "keywords": [
+   "Menace"
+  ],
+  "produced_mana": [
+   "B"
+  ],
+  "edhrec_rank": 8564,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "not_legal",
+   "pauper": "not_legal",
+   "standard": "not_legal",
+   "pioneer": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "0.13",
+   "usd_foil": "0.35",
+   "eur": "0.20",
+   "tix": "0.03"
+  }
+ },
+ "Forest": {
+  "id": "0000419b-0bba-4488-8f7a-6194544ce91e",
+  "oracle_id": "b34bb2dc-c1af-4d77-b0b3-a0fb342a5fc6",
+  "name": "Forest",
+  "mana_cost": "",
+  "oracle_text": "({T}: Add {G}.)",
+  "type_line": "Basic Land — Forest",
+  "image_url": "https://cards.scryfall.io/normal/front/0/0/0000419b-0bba-4488-8f7a-6194544ce91e.jpg?1721427487",
+  "back_image_url": "",
+  "rarity": "common",
+  "set": "blb",
+  "layout": "normal",
+  "cmc": 0.0,
+  "color_identity": [
+   "G"
+  ],
+  "keywords": [],
+  "produced_mana": [
+   "G"
+  ],
+  "edhrec_rank": null,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "legal",
+   "pauper": "legal",
+   "standard": "legal",
+   "pioneer": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "0.32",
+   "usd_foil": "0.42",
+   "eur": "0.30",
+   "tix": "0.03"
+  }
+ },
+ "Relentless Rats": {
+  "id": "1c9caf97-75c6-4e12-8724-1abe32212bef",
+  "oracle_id": "104ea189-14cd-420f-afdc-57b0f827ab8e",
+  "name": "Relentless Rats",
+  "mana_cost": "{1}{B}{B}",
+  "oracle_text": "This creature gets +1/+1 for each other creature on the battlefield named Relentless Rats.\nA deck can have any number of cards named Relentless Rats.",
+  "type_line": "Creature — Rat",
+  "image_url": "https://cards.scryfall.io/normal/front/1/c/1c9caf97-75c6-4e12-8724-1abe32212bef.jpg?1562875752",
+  "back_image_url": "",
+  "rarity": "uncommon",
+  "set": "5dn",
+  "layout": "normal",
+  "cmc": 3.0,
+  "color_identity": [
+   "B"
+  ],
+  "keywords": [],
+  "produced_mana": [],
+  "edhrec_rank": 10829,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "not_legal",
+   "pauper": "legal",
+   "standard": "not_legal",
+   "pioneer": "not_legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "5.89",
+   "usd_foil": "6.72",
+   "eur": "1.34",
+   "tix": "0.08"
+  }
+ }
+}
