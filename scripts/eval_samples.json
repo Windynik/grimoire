@@ -1,0 +1,136 @@
+{
+  "aristocrats": {
+    "format": "commander",
+    "commander": "Teysa Karlov",
+    "theme": "death",
+    "core": [
+      "Blood Artist",
+      "Zulaport Cutthroat",
+      "Cruel Celebrant",
+      "Viscera Seer",
+      "Carrion Feeder",
+      "Village Rites",
+      "Bastion of Remembrance",
+      "Pitiless Plunderer",
+      "Ophiomancer",
+      "Doomed Dissenter",
+      "Skullclamp",
+      "Falkenrath Noble",
+      "Elas il-Kor, Sadistic Pilgrim"
+    ],
+    "decoys": {
+      "W tokens": [
+        "Raise the Alarm",
+        "Intangible Virtue",
+        "Lingering Souls",
+        "Spectral Procession",
+        "Secure the Wastes",
+        "Benalish Marshal",
+        "Glorious Anthem",
+        "Midnight Haunting",
+        "Captain of the Watch",
+        "Rally the Ranks"
+      ],
+      "B/W lifegain": [
+        "Soul Warden",
+        "Ajani's Pridemate",
+        "Righteous Valkyrie",
+        "Lunarch Veteran",
+        "Speaker of the Heavens",
+        "Archangel of Thune",
+        "Heliod, Sun-Crowned",
+        "Vito, Thorn of the Dusk Rose",
+        "Sanguine Bond",
+        "Cleric Class"
+      ]
+    }
+  },
+  "counters": {
+    "format": "modern",
+    "commander": null,
+    "theme": "counters",
+    "core": [
+      "Hardened Scales",
+      "Walking Ballista",
+      "Arcbound Ravager",
+      "Steel Overseer",
+      "Animation Module",
+      "Winding Constrictor",
+      "Ozolith, the Shattered Spire",
+      "Patchwork Automaton",
+      "Stonecoil Serpent",
+      "Arcbound Worker"
+    ],
+    "decoys": {
+      "G landfall": [
+        "Lotus Cobra",
+        "Scute Swarm",
+        "Tireless Tracker",
+        "Felidar Retreat",
+        "Omnath, Locus of Rage",
+        "Explore",
+        "Evolving Wilds",
+        "Courser of Kruphix",
+        "Rampaging Baloths",
+        "Avenger of Zendikar"
+      ],
+      "U/R spells": [
+        "Monastery Swiftspear",
+        "Young Pyromancer",
+        "Lightning Bolt",
+        "Opt",
+        "Consider",
+        "Expressive Iteration",
+        "Dragon's Rage Channeler",
+        "Ledger Shredder",
+        "Fire // Ice",
+        "Unholy Heat"
+      ]
+    }
+  },
+  "bogles": {
+    "format": "pauper",
+    "commander": null,
+    "theme": "voltron",
+    "core": [
+      "Slippery Bogle",
+      "Gladecover Scout",
+      "Rancor",
+      "Ancestral Mask",
+      "Ethereal Armor",
+      "Utopia Sprawl",
+      "Abundant Growth",
+      "Cartouche of Solidarity",
+      "Heliod's Pilgrim",
+      "Silhana Ledgewalker",
+      "Spider Umbra",
+      "Hyena Umbra"
+    ],
+    "decoys": {
+      "G elves": [
+        "Llanowar Elves",
+        "Elvish Mystic",
+        "Fyndhorn Elves",
+        "Quirion Ranger",
+        "Lys Alana Huntmaster",
+        "Elvish Vanguard",
+        "Elvish Visionary",
+        "Wellwisher",
+        "Birchlore Rangers",
+        "Timberwatch Elf"
+      ],
+      "W tokens": [
+        "Raise the Alarm",
+        "Battle Screech",
+        "Rally the Peasants",
+        "Guardian of the Guildpact",
+        "Squadron Hawk",
+        "Kor Skyfisher",
+        "Prismatic Strands",
+        "Journey to Nowhere",
+        "Triplicate Spirits",
+        "Gather the Townsfolk"
+      ]
+    }
+  }
+}
