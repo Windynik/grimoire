@@ -413,3 +413,13 @@ test("an agent result is applied only when the deck is unchanged", () => {
   s.sections.main[0].name = "changed";
   assert.equal(snap.sections.main[0].name, "A");
 });
+
+test("applyOp add and move never pass 250 copies", () => {
+  const full = { ...bolt, count: 250 };
+  const s0 = { sections: { main: [full], sideboard: [{ ...bolt, count: 5 }], maybeboard: [] },
+    commander: null };
+  const added = applyOp(s0, { type: "add", section: "main", card: bolt });
+  assert.equal(added.sections.main[0].count, 250);
+  const moved = applyOp(s0, { type: "move", from: "sideboard", to: "main", key: "bolt", count: 5 });
+  assert.equal(moved.sections.main[0].count, 250);
+});

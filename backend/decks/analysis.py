@@ -6,7 +6,7 @@ and grades the main deck with the forge's own metrics. Makes no network calls.
 
 from typing import Dict, FrozenSet, List, Optional
 
-from backend.api.routes import best_price
+from backend.core.prices import best_price
 from backend.decks.records import entry_key
 from backend.forge.builder import (
     SOURCE_RANKS, BuildPlan, BuiltDeck, DeckEntry, color_ranks, color_sources,

@@ -1,7 +1,9 @@
 import asyncio
 import json
+import os
 import random
 import re
+import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
@@ -15,6 +17,7 @@ from backend.api.dependencies import (
 )
 from backend.core.bulk_data import NON_GAME_LAYOUTS, BulkDataManager
 from backend.core.collection_store import CollectionStore
+from backend.core.prices import best_price  # noqa: F401  (re-exported)
 from backend.core.csv_processor import CSVProcessor, enrich_rows, write_enriched_csv
 from backend.core.ollama_client import OllamaClient
 from backend.forge.cards import is_game_card
@@ -37,17 +40,6 @@ def progress_file(job_id: str) -> Path:
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid job ID")
     return output_file
-
-
-def best_price(prices: dict):
-    """Best available price: USD, then USD foil, EUR, TIX."""
-    prices = prices or {}
-    return (
-        prices.get("usd")
-        or prices.get("usd_foil")
-        or prices.get("eur")
-        or prices.get("tix")
-    )
 
 
 def serialize_bulk_card(card_id: str, card_info: dict) -> dict:
@@ -307,7 +299,14 @@ async def export_collection(
             )
         headers, rows, _errors, _count = enrich_rows(original[0], original[1], bulk_data)
         output_file.parent.mkdir(parents=True, exist_ok=True)
-        write_enriched_csv(output_file, headers, rows)
+        # Write beside the target, then swap in one step so a failed rebuild leaves no partial file
+        tmp = output_file.with_name(f".{output_file.name}.{uuid.uuid4().hex}.tmp")
+        try:
+            write_enriched_csv(tmp, headers, rows)
+            os.replace(tmp, output_file)
+        except BaseException:
+            tmp.unlink(missing_ok=True)
+            raise
 
     return FileResponse(
         path=str(output_file),

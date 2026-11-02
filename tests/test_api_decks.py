@@ -255,3 +255,34 @@ def test_agent_route_502_on_model_error(overrides):
         assert r.json()["detail"] == "The model did not give a usable answer. Try again."
         assert client.post("/api/decks/nope/agent", json={"message": "x"}).status_code == 404
         assert client.post("/api/decks/%s/agent" % deck_id, json={"message": ""}).status_code == 422
+
+
+class _SwapClient(_Client):
+    async def chat_structured(self, *args, **kwargs):
+        return ({"reply": "ok", "cuts": [],
+                 "swaps": [{"out": "Sac Outlet 0", "in": "Death Payoff 0", "why": "x"}]}, {})
+
+
+def test_agent_route_returns_hydrated_sections(overrides):
+    app.dependency_overrides[get_ollama_client] = lambda: _SwapClient(True)
+    with TestClient(app) as client:
+        deck_id = _agent_deck(client)
+        r = client.post("/api/decks/%s/agent" % deck_id, json={"message": "swap"})
+        assert r.status_code == 200
+        body = r.json()
+        assert len(body["swaps"]) == 1
+        main = {e["name"]: e for e in body["sections"]["main"]}
+        assert "Death Payoff 0" in main
+        for name in ("Death Payoff 0", "Sac Outlet 0"):
+            if name in main:
+                assert main[name]["mana_cost"] == "{1}{B}"
+                assert "Creature" in main[name]["type_line"]
+
+
+def test_import_commander_copy_in_main_caps_at_250(overrides):
+    text = "Commander\n1 Atraxa Test\n\nDeck\n250 Atraxa Test\n"
+    with TestClient(app) as client:
+        r = client.post("/api/decks/import", json={"text": text, "format": "modern"})
+        assert r.status_code == 201
+        main = r.json()["sections"]["main"]
+        assert [(e["name"], e["count"]) for e in main] == [("Atraxa Test", 250)]

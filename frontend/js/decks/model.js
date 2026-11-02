@@ -2,6 +2,7 @@
 // This file never touches the DOM, so Node can import it for tests.
 
 export const SECTIONS = ["main", "sideboard", "maybeboard"];
+export const MAX_COUNT = 250; // the server accepts 1..250 copies per line
 
 const TYPE_ORDER = [
   "Creature", "Planeswalker", "Battle", "Instant", "Sorcery", "Artifact", "Enchantment", "Land",
@@ -41,7 +42,7 @@ export function applyOp(state, op) {
     next.commander = null;
     const at = find("main", entryKey(card));
     if (at >= 0) {
-      lines("main")[at].count += 1;
+      lines("main")[at].count = Math.min(MAX_COUNT, lines("main")[at].count + 1);
     } else {
       lines("main").push({ basic: false, role: "", reason: "", ...card, count: 1 });
     }
@@ -52,7 +53,8 @@ export function applyOp(state, op) {
       const key = entryKey(op.card);
       const at = find(op.section, key);
       if (at >= 0) {
-        lines(op.section)[at].count += 1;
+        const line = lines(op.section)[at];
+        line.count = Math.min(MAX_COUNT, line.count + 1);
       } else {
         const entry = clone(op.card);
         entry.count = 1;
@@ -62,7 +64,7 @@ export function applyOp(state, op) {
     }
     case "inc": {
       const at = find(op.section, op.key);
-      if (at >= 0) lines(op.section)[at].count += 1;
+      if (at >= 0) lines(op.section)[at].count = Math.min(MAX_COUNT, lines(op.section)[at].count + 1);
       break;
     }
     case "dec": {
@@ -86,7 +88,7 @@ export function applyOp(state, op) {
       const amount = Math.min(source.count, op.count > 0 ? op.count : source.count);
       const target = find(op.to, op.key);
       if (target >= 0) {
-        lines(op.to)[target].count += amount;
+        lines(op.to)[target].count = Math.min(MAX_COUNT, lines(op.to)[target].count + amount);
       } else {
         const moved = clone(source);
         moved.count = amount;

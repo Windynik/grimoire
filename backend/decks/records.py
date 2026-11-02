@@ -10,7 +10,7 @@ from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
-from backend.api.routes import best_price
+from backend.core.prices import best_price
 
 EDITABLE = ("name", "format", "commander", "collection_job_id", "deck_size", "max_copies",
             "sections")

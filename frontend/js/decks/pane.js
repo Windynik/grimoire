@@ -5,7 +5,7 @@
 // manaNode (shared/dom.js), which filters them before parseManaSymbols.
 
 import { h, manaNode } from "../shared/dom.js";
-import { SECTIONS, entryKey, groupEntries } from "./model.js";
+import { MAX_COUNT, SECTIONS, entryKey, groupEntries } from "./model.js";
 
 const SECTION_NAMES = { main: "Main", sideboard: "Sideboard", maybeboard: "Maybeboard" };
 const ISSUE_LABELS = {
@@ -16,8 +16,6 @@ const ISSUE_LABELS = {
   off_color: "off color",
   too_many: "too many",
 };
-// The server accepts at most 250 copies on one line.
-const MAX_COUNT = 250;
 const PREVIEW_WIDTH = 244;
 const PREVIEW_HEIGHT = 340;
 const PREVIEW_GAP = 12;

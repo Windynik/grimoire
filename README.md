@@ -101,15 +101,19 @@ Evaluation status:
 backend/            FastAPI application
   api/              Routes and dependency wiring
   core/             Bulk data manager, CSV processor, collection store,
-                    Ollama client, progress tracking
+                    Ollama client, progress tracking, price helper
   forge/            Forge agent: card tagging, synergy graph, deck builder,
                     swaps, metrics, model calls, session and events
-  decks/            Saved deck store
+  decks/            Saved deck store, deck records and hydration, deck
+                    analysis, text import/export, editor agent
   data/playbook.json  Format rules and card-role patterns
   models/           Pydantic schemas
 frontend/           Vanilla JS single-page app (no build step)
   js/forge/         Deck Forge screens (setup, stage, feed, timeline)
+  js/decks/         Saved decks: dashboard, editor, agent panel, export menu
+  js/shared/        DOM, HTTP, and model helpers used by several screens
   css/forge.css     Deck Forge styles
+  css/decks.css     Saved deck and editor styles
 scripts/forge_eval.py  Hidden-deck evaluation for the forge
 tests/              Pytest suite
 cardvalue.py        Standalone legacy script (per-card Scryfall API lookups)

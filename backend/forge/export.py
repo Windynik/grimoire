@@ -7,6 +7,7 @@ record into a decklist that can be copied. Makes no network calls.
 from datetime import datetime, timezone
 from typing import Dict
 
+from backend.decks.textio import export_text
 from backend.forge.builder import BuiltDeck
 from backend.forge.metrics import curve
 
@@ -82,6 +83,4 @@ def deck_to_record(deck: BuiltDeck, name: str, job_id: str, backbone_info: dict,
 
 def decklist_text(record: dict) -> str:
     """Return a plain-text decklist for a deck record (see backend.decks.textio.export_text)."""
-    # Imported here: backend.decks.textio reaches this module again through backend.api
-    from backend.decks.textio import export_text
     return export_text(record)

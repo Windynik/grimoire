@@ -25,7 +25,9 @@ from backend.decks.records import (
     strip_display,
 )
 from backend.decks.store import DeckStore
-from backend.decks.textio import export_arena, export_csv, export_text, parse_decklist, resolve
+from backend.decks.textio import (
+    MAX_COUNT, export_arena, export_csv, export_text, parse_decklist, resolve,
+)
 from backend.forge.playbook import load_playbook
 
 
@@ -123,7 +125,7 @@ async def import_deck(
         # Only a commander format has a commander: the card joins the main deck
         same = [e for e in sections["main"] if e["scryfall_id"] == commander["scryfall_id"]]
         if same:
-            same[0]["count"] += 1
+            same[0]["count"] = min(MAX_COUNT, same[0]["count"] + 1)
         else:
             sections["main"].insert(0, {"scryfall_id": commander["scryfall_id"],
                                         "name": commander["name"], "count": 1, "basic": False,
@@ -254,6 +256,8 @@ async def deck_agent(
     except ModelError:
         raise HTTPException(status_code=502,
                             detail="The model did not give a usable answer. Try again.")
+    # The result sections come from the stripped file: add the card display data back
+    result["sections"] = hydrate_record({"sections": result["sections"]}, index)["sections"]
     proposed = dict(record, sections=result["sections"])
     result["analysis"] = analyze(proposed, index, rows, meta, _PLAYBOOK)
     return result
