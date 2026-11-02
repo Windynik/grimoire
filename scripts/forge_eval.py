@@ -481,6 +481,9 @@ def real_checks(index: Dict[str, dict], playbook: Playbook, model: str,
         for name, passed, detail in checks:
             ok = ok and passed
             print("| %s | %s | %s |" % (name, "pass" if passed else "FAIL", detail))
+        nonbasic = ["%d %s" % (e.count, e.name) for e in deck.entries
+                    if e.card is not None and e.card.is_land]
+        print("Nonbasic lands: %s" % (", ".join(nonbasic) or "none"))
         for warning in deck.warnings:
             print("warning: %s" % warning)
     return ok
