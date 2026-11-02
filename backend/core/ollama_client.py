@@ -7,7 +7,8 @@ deck builder works regardless.
 
 import json
 import re
-from typing import AsyncIterator, List, Optional
+from dataclasses import dataclass
+from typing import AsyncIterator, Callable, List, Optional, Tuple
 
 import httpx
 
@@ -33,17 +34,72 @@ def parse_json_loose(text: str) -> dict:
 
 
 # Models we prefer when several are installed, best-first
-PREFERRED_MODELS = ("qwen", "llama", "mistral", "gemma", "phi")
+PREFERRED_MODELS = ("gpt-oss", "gemma4", "qwen3.8", "qwen3.6", "qwen3.5", "qwen3",
+                    "llama", "mistral", "gemma", "phi")
+
+
+@dataclass
+class CallStats:
+    """Speed numbers for one model call."""
+
+    prompt_tokens: int
+    prompt_seconds: float
+    output_tokens: int
+    output_seconds: float
+
+
+class ModelError(RuntimeError):
+    """The model call failed or returned unusable output."""
+
+
+def stats_from(data: dict) -> CallStats:
+    """Build CallStats from an Ollama response.
+
+    Args:
+        data: Ollama response body or final stream chunk. Durations are in
+            nanoseconds. A missing field counts as 0.
+
+    Returns:
+        The call stats, with durations in seconds.
+    """
+    return CallStats(
+        prompt_tokens=int(data.get("prompt_eval_count") or 0),
+        prompt_seconds=(data.get("prompt_eval_duration") or 0) / 1e9,
+        output_tokens=int(data.get("eval_count") or 0),
+        output_seconds=(data.get("eval_duration") or 0) / 1e9,
+    )
+
+
+def think_value(model: str, think: str):
+    """Return the ``think`` request value a model accepts.
+
+    Args:
+        model: Model name.
+        think: Effort level: "low", "medium" or "high".
+
+    Returns:
+        The level string for gpt-oss models, else a boolean (False for "low").
+    """
+    if model.lower().startswith("gpt-oss"):
+        return think
+    return think != "low"
 
 
 class OllamaClient:
-    def __init__(self, base_url: str = "http://localhost:11434"):
+    def __init__(self, base_url: str = "http://localhost:11434", transport=None):
+        """Create a client.
+
+        Args:
+            base_url: Ollama server URL.
+            transport: Optional httpx transport, passed to every AsyncClient (for tests).
+        """
         self.base_url = base_url.rstrip("/")
+        self.transport = transport
 
     async def list_models(self) -> List[str]:
         """Names of locally installed models, or [] if Ollama is unreachable."""
         try:
-            async with httpx.AsyncClient(timeout=2.0) as client:
+            async with httpx.AsyncClient(timeout=2.0, transport=self.transport) as client:
                 response = await client.get(f"{self.base_url}/api/tags")
                 response.raise_for_status()
                 data = response.json()
@@ -84,7 +140,8 @@ class OllamaClient:
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
 
-        async with httpx.AsyncClient(timeout=httpx.Timeout(240.0, connect=3.0)) as client:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(240.0, connect=3.0),
+                                     transport=self.transport) as client:
             response = await client.post(
                 f"{self.base_url}/api/chat",
                 json={
@@ -124,7 +181,8 @@ class OllamaClient:
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
 
-        async with httpx.AsyncClient(timeout=httpx.Timeout(120.0, connect=3.0)) as client:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(120.0, connect=3.0),
+                                     transport=self.transport) as client:
             async with client.stream(
                 "POST",
                 f"{self.base_url}/api/chat",
@@ -143,3 +201,120 @@ class OllamaClient:
                         yield content
                     if chunk.get("done"):
                         break
+
+    async def _model_or_raise(self, model: Optional[str]) -> str:
+        if model is None:
+            model = self.pick_model(await self.list_models())
+        if model is None:
+            raise ModelError("No Ollama models available")
+        return model
+
+    @staticmethod
+    def _messages(prompt: str, system: str) -> List[dict]:
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+        return messages
+
+    async def chat_structured(
+        self,
+        prompt: str,
+        schema: dict,
+        system: str = "",
+        model: Optional[str] = None,
+        think: str = "low",
+        num_ctx: int = 16384,
+    ) -> Tuple[dict, CallStats]:
+        """Single-shot completion constrained to a JSON schema.
+
+        Args:
+            prompt: User prompt.
+            schema: JSON schema for the reply, sent as the request ``format``.
+            system: Optional system prompt.
+            model: Model name. None picks the preferred installed model.
+            think: Reasoning effort: "low", "medium" or "high".
+            num_ctx: Context window in tokens.
+
+        Returns:
+            (parsed reply, call stats).
+
+        Raises:
+            ModelError: When both attempts fail on an HTTP error or invalid JSON.
+        """
+        model = await self._model_or_raise(model)
+        payload = {
+            "model": model,
+            "messages": self._messages(prompt, system),
+            "stream": False,
+            "format": schema,
+            "think": think_value(model, think),
+            "options": {"temperature": 0.6, "num_ctx": num_ctx, "num_predict": 4096},
+        }
+        last = None  # type: Optional[Exception]
+        for _ in range(2):
+            try:
+                async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=3.0),
+                                             transport=self.transport) as client:
+                    response = await client.post(f"{self.base_url}/api/chat", json=payload)
+                    response.raise_for_status()
+                    body = response.json()
+                content = strip_thinking(body["message"]["content"])
+                return parse_json_loose(content), stats_from(body)
+            except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
+                last = exc
+        raise ModelError("Model call failed: %s" % (last,))
+
+    async def stream_text(
+        self,
+        prompt: str,
+        system: str = "",
+        model: Optional[str] = None,
+        on_stats: Optional[Callable[[CallStats], None]] = None,
+        num_predict: Optional[int] = None,
+    ) -> AsyncIterator[str]:
+        """Stream a chat completion as text chunks.
+
+        Args:
+            prompt: User prompt.
+            system: Optional system prompt.
+            model: Model name. None picks the preferred installed model.
+            on_stats: Called with the stats from the final chunk.
+            num_predict: Optional cap on output tokens.
+
+        Yields:
+            Text chunks.
+
+        Raises:
+            ModelError: On an HTTP error.
+        """
+        model = await self._model_or_raise(model)
+        payload = {
+            "model": model,
+            "messages": self._messages(prompt, system),
+            "stream": True,
+            "think": think_value(model, "low"),
+        }
+        if num_predict is not None:
+            payload["options"] = {"num_predict": num_predict}
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=3.0),
+                                         transport=self.transport) as client:
+                async with client.stream("POST", f"{self.base_url}/api/chat",
+                                         json=payload) as response:
+                    response.raise_for_status()
+                    async for line in response.aiter_lines():
+                        if not line.strip():
+                            continue
+                        try:
+                            chunk = json.loads(line)
+                        except json.JSONDecodeError:
+                            continue
+                        content = chunk.get("message", {}).get("content", "")
+                        if content:
+                            yield content
+                        if chunk.get("done"):
+                            if on_stats is not None:
+                                on_stats(stats_from(chunk))
+        except httpx.HTTPError as exc:
+            raise ModelError("Model stream failed: %s" % (exc,))
