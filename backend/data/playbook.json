@@ -72,7 +72,7 @@
         25
       ],
       "utility_land_limit": 2,
-      "quality_weight": 0.25,
+      "quality_weight": 0.5,
       "min_core": 8,
       "color_sources": {
         "primary": 14,
@@ -92,7 +92,7 @@
         25
       ],
       "utility_land_limit": 2,
-      "quality_weight": 0.25,
+      "quality_weight": 0.5,
       "min_core": 8,
       "color_sources": {
         "primary": 14,
@@ -112,7 +112,7 @@
         25
       ],
       "utility_land_limit": 2,
-      "quality_weight": 0.25,
+      "quality_weight": 0.5,
       "min_core": 8,
       "color_sources": {
         "primary": 14,
@@ -132,7 +132,7 @@
         25
       ],
       "utility_land_limit": 2,
-      "quality_weight": 0.25,
+      "quality_weight": 0.5,
       "min_core": 8,
       "color_sources": {
         "primary": 14,
@@ -152,7 +152,7 @@
         25
       ],
       "utility_land_limit": 2,
-      "quality_weight": 0.25,
+      "quality_weight": 0.5,
       "min_core": 8,
       "color_sources": {
         "primary": 14,
@@ -172,7 +172,7 @@
         25
       ],
       "utility_land_limit": 2,
-      "quality_weight": 0.25,
+      "quality_weight": 0.5,
       "min_core": 8,
       "color_sources": {
         "primary": 14,
