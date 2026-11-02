@@ -21,7 +21,10 @@ async function request(path, options) {
   if (!response.ok) {
     let detail = data && data.detail;
     if (Array.isArray(detail)) detail = detail.map((d) => d.msg).join("; ");
-    const error = new Error(detail || `Request failed (${response.status})`);
+    if (typeof detail !== "string" || !detail) {
+      detail = response.statusText || `Request failed (${response.status})`;
+    }
+    const error = new Error(detail);
     error.status = response.status;
     throw error;
   }
@@ -78,6 +81,7 @@ export function cancel(forgeId) {
  * @param {Object<string, function>} handlers Map of event type to handler. The
  *   handler gets the parsed data object and the event id (a number).
  *   The special key "connection" gets true or false when the link changes.
+ *   The special key "closed" fires when the stream ends without a terminal event.
  * @returns {EventSource}
  */
 export function openEvents(forgeId, handlers) {
@@ -88,7 +92,9 @@ export function openEvents(forgeId, handlers) {
   EVENT_TYPES.forEach((type) => {
     source.addEventListener(type, (event) => {
       if (type === "error" && event.data === undefined) {
-        call("connection", false);
+        // CLOSED means the server refused the stream (for example 404). No retry follows.
+        if (source.readyState === EventSource.CLOSED) call("closed");
+        else call("connection", false);
         return;
       }
       let data = {};

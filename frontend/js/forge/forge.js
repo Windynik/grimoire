@@ -279,6 +279,12 @@ function attach(forgeId) {
   setStatus("Forging...");
 
   const handlers = {
+    closed: () => {
+      if (!state.running) return;
+      showSetup();
+      toast("That forge is no longer running.", "error");
+      open();
+    },
     connection: (up) => {
       if (state.running) setStatus(up ? "Forging..." : "Connection lost. Retrying...");
     },
@@ -357,7 +363,7 @@ async function open() {
     attach(saved);
     return;
   }
-  if (state.running) return;
+  if (state.running || state.forgeId) return;
   try {
     await Promise.all([loadFormats(), loadAiStatus()]);
     await loadCollections();
