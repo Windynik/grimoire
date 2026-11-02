@@ -506,6 +506,41 @@ async def test_manager_get_and_prune(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_unwatched_wait_question_takes_the_default(tmp_path, monkeypatch):
+    monkeypatch.setattr("backend.forge.session.ABANDON_SECONDS", 0.05)
+    monkeypatch.setattr("backend.forge.session.ABANDON_CHECK_SECONDS", 0.01)
+    manager = ForgeManager()
+    session, store = await start(tmp_path, manager=manager, ask_mode="wait")
+    await asyncio.wait_for(session.task, 5)  # no subscriber is ever open
+    events = session.events
+    question = of_type(events, "question")[0]
+    assert question["timeout_seconds"] is None
+    assert of_type(events, "answered") == [{"type": "answered", "option": 0, "by": "timeout",
+                                            "question_id": question["question_id"]}]
+    assert any(t["text"].startswith("No one watched the forge for 0.05 seconds")
+               for t in of_type(events, "thought"))
+    assert session.state == "done" and saved(store, events) is not None
+    manager.prune(session.finished_at + 301)
+    assert session.id not in manager.sessions
+
+
+@pytest.mark.asyncio
+async def test_watched_wait_question_keeps_waiting(tmp_path, monkeypatch):
+    monkeypatch.setattr("backend.forge.session.ABANDON_SECONDS", 0.05)
+    monkeypatch.setattr("backend.forge.session.ABANDON_CHECK_SECONDS", 0.01)
+    session, _ = await start(tmp_path, ask_mode="wait")
+    events = []
+    async for _, event in session.subscribe():
+        events.append(event)
+        if event["type"] == "question":
+            await asyncio.sleep(0.2)  # four times ABANDON_SECONDS, with a subscriber open
+            assert session.state == "waiting"
+            assert session.answer(event["question_id"], 1)
+    assert of_type(events, "answered")[0]["by"] == "you"
+    assert events[-1]["type"] == "done" and session._watchers == 0
+
+
+@pytest.mark.asyncio
 async def test_run_directly_catches_errors(tmp_path):
     from backend.forge.playbook import load_playbook
     collection, index = two_plan_pool()

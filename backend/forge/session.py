@@ -43,6 +43,10 @@ ENGINE_ONLY = "The local model is off, so the engine makes every choice."
 CLOSE_MARGIN = 0.10  # top two backbone scores this close make a question
 MAX_QUESTIONS = 2
 PRUNE_SECONDS = 300.0
+# A "wait" question takes its default after this long with no subscriber, so
+# an abandoned forge finishes and prune can drop it.
+ABANDON_SECONDS = 300.0
+ABANDON_CHECK_SECONDS = 5.0
 MAX_BACKBONES = 5
 NAME_LIMIT = 60
 TEXT_LIMIT = 300
@@ -161,6 +165,8 @@ class ForgeSession:
         self._by_name = {}  # type: Dict[str, OwnedCard]
         self._changed = None  # type: Optional[asyncio.Event]
         self._question = None  # type: Optional[dict]
+        self._watchers = 0  # open subscribe() iterators
+        self._unwatched_since = time.time()
 
     # Events
 
@@ -197,21 +203,28 @@ class ForgeSession:
     async def subscribe(self, after: int = -1) -> AsyncIterator[Tuple[int, dict]]:
         """Yield (index, event) for stored events after `after`, then live events.
 
-        Stops after a done, error or cancelled event.
+        Stops after a done, error or cancelled event. The session counts the
+        open iterators, so it knows when no one watches.
         """
         i = max(after + 1, 0)
-        while True:
-            while i < len(self.events):
-                event = self.events[i]
-                yield i, event
-                i += 1
-                if event["type"] in TERMINAL:
+        self._watchers += 1
+        try:
+            while True:
+                while i < len(self.events):
+                    event = self.events[i]
+                    yield i, event
+                    i += 1
+                    if event["type"] in TERMINAL:
+                        return
+                if self.state in TERMINAL:
                     return
-            if self.state in TERMINAL:
-                return
-            if self._changed is None:
-                self._changed = asyncio.Event()
-            await self._changed.wait()
+                if self._changed is None:
+                    self._changed = asyncio.Event()
+                await self._changed.wait()
+        finally:
+            self._watchers -= 1
+            if self._watchers == 0:
+                self._unwatched_since = time.time()
 
     # Control
 
@@ -545,9 +558,12 @@ class ForgeSession:
         deadline = None if timeout is None else time.time() + timeout
         self._emit("question", **question_payload(question_id, question, timeout, deadline))
         by = "you"
+        abandoned = False
         try:
             if timeout is None:
-                option = await future
+                option = await self._await_watched(future)
+                if option is None:
+                    option, by, abandoned = 0, "timeout", True
             else:
                 try:
                     option = await asyncio.wait_for(future, timeout)
@@ -559,13 +575,32 @@ class ForgeSession:
                 self.state = "running"
         self._emit("answered", question_id=question_id, option=option, by=by)
         label = question["options"][option]["label"]
-        if by == "timeout":
+        if abandoned:
+            self._thought("No one watched the forge for %g seconds, so I took the recommended "
+                          "option: %s." % (ABANDON_SECONDS, label))
+        elif by == "timeout":
             unit = "second" if timeout == 1 else "seconds"
             self._thought("No answer came in %g %s, so I took the recommended option: %s."
                           % (timeout, unit, label))
         else:
             self._thought("You chose: %s." % label)
         return option
+
+    async def _await_watched(self, future: "asyncio.Future") -> Optional[int]:
+        """Wait for the answer while someone watches.
+
+        Returns:
+            The option, or None when no subscriber was open for ABANDON_SECONDS
+            after the question was asked.
+        """
+        asked_at = time.time()
+        while True:
+            done, _ = await asyncio.wait({future}, timeout=ABANDON_CHECK_SECONDS)
+            if done:
+                return future.result()
+            idle = time.time() - max(asked_at, self._unwatched_since)
+            if self._watchers == 0 and idle >= ABANDON_SECONDS:
+                return None
 
     async def _build(self, fmt: FormatRules, plan: BuildPlan) -> BuiltDeck:
         """Stage 4: build, send the placed cards, then apply the model's valid swaps."""
@@ -679,7 +714,11 @@ class ForgeManager:
         return self.sessions.get(forge_id)
 
     def prune(self, now: float) -> None:
-        """Drop sessions that finished more than PRUNE_SECONDS before `now`."""
+        """Drop sessions that finished more than PRUNE_SECONDS before `now`.
+
+        A session that waits for an answer with no subscriber takes the
+        default after ABANDON_SECONDS, so it finishes and this drops it too.
+        """
         for forge_id in [key for key, session in self.sessions.items()
                          if session.finished_at is not None
                          and now - session.finished_at > PRUNE_SECONDS]:
