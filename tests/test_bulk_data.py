@@ -103,3 +103,9 @@ async def test_legacy_raw_cache_is_indexed_on_load(bulk_data_manager):
     assert not bulk_data_manager.bulk_data_file.exists()
     assert bulk_data_manager.validate_bulk_data()
     assert bulk_data_manager.get_cache_status().card_count == 2
+
+
+def test_compact_card_keeps_collector_number():
+    card = compact_card(raw_card("a", "Bolt", collector_number="141"))
+    assert card["collector_number"] == "141"
+    assert compact_card(raw_card("b", "Shock"))["collector_number"] == ""

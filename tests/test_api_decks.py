@@ -129,3 +129,59 @@ def test_analysis_falls_back_to_newest_collection(overrides):
             collection_job_id="dead")).json()
         assert body["analysis"]["collection"]["job_id"] == "aaa1"
         assert body["analysis"]["cards"][_sac()["id"]]["owned"] == 4
+
+
+def test_export_kinds_and_headers(overrides):
+    sac = _sac()
+    with TestClient(app) as client:
+        deck_id = client.post("/api/decks", json={"name": "My Deck! v2", "format": "modern"}
+                              ).json()["id"]
+        assert client.put("/api/decks/%s" % deck_id, json=_body(name="My Deck! v2")).status_code == 200
+        url = "/api/decks/%s/export" % deck_id
+        r = client.get(url)
+        assert r.status_code == 200
+        assert r.headers["content-type"] == "text/plain; charset=utf-8"
+        assert r.headers["content-disposition"] == 'attachment; filename="my-deck-v2.txt"'
+        assert r.text == "Deck\n3 Sac Outlet 0"
+        r = client.get(url, params={"kind": "arena"})
+        assert r.text == "Deck\n3 Sac Outlet 0"  # the synthetic card has no collector number
+        r = client.get(url, params={"kind": "csv"})
+        assert r.headers["content-type"].startswith("text/csv")
+        assert r.headers["content-disposition"] == 'attachment; filename="my-deck-v2.csv"'
+        assert r.text.splitlines()[0].startswith("Section,Count,Name")
+        assert sac["id"] in r.text
+        assert client.get(url, params={"kind": "pdf"}).status_code == 400
+        assert client.get("/api/decks/nope-1/export").status_code == 404
+
+
+def test_import_creates_deck_with_unknown_list(overrides):
+    _, _, decks = overrides
+    text = "Commander\n1 Atraxa Test\n\nDeck\n3 Sac Outlet 0\n2 Swamp\n1 Mystery Card\n"
+    with TestClient(app) as client:
+        r = client.post("/api/decks/import", json={"text": text, "format": "modern",
+                                                   "name": "Pasted"})
+        assert r.status_code == 201
+        body = r.json()
+        assert body["unknown"] == ["Mystery Card"] and "analysis" in body
+        assert body["name"] == "Pasted" and body["commander"] is None
+        names = [(e["name"], e["count"]) for e in body["sections"]["main"]]
+        assert names == [("Atraxa Test", 1), ("Sac Outlet 0", 3), ("Swamp", 2)]
+        assert body["sections"]["main"][2]["scryfall_id"] is None
+        assert decks.get(body["id"]) is not None
+        r = client.post("/api/decks/import", json={"text": text, "format": "commander"})
+        body = r.json()
+        assert body["name"] == "Imported deck"
+        assert body["commander"]["name"] == "Atraxa Test"
+        assert [e["name"] for e in body["sections"]["main"]] == ["Sac Outlet 0", "Swamp"]
+        assert client.post("/api/decks/import", json={"text": text, "format": "historic"}
+                           ).status_code == 400
+        assert client.post("/api/decks/import", json={"text": "", "format": "modern"}
+                           ).status_code == 422
+
+
+def test_import_nothing_matches_gives_400(overrides):
+    with TestClient(app) as client:
+        r = client.post("/api/decks/import", json={"text": "4 Nothing Here", "format": "modern"})
+        assert r.status_code == 400
+        assert r.json()["detail"] == "No card in the list matches the card data."
+        assert client.get("/api/decks").json()["total"] == 0

@@ -1,6 +1,9 @@
+import re
 from typing import Dict, List, Optional, Tuple
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
+from pydantic import BaseModel, Field
 
 from backend.api.dependencies import (
     get_bulk_data_manager,
@@ -9,7 +12,7 @@ from backend.api.dependencies import (
 )
 from backend.core.bulk_data import BulkDataManager
 from backend.core.collection_store import CollectionStore
-from backend.decks.analysis import analyze
+from backend.decks.analysis import analyze, owned_counts
 from backend.decks.records import (
     CreateDeck,
     DeckIn,
@@ -19,6 +22,7 @@ from backend.decks.records import (
     strip_display,
 )
 from backend.decks.store import DeckStore
+from backend.decks.textio import export_arena, export_csv, export_text, parse_decklist, resolve
 from backend.forge.playbook import load_playbook
 
 
@@ -56,6 +60,13 @@ def deck_response(record: dict, index: Dict[str, dict], collections: CollectionS
     return deck
 
 
+class ImportDeck(BaseModel):
+    text: str = Field(min_length=1, max_length=50000)
+    name: str = Field("Imported deck", min_length=1, max_length=120)
+    format: str = Field(max_length=40)
+    collection_job_id: Optional[str] = Field(None, max_length=64)
+
+
 def _check_format(key: str) -> None:
     if key not in _FORMATS:
         raise HTTPException(status_code=400, detail="Unknown format: %s" % key)
@@ -88,6 +99,42 @@ async def create_deck(
     store.save(record)
     index = await bulk_data_manager.load_bulk_data()
     return deck_response(record, index, collections)
+
+
+@router.post("/decks/import", status_code=201)
+async def import_deck(
+    request: ImportDeck,
+    store: DeckStore = Depends(get_deck_store),
+    bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager),
+    collections: CollectionStore = Depends(get_collection_store),
+):
+    """Create a deck from a pasted decklist. Lists the names that match no card."""
+    _check_format(request.format)
+    index = await bulk_data_manager.load_bulk_data()
+    record = new_record(request.name, request.format, request.collection_job_id)
+    rows, _ = _collection_for(record, collections)
+    owned = owned_counts(rows, index) if rows else {}
+    sections, commander, unknown = resolve(parse_decklist(request.text), index, owned)
+    if commander is not None and not _FORMATS[request.format].commander:
+        # Only a commander format has a commander: the card joins the main deck
+        same = [e for e in sections["main"] if e["scryfall_id"] == commander["scryfall_id"]]
+        if same:
+            same[0]["count"] += 1
+        else:
+            sections["main"].insert(0, {"scryfall_id": commander["scryfall_id"],
+                                        "name": commander["name"], "count": 1, "basic": False,
+                                        "role": "", "reason": ""})
+        commander = None
+    if commander is None and not any(sections.values()):
+        raise HTTPException(status_code=400, detail="No card in the list matches the card data.")
+    record["commander"] = commander
+    record["sections"] = sections
+    # Hydrate before the strip so the saved entries keep their art URL
+    record = strip_display(hydrate_record(record, index))
+    store.save(record)
+    body = deck_response(record, index, collections)
+    body["unknown"] = unknown
+    return body
 
 
 @router.get("/decks/{deck_id}")
@@ -142,3 +189,30 @@ async def duplicate_deck(
         raise HTTPException(status_code=404, detail="Deck not found")
     index = await bulk_data_manager.load_bulk_data()
     return deck_response(store.get(new_id), index, collections)
+
+
+def _slug(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "deck"
+
+
+@router.get("/decks/{deck_id}/export")
+async def export_deck(
+    deck_id: str,
+    kind: str = Query("text"),
+    store: DeckStore = Depends(get_deck_store),
+    bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager),
+):
+    """Download a deck as plain text, an Arena list, or CSV."""
+    if kind not in ("text", "arena", "csv"):
+        raise HTTPException(status_code=400, detail="Unknown export kind: %s" % kind)
+    record = _stored(store, deck_id)
+    if kind == "text":
+        body = export_text(record)
+    else:
+        index = await bulk_data_manager.load_bulk_data()
+        body = export_arena(record, index) if kind == "arena" else export_csv(record, index)
+    csv_kind = kind == "csv"
+    media = "text/csv" if csv_kind else "text/plain; charset=utf-8"
+    filename = "%s.%s" % (_slug(record.get("name", "")), "csv" if csv_kind else "txt")
+    return Response(content=body, media_type=media,
+                    headers={"Content-Disposition": 'attachment; filename="%s"' % filename})
