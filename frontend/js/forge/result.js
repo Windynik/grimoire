@@ -123,6 +123,7 @@ function cardRow(card) {
  * @param {Object} [actions]
  * @param {function} [actions.onAgain] Called by "Forge again".
  * @param {function(string, string)} [actions.toast] Shows a message.
+ * @param {string} [actions.formatName] Display name of deck.format. The key shows without it.
  */
 export function renderResult(root, deck, actions = {}) {
   root.textContent = "";
@@ -131,7 +132,7 @@ export function renderResult(root, deck, actions = {}) {
   const backbone = deck.backbone || {};
 
   const head = el("header", "forge-result-head");
-  head.appendChild(el("p", "forge-result-kicker", [deck.format, `${total} cards`, backbone.playstyle]
+  head.appendChild(el("p", "forge-result-kicker", [actions.formatName || deck.format, `${total} cards`, backbone.playstyle]
     .filter(Boolean).join(" · ")));
   head.appendChild(el("h2", "forge-result-name-title", deck.name || "Forged deck"));
   if (deck.commander) head.appendChild(el("p", "forge-result-commander", `Commander: ${deck.commander.name}`));

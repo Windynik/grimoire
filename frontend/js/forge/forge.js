@@ -586,14 +586,29 @@ function endButtons(showNew) {
   $("forge-new").hidden = !showNew;
 }
 
-function showResult(deck) {
+/** Return the display name of a format key, for example "Standard Brawl". */
+async function formatName(key) {
+  try {
+    await loadFormats();
+  } catch (e) {
+    // Without the format list the result shows the key.
+  }
+  const fmt = state.formats.find((f) => f.key === key);
+  return fmt ? fmt.name : key;
+}
+
+async function showResult(deck) {
   const root = $("forge-result");
+  const forgeId = state.forgeId;
+  const name = await formatName(deck.format);
+  if (state.forgeId !== forgeId) return; // the owner left this run meanwhile
   renderResult(root, deck, {
     onAgain: () => {
       showSetup();
       open();
     },
     toast,
+    formatName: name,
   });
   $("forge-run").hidden = true;
   root.hidden = false;
