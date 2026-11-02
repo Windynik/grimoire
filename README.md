@@ -48,7 +48,7 @@ The engine has the last word on legality. It checks every card name from the mod
 
 ```bash
 brew install ollama          # or download from ollama.com
-ollama pull gpt-oss:20b      # recommended; about 15 GB
+ollama pull qwen3.5:9b       # recommended; about 6.6 GB
 ```
 
 Without Ollama, Deck Forge works in engine-only mode. Choose the model "Engine only" to force this mode. The engine builds the deck and writes a template explanation.
@@ -57,16 +57,17 @@ Models for a 24 GB Apple-silicon Mac:
 
 | Model | Size | Notes |
 |---|---|---|
-| `gpt-oss:20b` | ~15 GB | Recommended. Fast. |
-| `gemma4:26b-a4b-it-qat` | 16 GB | Good balance. |
-| `qwen3.8:27b` | 18 GB | Best quality, slow. Close other apps first. |
-| `qwen3.5:9b` or `gemma4:12b` | small | Light. |
+| `qwen3.5:9b` | 6.6 GB | Recommended. Fits next to your other apps. A forge takes about 1.5–2.5 minutes. |
+| `gemma4:12b-it-qat` | 7.2 GB | Light alternative. Not evaluated. |
+| `gpt-oss:20b` | 13 GB | Close other apps first. With other apps open, it ran out of memory. |
+| `qwen3.8:27b` | 18 GB | Close other apps first. Slow. Not evaluated. |
 
 Evaluation status:
 
 - The hidden-deck evaluation passes in engine-only mode.
 - With `qwen3:14b` the evaluation did not yet meet the model pass rule.
-- `gpt-oss:20b` is not yet evaluated.
+- `gpt-oss:20b` did not finish on a 24 GB Mac with other apps open. The Mac ran out of memory, and the first model call timed out.
+- With `qwen3.5:9b` (one seed per sample), every model call returned valid JSON, and a forge took 80–140 seconds. Counters passed. Both aristocrats runs scored 0.001–0.022 below the engine baseline, and bogles reached 67% core recall (the rule is 70%).
 
 ## What Gets Added to Your CSV
 
@@ -109,7 +110,7 @@ Run the hidden-deck evaluation. It needs the local card index. Run it from the r
 
 ```bash
 python scripts/forge_eval.py --model none --seeds 3   # engine-only mode
-python scripts/forge_eval.py --model gpt-oss:20b      # with a local model
+python scripts/forge_eval.py --model qwen3.5:9b       # with a local model
 python scripts/forge_eval.py --real                   # check your newest collection
 ```
 

@@ -188,7 +188,7 @@ def test_decks_read_routes(overrides):
 def test_ai_status_recommends_model(overrides):
     with TestClient(app) as client:
         body = client.get("/api/ai/status").json()
-        assert body["recommended"] == "gpt-oss:20b"
+        assert body["recommended"] == "qwen3.5:9b"
         assert body["available"] is False
 
 

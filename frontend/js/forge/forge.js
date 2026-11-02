@@ -10,7 +10,7 @@ import { Timeline, STAGE_NAMES } from "./timeline.js";
 import { renderResult } from "./result.js";
 
 const AI_OFF_MESSAGE = "Local AI is off. The engine still builds the deck. "
-  + "Install Ollama and run `ollama pull gpt-oss:20b` for deeper decks.";
+  + "Install Ollama and run `ollama pull qwen3.5:9b` for deeper decks.";
 const ENGINE_ONLY = "none";
 const STORAGE_KEY = "forgeId";
 const COMMANDER_KEY = "forgeCommander";

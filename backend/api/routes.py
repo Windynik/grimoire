@@ -22,7 +22,7 @@ from backend.models.schemas import CacheStatus, ProcessResult
 
 router = APIRouter(prefix="/api")
 
-RECOMMENDED_MODEL = "gpt-oss:20b"
+RECOMMENDED_MODEL = "qwen3.5:9b"
 
 
 def best_price(prices: dict):
