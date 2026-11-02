@@ -269,22 +269,35 @@ function showList() {
   $("decks-list").hidden = false;
 }
 
-// Return to the list. The editor module (if loaded) gets to flush its save.
-async function closeEditor() {
+// Contract with the editor module (Task 8): window.grimoireEditor.open(host, deckId, options)
+// and window.grimoireEditor.close(). close() may return a promise; it flushes the pending save.
+// Every path that tears the editor down awaits close() first: Back, browser Back, deck switch.
+async function closeCurrent() {
+  if (!state.editing) return;
   try {
     if (window.grimoireEditor && window.grimoireEditor.close) await window.grimoireEditor.close();
   } catch (e) {
-    // The list still opens when a save fails; the editor showed the error.
+    // The next screen still opens when a save fails; the editor showed the error.
   }
+}
+
+// Return to the list.
+async function closeEditor() {
+  await closeCurrent();
   if (deckIdFromHash()) history.pushState(null, "", location.pathname + location.search);
   showList();
   loadList();
 }
 
-function showEditor(deckId, options) {
+async function showEditor(deckId, options) {
   const host = $("deck-editor");
   // The tab switch, the open call and the hash change all land here: open once.
   if (state.editing === deckId && !host.hidden) return;
+  // A different deck: the old editor saves before the new one loads.
+  if (state.editing && state.editing !== deckId) {
+    await closeCurrent();
+    if (state.editing === deckId) return;
+  }
   state.editing = deckId;
   $("decks-list").hidden = true;
   host.hidden = false;
@@ -323,11 +336,12 @@ async function open() {
 function init() {
   $("decks-new").addEventListener("click", newDeckDialog);
   $("decks-import").addEventListener("click", importDialog);
-  window.addEventListener("hashchange", () => {
+  window.addEventListener("hashchange", async () => {
     if (!$("decks-view").classList.contains("active")) return;
     const deckId = deckIdFromHash();
     if (deckId) showEditor(deckId, {});
     else {
+      await closeCurrent();
       showList();
       loadList();
     }

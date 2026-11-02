@@ -153,38 +153,113 @@ test("groupEntries by cmc puts lands first and 7+ last", () => {
   assert.deepEqual(groups[3].entries.map((e) => e.name), ["Seven", "Big"]);
 });
 
-const tick = () => new Promise((r) => setTimeout(r, 0));
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// A send whose requests finish only when the test says so.
+function controlledSend() {
+  const sent = [];
+  const gates = [];
+  const opts = [];
+  const send = (snap, option) => {
+    sent.push(snap);
+    opts.push(option);
+    return new Promise((resolve) => gates.push(resolve));
+  };
+  return { sent, opts, gates, send };
+}
 
 test("saveQueue sends only the newest snapshot", async () => {
-  const sent = [];
-  let started;
-  let startedPromise = new Promise((r) => { started = r; });
-  const send = async (snap) => {
-    sent.push(snap);
-    started();
-    await tick();
-    await tick();
-  };
+  const { sent, gates, send } = controlledSend();
   const q = new SaveQueue(send, 5);
   q.schedule("a");
-  await startedPromise;
+  await wait(30);
+  assert.deepEqual(sent, ["a"]);
   q.schedule("b");
   q.schedule("c");
-  await new Promise((r) => setTimeout(r, 60));
-  await q.flush();
+  await wait(30);
+  assert.deepEqual(sent, ["a"]);
+  gates[0]();
+  await wait(10);
   assert.deepEqual(sent, ["a", "c"]);
+  gates[1]();
+  await wait(5);
+  assert.equal(q.inflight, null);
 });
 
-test("saveQueue debounces and flush sends now with keepalive", async () => {
-  const calls = [];
-  const q = new SaveQueue(async (snap, opts) => { calls.push([snap, opts]); }, 10000);
+test("saveQueue flush waits for the request in flight, then sends the newest", async () => {
+  const { sent, gates, send } = controlledSend();
+  const q = new SaveQueue(send, 5);
+  q.schedule("a");
+  await wait(30);
+  q.schedule("b");
+  q.schedule("c");
+  let done = false;
+  const flushed = q.flush().then(() => { done = true; });
+  await wait(20);
+  assert.deepEqual(sent, ["a"]);
+  assert.equal(done, false);
+  gates[0]();
+  await wait(10);
+  assert.deepEqual(sent, ["a", "c"]);
+  assert.equal(done, false);
+  gates[1]();
+  await flushed;
+  assert.equal(done, true);
+  assert.equal(q.inflight, null);
+});
+
+test("saveQueue flush with nothing pending waits for the request in flight", async () => {
+  const { gates, send } = controlledSend();
+  const q = new SaveQueue(send, 5);
+  q.schedule("a");
+  await wait(30);
+  let done = false;
+  const flushed = q.flush().then(() => { done = true; });
+  await wait(10);
+  assert.equal(done, false);
+  gates[0]();
+  await flushed;
+  assert.equal(done, true);
+});
+
+test("saveQueue flush closing sends at once with keepalive and does not wait", async () => {
+  const { sent, opts, gates, send } = controlledSend();
+  const q = new SaveQueue(send, 10000);
   q.schedule("x");
   q.schedule("y");
-  assert.equal(calls.length, 0);
+  assert.equal(sent.length, 0);
+  const first = q.flush({ closing: true });
+  assert.deepEqual(sent, ["y"]);
+  assert.equal(opts[0].keepalive, true);
+  gates[0]();
+  await first;
+  await q.flush({ closing: true });
+  assert.equal(sent.length, 1);
+  // closing while a request is in flight does not wait for it
+  q.schedule("a");
+  const second = q.flush({ closing: true });
+  q.schedule("b");
+  q.flush({ closing: true });
+  assert.deepEqual(sent, ["y", "a", "b"]);
+  gates[1]();
+  gates[2]();
+  await second;
+});
+
+test("saveQueue reports a send error and keeps going", async () => {
+  const errors = [];
+  const sent = [];
+  const send = async (snap) => {
+    sent.push(snap);
+    if (snap === "bad") throw new Error("boom");
+  };
+  const q = new SaveQueue(send, 5);
+  q.onError = (e) => errors.push(e.message);
+  q.schedule("bad");
+  await wait(30);
+  assert.deepEqual(errors, ["boom"]);
+  q.schedule("good");
   await q.flush();
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0][0], "y");
-  assert.equal(calls[0][1].keepalive, true);
-  await q.flush();
-  assert.equal(calls.length, 1);
+  assert.deepEqual(sent, ["bad", "good"]);
+  assert.equal(q.inflight, null);
 });

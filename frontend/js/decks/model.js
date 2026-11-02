@@ -212,39 +212,55 @@ export class SaveQueue {
     }, this.delayMs);
   }
 
-  _drain(options) {
-    if (this.inflight || !this.hasPending) return this.inflight || Promise.resolve();
+  // Start one request. The in-flight mark clears only when this request is still the current one.
+  _send(snapshot, options) {
+    const run = (async () => {
+      try {
+        await this.send(snapshot, options);
+      } catch (error) {
+        if (this.onError) this.onError(error);
+      }
+    })();
+    const tracked = run.then(() => {
+      if (this.inflight === tracked) this.inflight = null;
+    });
+    this.inflight = tracked;
+    return tracked;
+  }
+
+  _take() {
     const snapshot = this.pending;
     this.hasPending = false;
     this.pending = undefined;
-    this.inflight = this._run(snapshot, options);
-    return this.inflight;
+    return snapshot;
   }
 
-  async _run(snapshot, options) {
-    try {
-      await this.send(snapshot, options);
-    } catch (error) {
-      if (this.onError) this.onError(error);
-    }
-    this.inflight = null;
-    if (this.hasPending && !this.timer) await this._drain();
+  _drain() {
+    if (this.inflight) return this.inflight;
+    if (!this.hasPending) return Promise.resolve();
+    return this._send(this._take()).then(() => {
+      if (this.hasPending && !this.timer) return this._drain();
+      return undefined;
+    });
   }
 
   /**
-   * Send the newest snapshot now with {keepalive: true}. When a request is
-   * in flight, the newest snapshot still goes out at once, because a flush
-   * runs when the page closes and cannot wait.
+   * Send the newest snapshot now.
+   *
+   * Without options (the page stays open), wait for the request in flight, then
+   * send only the newest snapshot, and resolve after both.
+   * With {closing: true} (the page closes), send the newest snapshot at once
+   * with {keepalive: true} and do not wait for a request in flight.
    */
-  flush() {
+  async flush(options) {
     clearTimeout(this.timer);
     this.timer = null;
-    if (!this.hasPending) return this.inflight || Promise.resolve();
-    const snapshot = this.pending;
-    this.hasPending = false;
-    this.pending = undefined;
-    const run = this._run(snapshot, { keepalive: true });
-    if (!this.inflight) this.inflight = run;
-    return run;
+    if (options && options.closing) {
+      if (!this.hasPending) return this.inflight || undefined;
+      return this._send(this._take(), { keepalive: true });
+    }
+    while (this.inflight) await this.inflight;
+    if (this.hasPending) await this._send(this._take());
+    return undefined;
   }
 }
