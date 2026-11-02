@@ -540,3 +540,29 @@ def test_land_that_sacrifices_lands_ranks_last_in_its_tier(playbook, oracle):
                  commander=commander)
     assert any_color_count(deck) == 3
     assert "lotus bloom field" not in deck.names()
+
+
+def test_sixty_card_colors_follow_the_mana_cost(playbook, oracle):
+    ability = creature("Blue Ability Bear", 701, "{U}: Draw a card.", colors=("G", "U"))
+    mite = make_record("Phyrexian Mite", type_line="Creature — Mite", mana_cost="{W/P}",
+                       color_identity=("W",), cmc=1)
+    recs = [oracle["Slippery Bogle"], ability, mite] + gw_records()
+    cards = tagged(playbook, "modern", recs, [4] * len(recs))
+    wanted = {"Slippery Bogle", "Blue Ability Bear", "Phyrexian Mite"}
+    deck = build(playbook, "modern", cards, backbone(cards, set(), "GW"), required=wanted)
+    assert {n.lower() for n in wanted} <= deck.names()
+    assert not deck.warnings or all("left it out" not in w for w in deck.warnings)
+    mono = build(playbook, "modern", cards, backbone(cards, set(), "G"), required={"Phyrexian Mite"})
+    assert "phyrexian mite" in mono.names()
+
+
+def test_commander_colors_follow_the_color_identity(playbook, oracle):
+    captain = creature("Selesnya Captain", 999, colors=("G", "W"), cmc=4,
+                       type_line="Legendary Creature — Kind999")
+    recs = [captain, oracle["Slippery Bogle"]] + gw_records(bears=60)
+    cards = tagged(playbook, "commander", recs)
+    commander = by_name(cards)["Selesnya Captain"]
+    deck = build(playbook, "commander", cards, backbone(cards, CORE_NAMES, "GW", commander),
+                 commander=commander, required={"Slippery Bogle"})
+    assert "slippery bogle" not in deck.names()
+    assert any(w.startswith("Slippery Bogle is not") for w in deck.warnings)

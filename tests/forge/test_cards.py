@@ -1,5 +1,5 @@
 from backend.forge.cards import (
-    front_types, hydrate, is_game_card, quality_prior,
+    castable_in, fits_colors, front_types, hydrate, is_game_card, quality_prior,
 )
 from tests.forge.conftest import hydrate_one, make_pool, make_record
 
@@ -83,3 +83,22 @@ def test_price_uses_first_available(rules):
     rec["prices"] = {"usd": None, "usd_foil": "3.00", "eur": "2.00", "tix": None}
     assert hydrate_one(rec, rules["modern"]).price == 3.0
     assert hydrate_one(make_record("Free"), rules["modern"]).price is None
+
+
+def test_castable_in_reads_only_the_mana_cost(oracle, rules):
+    modern = rules["modern"]
+    gw = frozenset("GW")
+    bogle = hydrate_one(oracle["Slippery Bogle"], modern)  # {G/U}
+    assert bogle.color_identity == frozenset("GU")
+    assert castable_in(bogle, gw) and fits_colors(bogle, gw, modern)
+    assert not fits_colors(bogle, gw, rules["commander"])
+    ability = hydrate_one(make_record("Blue Ability Bear", mana_cost="{1}{G}",
+                                      oracle_text="{U}: Draw a card.", color_identity=("G", "U")),
+                          modern)
+    assert fits_colors(ability, gw, modern) and not fits_colors(ability, gw, rules["commander"])
+    for cost in ("{W/P}", "{2/U}", "{X}{C}", "{3}", ""):
+        card = hydrate_one(make_record("Odd Cost", mana_cost=cost, color_identity=()), modern)
+        assert castable_in(card, frozenset("G")), cost
+    for cost in ("{1}{U}", "{U/R}", "{G}{B}"):
+        card = hydrate_one(make_record("Off Cost", mana_cost=cost, color_identity=()), modern)
+        assert not castable_in(card, gw), cost

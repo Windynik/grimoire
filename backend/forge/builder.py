@@ -10,7 +10,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Dict, FrozenSet, List, Optional, Set, Tuple
 
-from backend.forge.cards import COLORS, OwnedCard
+from backend.forge.cards import COLORS, OwnedCard, fits_colors
 from backend.forge.graph import Backbone, SynergyGraph, card_weight
 from backend.forge.playbook import FormatRules, Playbook
 
@@ -149,10 +149,15 @@ def deck_colors(plan: BuildPlan, fmt: FormatRules) -> FrozenSet[str]:
     return frozenset(plan.backbone.colors)
 
 
-def _playable(card: OwnedCard, colors: FrozenSet[str], commander_id: Optional[str]) -> bool:
+def _playable(card: OwnedCard, colors: FrozenSet[str], commander_id: Optional[str],
+              fmt: FormatRules) -> bool:
+    """Lands need their color identity in the colors; nonland cards use fits_colors."""
+    if card.is_land:
+        in_colors = card.color_identity <= colors
+    else:
+        in_colors = fits_colors(card, colors, fmt)
     return (card.owned > 0 and card.id != commander_id and card.legality in LEGAL
-            and "Token" not in card.types and not card.is_basic
-            and card.color_identity <= colors)
+            and "Token" not in card.types and not card.is_basic and in_colors)
 
 
 def quota_keys(card: OwnedCard) -> Set[str]:
@@ -584,7 +589,7 @@ def build_deck(cards: List[OwnedCard], graph: SynergyGraph, playbook: Playbook,
     """
     commander = plan.commander if fmt.commander else None
     colors = deck_colors(plan, fmt)
-    pool = [c for c in cards if _playable(c, colors, commander.id if commander else None)]
+    pool = [c for c in cards if _playable(c, colors, commander.id if commander else None, fmt)]
     nonland = [c for c in pool if not c.is_land]
     lands = [c for c in pool if c.is_land]
     required, warnings = _resolve_required(plan, pool, cards)

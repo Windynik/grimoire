@@ -83,3 +83,10 @@ def test_apply_swaps_partial_swap_keeps_remaining_copies(playbook):
     assert {e.name: e.count for e in deck.entries if e.basic} == basics
     assert deck.total() == before
     assert out.card.id not in deck.bench
+
+
+def test_apply_swaps_takes_a_hybrid_card_castable_in_the_deck_colors(playbook, oracle):
+    deck, pool = _setup(playbook, [oracle["Slippery Bogle"]])
+    out = _bear(deck)
+    applied = apply_swaps(deck, [{"out": out.name, "in": "Slippery Bogle"}], pool, set())
+    assert [s["in"] for s in applied] == ["Slippery Bogle"]

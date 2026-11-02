@@ -17,7 +17,7 @@ from typing import AsyncIterator, Dict, List, Optional, Set, Tuple
 from backend.core.ollama_client import CallStats, OllamaClient
 from backend.decks.store import DeckStore
 from backend.forge.builder import BuildPlan, BuiltDeck, build_deck
-from backend.forge.cards import COLORS, OwnedCard, hydrate
+from backend.forge.cards import COLORS, OwnedCard, fits_colors, hydrate
 from backend.forge.eta import EtaEstimator, estimate_output_tokens, prompt_tokens
 from backend.forge.events import (
     OPTION_CARDS, STAGE_NAMES, TERMINAL, best_cards, card_payload, engine_playstyle, graph_payload,
@@ -412,8 +412,11 @@ class ForgeSession:
         return ranked, plans, reply.get("close_call") is True, question
 
     def _in_colors(self, name, bone: Backbone) -> Optional[OwnedCard]:
+        """Return the owned card for a name when it fits the backbone colors (see fits_colors)."""
         card = self._owned(name)
-        return card if card is not None and card.color_identity <= bone.colors else None
+        if card is None or card.is_land:
+            return card if card is not None and card.color_identity <= bone.colors else None
+        return card if fits_colors(card, bone.colors, self._format()) else None
 
     def _plan(self, item: dict, bone: Backbone) -> dict:
         """Keep the parts of a model plan that pass the engine's checks."""

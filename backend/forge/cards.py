@@ -63,6 +63,46 @@ class OwnedCard:
         return counts
 
 
+def castable_in(card: "OwnedCard", colors: FrozenSet[str]) -> bool:
+    """Return True when every mana symbol in a card's cost can be paid with the colors.
+
+    Args:
+        card: Card to check. Its mana cost is read (all faces).
+        colors: Deck colors.
+
+    Returns:
+        True when each colored symbol has a color in `colors`. A hybrid symbol
+        needs one half in the colors ({2/W} passes with its generic half).
+        Phyrexian, generic, X and colorless symbols always pass. Rules text is
+        not read: this is the rule of formats without a commander.
+    """
+    for symbol in _SYMBOL.findall(card.mana_cost or ""):
+        parts = symbol.split("/")
+        colored = [part for part in parts if part in COLORS]
+        if not colored or "P" in parts:
+            continue
+        if any(part in colors or part.isdigit() for part in parts):
+            continue
+        return False
+    return True
+
+
+def fits_colors(card: "OwnedCard", colors: FrozenSet[str], fmt: FormatRules) -> bool:
+    """Return True when a nonland card can be played in a deck of these colors.
+
+    Args:
+        card: Nonland card.
+        colors: Deck colors.
+        fmt: Format rules.
+
+    Returns:
+        color_identity <= colors in commander formats, else castable_in.
+    """
+    if fmt.commander:
+        return card.color_identity <= colors
+    return castable_in(card, colors)
+
+
 def front_types(type_line: str) -> Tuple[FrozenSet[str], Tuple[str, ...]]:
     """Split the front face of a type line into types and subtypes.
 

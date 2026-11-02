@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from itertools import combinations
 from typing import Collection, Dict, FrozenSet, List, Optional, Set, Tuple
 
-from backend.forge.cards import COLORS, OwnedCard
+from backend.forge.cards import COLORS, OwnedCard, fits_colors
 from backend.forge.playbook import FormatRules, Playbook
 from backend.forge.tagging import TRIBAL_PREFIX, is_scaling
 
@@ -332,7 +332,7 @@ def _scored_groups(by_hook: Dict[str, List[OwnedCard]], scope: FrozenSet[str],
     groups = []
     for hook in sorted(by_hook):
         members = [card for card in by_hook[hook]
-                   if card.color_identity <= scope and card.id != skip]
+                   if fits_colors(card, scope, fmt) and card.id != skip]
         ids = {card.id for card in members}
         if members and _big_enough(members, fmt) and _enough_wanters((hook,), ids, graph):
             groups.append(((hook,), ids))

@@ -20,6 +20,7 @@ AURA_PAYOFF = "Whenever you cast an Aura spell, draw a card."
 def creature(name, n, text="", colors=("B",), legendary=False, **kw):
     """A creature with a unique made-up subtype, so no tribe forms by accident."""
     prefix = "Legendary Creature" if legendary else "Creature"
+    kw.setdefault("mana_cost", "{1}" + "".join("{%s}" % c for c in colors))
     return make_record(name, type_line=f"{prefix} — Kind{n}", oracle_text=text,
                        color_identity=colors, **kw)
 

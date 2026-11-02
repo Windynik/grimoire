@@ -4,6 +4,8 @@ import pytest
 
 from backend.core.ollama_client import CallStats, ModelError
 from backend.decks.store import DeckStore
+from backend.forge.cards import hydrate
+from backend.forge.graph import Backbone
 from backend.forge.llm import BACKBONE_SCHEMA, REASONS_SCHEMA, SWAP_SCHEMA
 from backend.forge.session import ENGINE_ONLY, MODEL_FAILED, ForgeManager, ForgeParams, ForgeSession
 from tests.forge.conftest import make_pool, make_record
@@ -636,3 +638,16 @@ async def test_model_none_forces_engine_only(tmp_path):
     assert events[-1]["type"] == "done"
     assert any(e["type"] == "thought" and e["text"] == ENGINE_ONLY for e in events)
     assert client.calls == []
+
+
+def test_model_names_use_the_format_color_rule(tmp_path, playbook, oracle):
+    record = oracle["Slippery Bogle"]  # {G/U}: castable in G/W, identity G/U
+    bone = Backbone(id="voltron:WG", hooks=("voltron",), name="Voltron", members=[],
+                    colors=frozenset("GW"), commander_id=None, score=1.0)
+    for fmt, fits in (("modern", True), ("commander", False)):
+        params = ForgeParams(job_id="job", format=fmt, model="none")
+        session = ForgeSession(params, [], {}, playbook, None, DeckStore(str(tmp_path)))
+        card = hydrate([{"scryfall_id": record["id"], "quantity": 1}], {record["id"]: record},
+                       playbook.formats[fmt])[0]
+        session._by_name = {card.name.lower(): card}
+        assert (session._in_colors("Slippery Bogle", bone) is card) is fits

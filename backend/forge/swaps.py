@@ -8,7 +8,7 @@ applies only the valid ones. Makes no network calls.
 from typing import Dict, List, Set
 
 from backend.forge.builder import LEGAL, WINDOW, BuiltDeck, DeckEntry, copies_for, deck_colors
-from backend.forge.cards import OwnedCard
+from backend.forge.cards import OwnedCard, fits_colors
 
 MAX_SWAPS = 8
 WHY_LIMIT = 120
@@ -18,10 +18,10 @@ def _key(name) -> str:
     return str(name or "").strip().lower()
 
 
-def _usable(card: OwnedCard, deck_names: Set[str], colors) -> bool:
+def _usable(card: OwnedCard, deck_names: Set[str], colors, fmt) -> bool:
     return (card.owned > 0 and card.legality in LEGAL and not card.is_land
             and not card.is_basic and "Token" not in card.types
-            and card.color_identity <= colors and card.name.lower() not in deck_names)
+            and fits_colors(card, colors, fmt) and card.name.lower() not in deck_names)
 
 
 def _insert_at(entries: List[DeckEntry]) -> int:
@@ -64,7 +64,7 @@ def apply_swaps(deck: BuiltDeck, swaps: List[dict], pool: Dict[str, OwnedCard],
         entry = next((e for e in deck.nonland_entries() if e.name.lower() == out_key), None)
         card = pool.get(in_key)
         if (entry is None or out_key in locked or out_key == commander
-                or card is None or not _usable(card, deck.names(), colors)):
+                or card is None or not _usable(card, deck.names(), colors, deck.fmt)):
             continue
         why = str(swap.get("why") or "").strip()[:WHY_LIMIT]
         count = min(entry.count, copies_for(card, deck.fmt))
@@ -95,7 +95,7 @@ def _refresh(deck: BuiltDeck, pool: Dict[str, OwnedCard], outgoing: List[OwnedCa
     bench = first + [i for i in deck.bench if i not in in_deck and i not in first]
     if len(bench) < WINDOW:
         rest = sorted((c for c in by_id.values()
-                       if c.id not in bench and _usable(c, names, colors)),
+                       if c.id not in bench and _usable(c, names, colors, deck.fmt)),
                       key=lambda c: (-c.quality, c.name))
         bench += [c.id for c in rest][:WINDOW - len(bench)]
     deck.bench = bench[:WINDOW]
