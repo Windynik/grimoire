@@ -132,9 +132,10 @@ async function loadAiStatus() {
   const isRecommended = (m) => ai.recommended && (m === ai.recommended || m.startsWith(`${ai.recommended}:`));
   models.forEach((m) => select.appendChild(option(m, isRecommended(m) ? `${m} (recommended)` : m)));
   select.appendChild(option(ENGINE_ONLY, "Engine only (no AI)"));
+  // Preselect the recommended model only when it is installed; else run engine-only.
   if (!ai.available) select.value = ENGINE_ONLY;
   else if (previous && [...select.options].some((o) => o.value === previous)) select.value = previous;
-  else select.value = ai.default_model || models[0] || ENGINE_ONLY;
+  else select.value = models.find(isRecommended) || ENGINE_ONLY;
   $("forge-ai-banner").hidden = ai.available;
 }
 
