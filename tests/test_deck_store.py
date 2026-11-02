@@ -1,0 +1,113 @@
+import dataclasses
+
+import pytest
+
+from backend.decks.store import DeckStore
+from backend.forge.builder import BuildPlan, BuiltDeck, DeckEntry
+from backend.forge.export import decklist_text, deck_to_record
+from backend.forge.graph import Backbone
+from backend.forge.playbook import load_playbook
+from tests.forge.conftest import hydrate_one, make_record
+
+
+@pytest.fixture(scope="module")
+def playbook():
+    return load_playbook()
+
+
+def _backbone():
+    return Backbone(id="b", hooks=("death",), name="Aristocrats", members=[],
+                    colors=frozenset("BG"), commander_id=None, score=1.0)
+
+
+def _deck(playbook, fmt="commander"):
+    rules = playbook.formats[fmt]
+    chief = make_record("Chief", color_identity=("B", "G"), cmc=3, mana_cost="{1}{B}{G}")
+    chief["game_changer"] = True
+    bear = make_record("Bear", cmc=2)
+    ring = make_record("Gem", type_line="Artifact", mana_cost="{1}", color_identity=(), cmc=1)
+    ring["game_changer"] = True
+    commander = hydrate_one(chief, rules)
+    entries = [
+        DeckEntry(card=hydrate_one(bear, rules), name="Bear", count=2, role="core",
+                  reason="Own reason."),
+        DeckEntry(card=hydrate_one(ring, rules), name="Gem", count=1, role="ramp",
+                  reason="Ramp."),
+        DeckEntry(card=None, name="Forest", count=3, role="basic", reason="Basic.", basic=True),
+    ]
+    plan = BuildPlan(backbone=_backbone(), playstyle="midrange", commander=commander)
+    return BuiltDeck(fmt=rules, plan=plan, entries=entries, land_target=3,
+                     warnings=["warn"], notes=["note"])
+
+
+def _record(playbook, **kw):
+    info = {"thesis": "Sacrifice things.",
+            "key_interactions": [{"cards": ["Bear", "Gem"], "why": "Fun."}]}
+    return deck_to_record(_deck(playbook, **kw), "My Deck", "job1", info, "# Why",
+                          {"Bear": "Model reason."}, {"synergy_density": 0.5})
+
+
+def test_deck_to_record_counts_and_commander_outside_main(playbook):
+    rec = _record(playbook)
+    assert rec["format"] == "commander" and rec["collection_job_id"] == "job1"
+    assert rec["commander"]["name"] == "Chief"
+    main = rec["sections"]["main"]
+    assert [m["name"] for m in main] == ["Bear", "Gem", "Forest"]
+    assert sum(m["count"] for m in main) == 6
+    bear, gem, forest = main
+    assert bear["reason"] == "Model reason." and gem["reason"] == "Ramp."
+    assert bear["scryfall_id"] == "id-bear" and not bear["basic"]
+    assert forest["scryfall_id"] is None and forest["basic"] is True
+    assert forest["type_line"] == "Basic Land — Forest" and forest["cmc"] == 0
+    assert forest["image_url"] == "" and forest["mana_cost"] == ""
+    assert rec["sections"]["sideboard"] == [] and rec["sections"]["maybeboard"] == []
+    assert rec["backbone"]["name"] == "Aristocrats" and rec["backbone"]["hooks"] == ["death"]
+    assert rec["backbone"]["playstyle"] == "midrange"
+    assert rec["backbone"]["thesis"] == "Sacrifice things."
+    assert rec["game_changers"] == 2  # Gem plus the commander
+    assert rec["curve"]["2"] == 2 and rec["curve"]["1"] == 1
+    assert rec["warnings"] == ["warn"] and rec["notes"] == ["note"]
+    assert rec["explanation"] == "# Why" and rec["metrics"] == {"synergy_density": 0.5}
+
+
+def test_deck_to_record_without_commander(playbook):
+    deck = _deck(playbook, "modern")
+    deck = dataclasses.replace(deck, plan=dataclasses.replace(deck.plan, commander=None))
+    rec = deck_to_record(deck, "D", "j", {}, "", {}, {})
+    assert rec["commander"] is None and rec["game_changers"] == 1
+
+
+def test_save_get_list_roundtrip(tmp_path, playbook):
+    store = DeckStore(str(tmp_path / "decks"))
+    rec = _record(playbook)
+    deck_id = store.save(rec)
+    first = store.get(deck_id)
+    assert first["id"] == deck_id and first["created"] and first["updated"]
+    created = first["created"]
+    first["name"] = "Renamed"
+    store.save(first)
+    again = store.get(deck_id)
+    assert again["created"] == created and again["name"] == "Renamed"
+    assert again["updated"] >= created
+    other = store.save(_record(playbook))
+    rows = store.list()
+    assert {r["id"] for r in rows} == {deck_id, other}
+    row = next(r for r in rows if r["id"] == deck_id)
+    assert row["name"] == "Renamed" and row["format"] == "commander"
+    assert row["commander"] == "Chief" and row["count"] == 7
+    assert [r["updated"] for r in rows] == sorted((r["updated"] for r in rows), reverse=True)
+
+
+def test_rejects_bad_ids(tmp_path):
+    store = DeckStore(str(tmp_path))
+    for bad in ("../x", "A1", "a/b", "", "x.json"):
+        assert store.get(bad) is None
+    assert store.get("abc-123") is None
+
+
+def test_decklist_text_sections(playbook):
+    rec = _record(playbook)
+    assert decklist_text(rec) == "Commander\n1 Chief\n\nDeck\n2 Bear\n1 Gem\n3 Forest"
+    rec["commander"] = None
+    rec["sections"]["sideboard"] = [{"name": "Side", "count": 2}]
+    assert decklist_text(rec) == ("Deck\n2 Bear\n1 Gem\n3 Forest\n\nSideboard\n2 Side")

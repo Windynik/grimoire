@@ -3,6 +3,7 @@ from backend.core.bulk_data import BulkDataManager
 from backend.core.collection_store import CollectionStore
 from backend.core.csv_processor import CSVProcessor
 from backend.core.ollama_client import OllamaClient
+from backend.decks.store import DeckStore
 
 
 @lru_cache()
@@ -43,3 +44,13 @@ def get_ollama_client() -> OllamaClient:
         OllamaClient instance
     """
     return OllamaClient()
+
+
+@lru_cache()
+def get_deck_store() -> DeckStore:
+    """Get singleton DeckStore instance.
+
+    Returns:
+        DeckStore instance
+    """
+    return DeckStore()
