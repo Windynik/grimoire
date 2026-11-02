@@ -14,6 +14,9 @@ const AI_OFF_MESSAGE = "Local AI is off. The engine still builds the deck. "
 const ENGINE_ONLY = "none";
 const STORAGE_KEY = "forgeId";
 const COMMANDER_KEY = "forgeCommander";
+// {forge_id, deck_id} of the last finished forge. The server drops a finished
+// forge after 5 minutes; a later reload shows the saved deck from this key.
+const DECK_KEY = "forgeDeck";
 // Each stage stays on screen at least this long (ms), so a fast engine-only run
 // still shows every stage. Events that come in slower than this play at once.
 const STAGE_DWELL = [1600, 2400, 1200, 1600, 1400];
@@ -624,13 +627,47 @@ function destroyRun() {
   state.run = null;
 }
 
-function finish(type) {
+function finish(type, data) {
   state.running = false;
   state.source = null;
-  if (type !== "done") {
+  if (type === "done" && data && typeof data.deck_id === "string") {
+    store(sessionStorage, DECK_KEY, JSON.stringify({ forge_id: state.forgeId, deck_id: data.deck_id }));
+  } else if (type !== "done") {
     store(sessionStorage, STORAGE_KEY, null);
     store(sessionStorage, COMMANDER_KEY, null);
   }
+}
+
+/** Return the saved deck id of a finished forge, or null. */
+function savedDeckId(forgeId) {
+  try {
+    const saved = JSON.parse(store(sessionStorage, DECK_KEY) || "null");
+    return saved && saved.forge_id === forgeId && typeof saved.deck_id === "string"
+      ? saved.deck_id : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/** Show the saved deck of a forge that the server no longer holds. */
+async function showSavedDeck(forgeId, deckId) {
+  closeStream();
+  state.running = false;
+  let deck;
+  try {
+    deck = await api.getDeck(deckId);
+  } catch (e) {
+    deck = null;
+  }
+  if (state.forgeId !== forgeId) return;
+  if (!deck) {
+    showSetup();
+    toast("That forge is no longer running.", "error");
+    open();
+    return;
+  }
+  endButtons(false);
+  showResult(deck);
 }
 
 function attach(forgeId, opts = {}) {
@@ -664,6 +701,11 @@ function attach(forgeId, opts = {}) {
       // an unloading page never runs the timer, so the next page reattaches.
       setTimeout(() => {
         if (!state.running || state.unloading || state.forgeId !== forgeId) return;
+        const deckId = savedDeckId(forgeId);
+        if (deckId) {
+          showSavedDeck(forgeId, deckId);
+          return;
+        }
         showSetup();
         toast("That forge is no longer running.", "error");
         open();
@@ -677,7 +719,7 @@ function attach(forgeId, opts = {}) {
   api.EVENT_TYPES.forEach((type) => {
     handlers[type] = (data, id) => {
       dispatch(type, data, id);
-      if (api.TERMINAL.includes(type)) finish(type);
+      if (api.TERMINAL.includes(type)) finish(type, data);
     };
   });
   state.source = api.openEvents(forgeId, handlers);
@@ -737,6 +779,7 @@ function showSetup() {
   state.forgeId = null;
   store(sessionStorage, STORAGE_KEY, null);
   store(sessionStorage, COMMANDER_KEY, null);
+  store(sessionStorage, DECK_KEY, null);
   $("forge-stage").hidden = true;
   $("forge-result").hidden = true;
   $("forge-result").textContent = "";
