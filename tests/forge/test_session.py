@@ -8,7 +8,9 @@ from backend.decks.store import DeckStore
 from backend.forge.cards import hydrate
 from backend.forge.graph import Backbone
 from backend.forge.llm import BACKBONE_SCHEMA, REASONS_SCHEMA, SWAP_SCHEMA
-from backend.forge.session import ENGINE_ONLY, MODEL_FAILED, ForgeManager, ForgeParams, ForgeSession
+from backend.forge.session import (
+    ENGINE_ONLY, MODEL_FAILED, ForgeManager, ForgeParams, ForgeSession, wish_names,
+)
 from tests.forge.conftest import make_pool, make_record
 
 SAC = "Sacrifice a creature: Scry 1."
@@ -695,3 +697,14 @@ def test_model_names_use_the_format_color_rule(tmp_path, playbook, oracle):
                        playbook.formats[fmt])[0]
         session._by_name = {card.name.lower(): card}
         assert (session._in_colors("Slippery Bogle", bone) is card) is fits
+
+
+def test_wish_names_skip_negated_names(rules):
+    recs = [make_record(n) for n in ("Sol Ring", "Llanowar Elves", "Dark Ritual",
+                                     "Lightning Bolt", "Counterspell", "Fire // Ice")]
+    cards = hydrate(*make_pool(recs), rules["casual"])
+    wish = ("Play Sol Ring, but no Llanowar Elves. Not a Dark Ritual, nothing without "
+            "Lightning Bolt, everything except the Counterspell. Also fire.")
+    assert wish_names(wish, cards) == {"Sol Ring", "Fire // Ice"}
+    assert wish_names("No Sol Ring here. Then add Sol Ring.", cards) == {"Sol Ring"}
+    assert wish_names("knot Sol Ring; snot dark ritual", cards) == {"Sol Ring", "Dark Ritual"}

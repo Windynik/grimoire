@@ -47,6 +47,8 @@ MAX_BACKBONES = 5
 NAME_LIMIT = 60
 TEXT_LIMIT = 300
 WHY_LIMIT = 160
+# A wish word that negates the card name after it, with an optional "a", "an", "the" or "any".
+NEGATION = re.compile(r"(?<!\w)(?:no|not|without|except)\s+(?:(?:a|an|the|any)\s+)?$")
 NO_STATS = CallStats(prompt_tokens=0, prompt_seconds=0.0, output_tokens=0, output_seconds=0.0)
 # First guesses of the prompt tokens per model call; each is replaced by the
 # real prompt size just before the call.
@@ -88,8 +90,20 @@ def _key(value) -> Optional[str]:
     return value if isinstance(value, str) else None
 
 
+def _wanted(name: str, text: str) -> bool:
+    """Return True when the text names the card as whole words and no negation comes before it."""
+    for match in re.finditer(r"(?<!\w)" + re.escape(name) + r"(?!\w)", text):
+        if not NEGATION.search(text[:match.start()]):
+            return True
+    return False
+
+
 def wish_names(wish: str, cards: List[OwnedCard]) -> Set[str]:
-    """Return the names of owned cards that the wish names as whole words (any case)."""
+    """Return the names of owned cards that the wish names as whole words (any case).
+
+    A name that comes directly after "no", "not", "without" or "except"
+    does not count. One of "a", "an", "the" or "any" can come between.
+    """
     text = (wish or "").lower()
     found = set()  # type: Set[str]
     if not text.strip():
@@ -98,8 +112,7 @@ def wish_names(wish: str, cards: List[OwnedCard]) -> Set[str]:
         if card.is_basic or card.owned <= 0:
             continue
         for name in {card.name.lower(), card.name.split(" // ")[0].lower()}:
-            if len(name) >= 3 and name in text and re.search(
-                    r"(?<!\w)" + re.escape(name) + r"(?!\w)", text):
+            if len(name) >= 3 and name in text and _wanted(name, text):
                 found.add(card.name)
     return found
 
