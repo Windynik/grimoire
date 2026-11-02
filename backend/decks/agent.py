@@ -136,37 +136,51 @@ def _apply_cuts(deck: BuiltDeck, cuts, protected: str) -> List[dict]:
         if not isinstance(cut, dict):
             continue
         name = str(cut.get("name") or "").strip().lower()
-        entry = next((e for e in deck.nonland_entries() if e.name.lower() == name), None)
-        if entry is None or name == protected:
+        found = [e for e in deck.nonland_entries() if e.name.lower() == name]
+        if not found or name == protected:
             continue
-        deck.entries.remove(entry)
-        applied.append({"name": entry.name,
+        for entry in found:  # a stored deck may hold the same card on two lines
+            deck.entries.remove(entry)
+        applied.append({"name": found[0].name,
                         "why": str(cut.get("why") or "").strip()[:WHY_LIMIT]})
     return applied
+
+
+def _totals(entries) -> Dict[str, int]:
+    """Sum the copies per entry key (a stored deck may hold a card on two lines)."""
+    totals = {}  # type: Dict[str, int]
+    for entry in entries:
+        totals[_key(entry)] = totals.get(_key(entry), 0) + entry.count
+    return totals
 
 
 def _new_main(record: dict, before: Dict[str, int], deck: BuiltDeck) -> List[dict]:
     """Return the main section after the edit.
 
     Stored lines that stay keep their role and reason. Lines that the deck
-    could not read (unknown cards) stay as they are.
+    could not read (unknown cards) stay as they are. A card whose total did not
+    change keeps all its lines. A card whose total changed keeps its first line
+    with the new total. A card that left has no line.
     """
-    now = {}  # type: Dict[str, object]
+    now = _totals(deck.entries)
+    first = {}  # type: Dict[str, object]
     for entry in deck.entries:
-        now.setdefault(_key(entry), entry)
+        first.setdefault(_key(entry), entry)
     main = []  # type: List[dict]
     seen = set()
     for line in (record.get("sections") or {}).get("main") or []:
         key = _line_key(line)
         if key not in before:
             main.append(copy.deepcopy(line))
+        elif now.get(key) == before[key]:
+            main.append(copy.deepcopy(line))
         elif key in now and key not in seen:
             seen.add(key)
-            main.append(dict(line, count=now[key].count))
-    for key, entry in now.items():
+            main.append(dict(line, count=now[key]))
+    for key, entry in first.items():
         if key in before:
             continue
-        main.append({"scryfall_id": entry.card.id, "name": entry.name, "count": entry.count,
+        main.append({"scryfall_id": entry.card.id, "name": entry.name, "count": now[key],
                      "basic": False, "role": entry.role, "reason": entry.reason})
     return main
 
@@ -205,7 +219,7 @@ async def run_agent(record: dict, message: str, model: str, index: Dict[str, dic
     prompt = agent_prompt(deck, bench, message)
     data, _ = await client.chat_structured(prompt, AGENT_SCHEMA, system=SYSTEM_PROMPT,
                                            model=model, think="low")
-    before = {_key(e): e.count for e in deck.entries}
+    before = _totals(deck.entries)
     protected = deck.commander.name.lower() if deck.commander is not None else ""
     swaps = data.get("swaps")
     applied = apply_swaps(deck, swaps if isinstance(swaps, list) else [],

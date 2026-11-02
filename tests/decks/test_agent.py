@@ -121,3 +121,31 @@ def test_bench_excludes_deck_cards_and_off_color(playbook):
 
 def test_agent_schema_requires_all_three_keys():
     assert AGENT_SCHEMA["required"] == ["reply", "swaps", "cuts"]
+
+
+@pytest.mark.asyncio
+async def test_duplicate_lines_survive_a_no_op_and_a_cut_removes_all(playbook):
+    record, index, collection = _world()
+    weak_a = next(r for r in index.values() if r["name"] == "Weak A")
+    record["sections"]["main"].insert(1, _line(weak_a))
+    empty = {"reply": "Fine.", "swaps": [], "cuts": []}
+    result = await run_agent(record, "ok?", "m", index, collection, playbook, _client(empty))
+    assert result["sections"]["main"] == record["sections"]["main"]
+    cut = dict(empty, cuts=[{"name": "Weak A", "why": "slow"}])
+    result = await run_agent(record, "cut", "m", index, collection, playbook, _client(cut))
+    assert result["cuts"] == [{"name": "Weak A", "why": "slow"}]
+    assert "Weak A" not in [e["name"] for e in result["sections"]["main"]]
+
+
+@pytest.mark.asyncio
+async def test_unknown_card_line_is_kept_and_cannot_be_swapped_or_cut(playbook):
+    record, index, collection = _world()
+    ghost = {"scryfall_id": "not-in-index", "name": "Ghost Card", "count": 2, "basic": False,
+             "role": "core", "reason": "Old."}
+    record["sections"]["main"].append(ghost)
+    reply = {"reply": "Try.", "swaps": [{"out": "Ghost Card", "in": "Strong B", "why": "x"}],
+             "cuts": [{"name": "Ghost Card", "why": "y"}]}
+    result = await run_agent(record, "go", "m", index, collection, playbook, _client(reply))
+    assert result["swaps"] == [] and result["cuts"] == []
+    assert result["sections"]["main"] == record["sections"]["main"]
+    assert ghost in result["sections"]["main"]
