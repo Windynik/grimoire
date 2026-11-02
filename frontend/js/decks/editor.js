@@ -6,7 +6,10 @@
 
 import * as api from "./api.js";
 import { applyOp, History, SaveQueue, SECTIONS } from "./model.js";
-import { safeManaCost } from "../shared/dom.js";
+import { h, safeManaCost } from "../shared/dom.js";
+import { renderExplanation } from "../forge/feed.js";
+import { renderExportMenu } from "./exportmenu.js";
+import { renderHand } from "./hand.js";
 import { hidePreview, renderPane } from "./pane.js";
 import { renderSearch } from "./search.js";
 import { renderStats } from "./stats.js";
@@ -97,7 +100,52 @@ function mount(host) {
     stats: pick("stats"),
     body: pick("body"),
     tabs: host.querySelectorAll('[data-editor="tab"]'),
+    center: pick("center"),
+    viewTabs: host.querySelectorAll('[data-editor="view-tab"]'),
+    hand: pick("hand"),
+    explanation: pick("explanation"),
+    exportMenu: pick("export"),
   };
+}
+
+// Text of the Explanation view: the backbone, the forge explanation, and the reason per card.
+function renderExplain(root, state) {
+  const forge = state.forge || {};
+  const backbone = forge.backbone;
+  const reasons = (state.sections.main || []).filter((entry) => String(entry.reason || "").trim());
+  if (!backbone && !forge.explanation && !reasons.length) {
+    root.replaceChildren(h("p", {
+      class: "explain-empty", text: "This deck was not forged, so it has no explanation.",
+    }));
+    return;
+  }
+  const parts = [];
+  if (backbone) {
+    parts.push(h("h3", { class: "explain-title", text: backbone.name || "Backbone" }));
+    if (backbone.thesis) parts.push(h("p", { class: "explain-thesis", text: backbone.thesis }));
+    if (backbone.playstyle) {
+      parts.push(h("p", { class: "explain-playstyle" },
+        h("strong", { text: "Playstyle: " }), backbone.playstyle));
+    }
+    const links = backbone.key_interactions || [];
+    if (links.length) {
+      parts.push(h("h4", { text: "Key interactions" }), h("ul", { class: "explain-links" },
+        links.map((link) => h("li", {},
+          h("strong", { text: [].concat(link.cards || []).join(" + ") }),
+          link.why ? ` — ${link.why}` : ""))));
+    }
+  }
+  if (forge.explanation) {
+    const body = h("div", { class: "explain-body" });
+    renderExplanation(body, forge.explanation);
+    parts.push(body);
+  }
+  if (reasons.length) {
+    parts.push(h("h4", { text: "Reasons per card" }), h("ul", { class: "explain-reasons" },
+      reasons.map((entry) => h("li", {},
+        h("strong", { text: entry.name }), ` — ${entry.reason}`))));
+  }
+  root.replaceChildren(...parts);
 }
 
 function createSession(host, deckId, options) {
@@ -115,6 +163,7 @@ function createSession(host, deckId, options) {
     sections: { main: [], sideboard: [], maybeboard: [] },
     commander: null,
     analysis: {},
+    forge: { backbone: null, explanation: "" },
     groupMode: readGroupMode(),
     flipped: new Set(),
     get canUndo() {
@@ -254,6 +303,8 @@ function createSession(host, deckId, options) {
     renderPane(view.pane, state, handlers);
     renderStats(view.stats, state.analysis);
     renderSearch(view.search, state);
+    renderHand(view.hand, state);
+    renderExplain(view.explanation, state);
   }
 
   function fillCollections(collections) {
@@ -310,6 +361,12 @@ function createSession(host, deckId, options) {
     view.body.dataset.tab = tab.dataset.tab;
     view.tabs.forEach((other) => other.setAttribute("aria-selected", String(other === tab)));
   }));
+  // The view switch picks what the center column shows. The layout tabs above pick panels.
+  view.viewTabs.forEach((tab) => tab.addEventListener("click", () => {
+    hidePreview();
+    view.center.dataset.view = tab.dataset.view;
+    view.viewTabs.forEach((other) => other.setAttribute("aria-selected", String(other === tab)));
+  }));
   view.undo.addEventListener("click", () => state.undo());
   view.redo.addEventListener("click", () => state.redo());
   view.back.forEach((button) => button.addEventListener("click", () => {
@@ -361,7 +418,9 @@ function createSession(host, deckId, options) {
       });
       state.commander = record.commander || null;
       state.analysis = record.analysis || {};
+      state.forge = { backbone: record.backbone || null, explanation: record.explanation || "" };
       history.push(state);
+      renderExportMenu(view.exportMenu, deckId, { beforeExport: () => flushNow(), toast });
       view.name.value = deck.name;
       fillCollections(collections.collections);
       setStatus("saved");

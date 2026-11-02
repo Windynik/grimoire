@@ -347,6 +347,7 @@
                                     </p>
                                 </div>
                                 <div class="editor-tools">
+                                    <span class="editor-export" data-editor="export"></span>
                                     <span class="editor-status" data-editor="status" role="status" aria-live="polite"></span>
                                     <button type="button" class="btn btn-secondary btn-compact" data-editor="undo" title="Undo (Ctrl+Z or Cmd+Z)">Undo</button>
                                     <button type="button" class="btn btn-secondary btn-compact" data-editor="redo" title="Redo (Ctrl+Shift+Z or Cmd+Shift+Z)">Redo</button>
@@ -360,19 +361,28 @@
                             </div>
                             <div class="editor-body" data-editor="body" data-tab="deck">
                                 <section class="editor-search" data-panel="search" data-editor="search" aria-label="Add cards"></section>
-                                <section class="editor-deck" data-panel="deck" aria-label="Deck">
-                                    <div class="deck-pane-tools">
-                                        <label class="editor-group">
-                                            <span>Group by</span>
-                                            <select data-editor="group">
-                                                <option value="type">Type</option>
-                                                <option value="role">Role</option>
-                                                <option value="cmc">Mana value</option>
-                                            </select>
-                                        </label>
-                                        <p class="deck-pane-hint">Drag a row onto a section to move every copy. Hold Shift as you drop to move one copy.</p>
+                                <section class="editor-deck" data-panel="deck" data-editor="center" data-view="deck" aria-label="Deck">
+                                    <div class="deck-views" role="tablist" aria-label="Deck views">
+                                        <button type="button" role="tab" class="deck-view-tab" data-editor="view-tab" data-view="deck" aria-selected="true">Deck</button>
+                                        <button type="button" role="tab" class="deck-view-tab" data-editor="view-tab" data-view="hand" aria-selected="false">Hand</button>
+                                        <button type="button" role="tab" class="deck-view-tab" data-editor="view-tab" data-view="explanation" aria-selected="false">Explanation</button>
                                     </div>
-                                    <div class="deck-pane" data-editor="pane"></div>
+                                    <div class="deck-view" data-view-panel="deck" role="tabpanel">
+                                        <div class="deck-pane-tools">
+                                            <label class="editor-group">
+                                                <span>Group by</span>
+                                                <select data-editor="group">
+                                                    <option value="type">Type</option>
+                                                    <option value="role">Role</option>
+                                                    <option value="cmc">Mana value</option>
+                                                </select>
+                                            </label>
+                                            <p class="deck-pane-hint">Drag a row onto a section to move every copy. Hold Shift as you drop to move one copy.</p>
+                                        </div>
+                                        <div class="deck-pane" data-editor="pane"></div>
+                                    </div>
+                                    <div class="deck-view" data-view-panel="hand" data-editor="hand" role="tabpanel"></div>
+                                    <div class="deck-view deck-explain" data-view-panel="explanation" data-editor="explanation" role="tabpanel"></div>
                                 </section>
                                 <aside class="editor-stats" data-panel="stats" data-editor="stats" aria-label="Deck stats"></aside>
                             </div>

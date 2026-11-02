@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  applyOp, entryKey, groupEntries, History, issueSummary, manaValue, SaveQueue, SECTIONS,
+  applyOp, drawHand, entryKey, groupEntries, History, issueSummary, manaValue, SaveQueue, SECTIONS,
   toEntryCard,
 } from "../../frontend/js/decks/model.js";
 
@@ -357,4 +357,33 @@ test("toEntryCard maps owned and archive results to the add shape", () => {
   assert.equal(bolt.scryfall_id, "b");
   assert.equal(bolt.basic, false);
   assert.equal(bolt.cmc, 1);
+});
+
+function seeded(seed) {
+  let x = seed;
+  return () => {
+    x = (x * 1664525 + 1013904223) % 4294967296;
+    return x / 4294967296;
+  };
+}
+
+test("drawHand draws 7 distinct copies with a seeded rng", () => {
+  const main = [
+    { scryfall_id: "a", name: "A", count: 4 },
+    { scryfall_id: "b", name: "B", count: 3 },
+    { name: "Forest", count: 20, basic: true },
+  ];
+  const frozen = JSON.stringify(main);
+  const hand = drawHand(main, seeded(7));
+  assert.equal(hand.length, 7);
+  assert.equal(new Set(hand.map((c) => `${entryKey(c)}#${c.copy}`)).size, 7);
+  assert.ok(hand.every((c) => c.count === 1));
+  assert.equal(JSON.stringify(main), frozen);
+  assert.deepEqual(drawHand(main, seeded(7)).map((c) => c.name), hand.map((c) => c.name));
+  assert.notDeepEqual(drawHand(main, seeded(8)).map((c) => `${c.name}${c.copy}`),
+    hand.map((c) => `${c.name}${c.copy}`));
+  const small = [{ scryfall_id: "a", name: "A", count: 3 }, { scryfall_id: "b", name: "B", count: 2 }];
+  assert.equal(drawHand(small, seeded(1)).length, 5);
+  assert.equal(drawHand(main, seeded(1), 1).length, 1);
+  assert.deepEqual(drawHand([], seeded(1)), []);
 });

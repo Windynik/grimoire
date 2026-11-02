@@ -267,6 +267,29 @@ export function toEntryCard(result) {
 }
 
 /**
+ * Draw cards for a sample hand. Each copy is one card, so a 4-count entry can
+ * give up to 4 cards. A deck with fewer cards than size gives all of them.
+ *
+ * @param {Array<Object>} mainEntries Main section entries (not changed).
+ * @param {function(): number} [rng] Returns a number in [0, 1).
+ * @param {number} [size] Number of cards.
+ * @returns {Array<Object>} One entry per card, with count 1 and a copy number.
+ */
+export function drawHand(mainEntries, rng = Math.random, size = 7) {
+  const copies = [];
+  (mainEntries || []).forEach((entry) => {
+    for (let i = 0; i < entry.count; i += 1) copies.push({ ...entry, count: 1, copy: i });
+  });
+  // Partial Fisher-Yates: the first size places are a uniform draw.
+  const take = Math.min(size, copies.length);
+  for (let i = 0; i < take; i += 1) {
+    const j = i + Math.floor(rng() * (copies.length - i));
+    [copies[i], copies[j]] = [copies[j], copies[i]];
+  }
+  return copies.slice(0, take);
+}
+
+/**
  * Debounced save queue. At most one request is in flight. A snapshot that
  * arrives during a request waits, and only the newest one goes out afterward.
  * Errors from send go to onError (if set) and do not stop the queue.

@@ -1029,6 +1029,263 @@
     color: var(--text-dim);
 }
 
+/* View switch of the center column: Deck, Hand, Explanation */
+#decks-view .deck-views {
+    display: flex;
+    gap: 0.4rem;
+    margin-bottom: 0.9rem;
+}
+
+#decks-view .deck-view-tab {
+    padding: 0.35rem 0.8rem;
+    font: inherit;
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    cursor: pointer;
+}
+
+#decks-view .deck-view-tab[aria-selected="true"] {
+    color: var(--decks-gold);
+    border-color: var(--decks-gold);
+}
+
+#decks-view .deck-view-tab:focus-visible {
+    outline: 2px solid var(--decks-violet);
+    outline-offset: 2px;
+}
+
+#decks-view .editor-deck:not([data-view="deck"]) [data-view-panel="deck"],
+#decks-view .editor-deck:not([data-view="hand"]) [data-view-panel="hand"],
+#decks-view .editor-deck:not([data-view="explanation"]) [data-view-panel="explanation"] {
+    display: none;
+}
+
+/* Export menu */
+#decks-view .export-menu {
+    position: relative;
+}
+
+#decks-view .export-menu > summary {
+    list-style: none;
+    cursor: pointer;
+}
+
+#decks-view .export-menu > summary::-webkit-details-marker {
+    display: none;
+}
+
+#decks-view .export-list {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 4px);
+    z-index: 30;
+    min-width: 14rem;
+    margin: 0;
+    padding: 0.3rem;
+    list-style: none;
+    background: var(--surface);
+    border: 1px solid var(--border-bright);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+}
+
+#decks-view .export-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.3rem 0.5rem;
+    font-size: 0.85rem;
+    color: var(--parchment);
+}
+
+#decks-view .export-actions {
+    display: flex;
+    gap: 0.4rem;
+}
+
+#decks-view .export-btn {
+    padding: 0.2rem 0.55rem;
+    font: inherit;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    text-decoration: none;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+#decks-view .export-btn:hover,
+#decks-view .export-btn:focus-visible {
+    color: var(--decks-gold);
+    border-color: var(--decks-gold);
+    outline: none;
+}
+
+/* Sample hand */
+#decks-view .hand-tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+#decks-view .hand-tools [hidden],
+#decks-view .hand-empty[hidden],
+#decks-view .hand-table[hidden] {
+    display: none;
+}
+
+#decks-view .hand-info,
+#decks-view .hand-empty {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+}
+
+#decks-view .hand-table {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1rem;
+    min-height: 15rem;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+}
+
+#decks-view .hand-stack {
+    flex: 0 0 auto;
+    width: 4.5rem;
+    aspect-ratio: 488 / 680;
+    border-radius: 8px;
+    background: linear-gradient(145deg, #2a2350, #14102c);
+    border: 1px solid var(--decks-violet);
+    box-shadow: 3px 3px 0 #1d1840, 6px 6px 0 #14102c;
+}
+
+#decks-view .hand-cards {
+    flex: 1 1 auto;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+#decks-view .hand-card {
+    position: relative;
+    width: 7.5rem;
+    aspect-ratio: 488 / 680;
+    perspective: 700px;
+    transition: transform 0.15s ease;
+}
+
+#decks-view .hand-card:hover,
+#decks-view .hand-card:focus-visible {
+    z-index: 5;
+    transform: scale(2);
+    outline: none;
+}
+
+#decks-view .hand-card-inner {
+    display: block;
+    position: absolute;
+    inset: 0;
+    transform-style: preserve-3d;
+}
+
+#decks-view .hand-face {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.4rem;
+    overflow: hidden;
+    font-size: 0.8rem;
+    text-align: center;
+    border-radius: 8px;
+    backface-visibility: hidden;
+}
+
+#decks-view .hand-face img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+#decks-view .hand-face-front.is-text {
+    color: var(--parchment);
+    background: var(--surface);
+    border: 1px solid var(--border-bright);
+}
+
+#decks-view .hand-face-back {
+    background: linear-gradient(145deg, #2a2350, #14102c);
+    border: 1px solid var(--decks-violet);
+    transform: rotateY(180deg);
+}
+
+#decks-view .hand-card.is-dealing .hand-card-inner {
+    animation: hand-deal 0.45s ease-out var(--deal-delay, 0ms) both;
+}
+
+@keyframes hand-deal {
+    from {
+        opacity: 0;
+        transform: translate(calc(-100% * var(--slot, 0) - 6rem), -10%) rotateY(180deg);
+    }
+
+    25% {
+        opacity: 1;
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+/* Explanation view */
+#decks-view .deck-explain {
+    max-width: 46rem;
+    font-size: 0.92rem;
+    line-height: 1.55;
+}
+
+#decks-view .explain-title {
+    font-family: var(--decks-font-display);
+    font-size: 1.3rem;
+    color: var(--decks-gold);
+    margin-bottom: 0.4rem;
+}
+
+#decks-view .deck-explain h4 {
+    margin: 1.1rem 0 0.4rem;
+    color: var(--decks-violet);
+}
+
+#decks-view .explain-thesis {
+    font-style: italic;
+}
+
+#decks-view .explain-links,
+#decks-view .explain-reasons {
+    margin: 0;
+    padding-left: 1.2rem;
+}
+
+#decks-view .explain-empty {
+    color: var(--text-dim);
+}
+
 /* Two columns: the deck, and the search or stats as tabs */
 @media (max-width: 1099px) {
     #decks-view .editor-tabs {
@@ -1164,6 +1421,14 @@
 
     #decks-view .deck-row-ghost {
         display: none;
+    }
+
+    #decks-view .hand-card.is-dealing .hand-card-inner {
+        animation: none;
+    }
+
+    #decks-view .hand-card {
+        transition: none;
     }
 
     #decks-view .deck-row-actions,
