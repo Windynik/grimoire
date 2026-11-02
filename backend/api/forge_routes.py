@@ -1,10 +1,11 @@
 import asyncio
 import json
-from typing import AsyncIterator, Optional
+import re
+from typing import AsyncIterator, Literal, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from backend.api.dependencies import (
     get_bulk_data_manager,
@@ -31,16 +32,16 @@ KEEPALIVE_SECONDS = 15.0
 
 
 class ForgeRequest(BaseModel):
-    job_id: str
-    format: str
-    commander: str = ""
-    wish: str = ""
-    model: str = ""
-    ask_mode: str = "countdown"
-    question_timeout: float = 20.0
-    deck_size: int = 60
-    max_copies: int = 4
-    colors: str = ""
+    job_id: str = Field(max_length=64)
+    format: str = Field(max_length=40)
+    commander: str = Field(default="", max_length=200)
+    wish: str = Field(default="", max_length=2000)
+    model: str = Field(default="", max_length=100)
+    ask_mode: Literal["countdown", "wait", "never"] = "countdown"
+    question_timeout: float = Field(default=20.0, gt=0, le=600)
+    deck_size: int = Field(default=60, ge=40, le=250)
+    max_copies: int = Field(default=4, ge=1, le=4)
+    colors: str = Field(default="", max_length=10)
 
 
 class AnswerRequest(BaseModel):
@@ -56,6 +57,8 @@ def _session(manager: ForgeManager, forge_id: str):
 
 
 async def _load_collection(job_id: str, store: CollectionStore) -> list:
+    if not re.match(r'^[a-f0-9-]+$', job_id):
+        raise HTTPException(status_code=400, detail="Invalid job ID format")
     collection = store.get_collection(job_id)
     if not collection:
         raise HTTPException(status_code=404, detail="Collection not found")
@@ -111,9 +114,9 @@ async def start_forge(
 ):
     """Start a forge run in the background and return its id."""
     playbook = load_playbook()
-    collection = await _load_collection(request.job_id, store)
     if request.format not in playbook.formats:
         raise HTTPException(status_code=400, detail="Unknown format")
+    collection = await _load_collection(request.job_id, store)
     index = await bulk_data_manager.load_bulk_data()
     if not index:
         raise HTTPException(
@@ -152,6 +155,10 @@ async def _stream(session, after: int) -> AsyncIterator[str]:
     finally:
         if pending is not None:
             pending.cancel()
+            try:
+                await pending
+            except BaseException:
+                pass
         await events.aclose()
 
 

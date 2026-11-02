@@ -5,7 +5,7 @@ import pytest
 from backend.core.ollama_client import CallStats, ModelError
 from backend.decks.store import DeckStore
 from backend.forge.llm import BACKBONE_SCHEMA, REASONS_SCHEMA, SWAP_SCHEMA
-from backend.forge.session import MODEL_FAILED, ForgeManager, ForgeParams, ForgeSession
+from backend.forge.session import ENGINE_ONLY, MODEL_FAILED, ForgeManager, ForgeParams, ForgeSession
 from tests.forge.conftest import make_pool, make_record
 
 SAC = "Sacrifice a creature: Scry 1."
@@ -626,3 +626,13 @@ def test_template_thesis_does_not_repeat_itself(playbook):
                          playbook.formats["commander"])
     assert (template_thesis(bone, leader, playbook)
             == "Built around Siona: Enchantress and Voltron.")
+
+
+@pytest.mark.asyncio
+async def test_model_none_forces_engine_only(tmp_path):
+    client = FakeClient()
+    session, _ = await start(tmp_path, client=client, model="none")
+    events = await collect(session)
+    assert events[-1]["type"] == "done"
+    assert any(e["type"] == "thought" and e["text"] == ENGINE_ONLY for e in events)
+    assert client.calls == []

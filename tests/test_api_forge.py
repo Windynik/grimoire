@@ -57,7 +57,7 @@ def overrides(tmp_path):
     records = synthetic_records()
     index = {r["id"]: r for r in records}
     cards = [{"Scryfall ID": r["id"], "Quantity": 4, "Name": r["name"]} for r in records]
-    store.store_collection("job1", cards, index)
+    store.store_collection("aaa1", cards, index)
     bulk = FakeBulk(index)
     manager = ForgeManager()
     app.dependency_overrides[get_collection_store] = lambda: store
@@ -91,11 +91,11 @@ def test_forge_start_errors(overrides):
     with TestClient(app) as client:
         assert client.post("/api/forge", json={"job_id": "abc", "format": "commander"}
                            ).status_code == 404
-        assert client.post("/api/forge", json={"job_id": "job1", "format": "bogus"}
+        assert client.post("/api/forge", json={"job_id": "aaa1", "format": "bogus"}
                            ).json()["detail"] == "Unknown format"
         store, bulk, _ = overrides
         bulk.cards = {}
-        response = client.post("/api/forge", json={"job_id": "job1", "format": "commander"})
+        response = client.post("/api/forge", json={"job_id": "aaa1", "format": "commander"})
         assert response.status_code == 400
         assert "Download it on the Home screen" in response.json()["detail"]
 
@@ -103,7 +103,7 @@ def test_forge_start_errors(overrides):
 def test_forge_runs_engine_only_to_done(overrides):
     _, _, decks = overrides
     with TestClient(app) as client:
-        response = client.post("/api/forge", json={"job_id": "job1", "format": "casual",
+        response = client.post("/api/forge", json={"job_id": "aaa1", "format": "casual",
                                                    "colors": "B", "ask_mode": "never"})
         assert response.status_code == 200
         frames = read_events(client, response.json()["forge_id"])
@@ -116,7 +116,7 @@ def test_forge_runs_engine_only_to_done(overrides):
 
 def test_events_replay_after_last_event_id(overrides):
     with TestClient(app) as client:
-        forge_id = client.post("/api/forge", json={"job_id": "job1", "format": "casual",
+        forge_id = client.post("/api/forge", json={"job_id": "aaa1", "format": "casual",
                                                    "colors": "B", "ask_mode": "never"}
                                ).json()["forge_id"]
         full = read_events(client, forge_id)
@@ -141,7 +141,7 @@ def test_answer_and_cancel_unknown_forge_404(overrides):
 
 def test_answer_rejected_and_cancel(overrides):
     with TestClient(app) as client:
-        forge_id = client.post("/api/forge", json={"job_id": "job1", "format": "casual",
+        forge_id = client.post("/api/forge", json={"job_id": "aaa1", "format": "casual",
                                                    "colors": "B", "ask_mode": "never"}
                                ).json()["forge_id"]
         read_events(client, forge_id)
@@ -156,12 +156,12 @@ def test_formats_and_commanders(overrides):
         formats = client.get("/api/forge/formats").json()["formats"]
         assert formats[0].keys() == {"key", "name", "deck_size", "commander"}
         assert "commander" in [f["key"] for f in formats]
-        body = client.get("/api/forge/commanders/job1?format=commander").json()
+        body = client.get("/api/forge/commanders/aaa1?format=commander").json()
         assert body["total"] == 1
         assert body["commanders"][0]["name"] == "Atraxa Test"
         assert set(body["commanders"][0]) == {"id", "name", "image_url", "color_identity"}
-        assert client.get("/api/forge/commanders/nope").status_code == 404
-        no_cmd = client.get("/api/forge/commanders/job1?format=casual")
+        assert client.get("/api/forge/commanders/dead").status_code == 404
+        no_cmd = client.get("/api/forge/commanders/aaa1?format=casual")
         assert no_cmd.status_code == 400
         assert no_cmd.json()["detail"] == "Format has no commander"
 
@@ -184,3 +184,64 @@ def test_ai_status_recommends_model(overrides):
 def test_old_deck_routes_removed():
     client = TestClient(app)
     assert client.post("/api/deck/build", json={}).status_code in (404, 405)
+
+
+def test_request_validation_422(overrides):
+    with TestClient(app) as client:
+        for bad in ({"ask_mode": "sometimes"}, {"question_timeout": 0}, {"deck_size": 5},
+                    {"max_copies": 9}, {"colors": "x" * 50}):
+            body = dict({"job_id": "aaa1", "format": "casual"}, **bad)
+            assert client.post("/api/forge", json=body).status_code == 422, bad
+
+
+def test_bad_job_ids_and_deck_ids(overrides):
+    with TestClient(app) as client:
+        body = {"job_id": "../x", "format": "commander"}
+        response = client.post("/api/forge", json=body)
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Invalid job ID format"
+        assert client.get("/api/forge/commanders/..%2Fx").status_code in (400, 404)
+        assert client.get("/api/forge/commanders/XYZ").json()["detail"] == "Invalid job ID format"
+        assert client.get("/api/decks/..%2Fx").status_code == 404
+        assert client.get("/api/decks/not-an-id").status_code == 404
+
+
+def test_format_checked_before_collection(overrides):
+    with TestClient(app) as client:
+        response = client.post("/api/forge", json={"job_id": "abc", "format": "bogus"})
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Unknown format"
+
+
+def test_closing_the_stream_early_is_clean(overrides):
+    with TestClient(app) as client:
+        forge_id = client.post("/api/forge", json={"job_id": "aaa1", "format": "casual",
+                                                   "colors": "B", "ask_mode": "never"}
+                               ).json()["forge_id"]
+        with client.stream("GET", "/api/forge/%s/events" % forge_id) as r:
+            lines = r.iter_lines()
+            assert next(lines).startswith("id:")
+        # The server cleaned up; a new stream still works.
+        assert read_events(client, forge_id)[-1][1] == "done"
+
+
+@pytest.mark.asyncio
+async def test_keepalive_then_next_event(tmp_path, monkeypatch):
+    """A quiet session gets keepalive comments, and the next event still arrives."""
+    import asyncio
+    from backend.api import forge_routes
+    from backend.forge.playbook import load_playbook
+    from backend.forge.session import ForgeParams, ForgeSession
+    monkeypatch.setattr(forge_routes, "KEEPALIVE_SECONDS", 0.05)
+    session = ForgeSession(ForgeParams(job_id="aaa1", format="casual"), [], {}, load_playbook(),
+                           None, DeckStore(storage_dir=str(tmp_path / "decks")))
+    stream = forge_routes._stream(session, -1)
+    assert await asyncio.wait_for(stream.__anext__(), 2) == ": keepalive\n\n"
+    assert await asyncio.wait_for(stream.__anext__(), 2) == ": keepalive\n\n"
+    session._thought("later")
+    frame = await asyncio.wait_for(stream.__anext__(), 2)
+    assert frame.startswith("id: 0\nevent: thought\n")
+    session._finish("cancelled")
+    assert (await asyncio.wait_for(stream.__anext__(), 2)).startswith("id: 1\nevent: cancelled")
+    with pytest.raises(StopAsyncIteration):
+        await stream.__anext__()

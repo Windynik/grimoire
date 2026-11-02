@@ -261,6 +261,9 @@ class ForgeSession:
     async def _connect(self) -> None:
         """Pick the model, measure its speed, and plan the time estimate."""
         status = {}  # type: dict
+        if self.params.model == "none":
+            self._thought(ENGINE_ONLY)
+            return
         if self.client is not None:
             try:
                 status = await self.client.status()
