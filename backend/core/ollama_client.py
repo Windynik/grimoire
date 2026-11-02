@@ -225,6 +225,7 @@ class OllamaClient:
         model: Optional[str] = None,
         think: str = "low",
         num_ctx: int = 16384,
+        num_predict: int = 4096,
     ) -> Tuple[dict, CallStats]:
         """Single-shot completion constrained to a JSON schema.
 
@@ -235,12 +236,14 @@ class OllamaClient:
             model: Model name. None picks the preferred installed model.
             think: Reasoning effort: "low", "medium" or "high".
             num_ctx: Context window in tokens.
+            num_predict: Cap on output tokens.
 
         Returns:
             (parsed reply, call stats).
 
         Raises:
-            ModelError: When both attempts fail on an HTTP error or invalid JSON.
+            ModelError: On a timeout, or when both attempts fail on an HTTP error,
+                invalid JSON, or a reply that is not a JSON object.
         """
         model = await self._model_or_raise(model)
         payload = {
@@ -249,7 +252,7 @@ class OllamaClient:
             "stream": False,
             "format": schema,
             "think": think_value(model, think),
-            "options": {"temperature": 0.6, "num_ctx": num_ctx, "num_predict": 4096},
+            "options": {"temperature": 0.6, "num_ctx": num_ctx, "num_predict": num_predict},
         }
         last = None  # type: Optional[Exception]
         for _ in range(2):
@@ -260,7 +263,12 @@ class OllamaClient:
                     response.raise_for_status()
                     body = response.json()
                 content = strip_thinking(body["message"]["content"])
-                return parse_json_loose(content), stats_from(body)
+                data = parse_json_loose(content)
+                if not isinstance(data, dict):
+                    raise ValueError("Reply is not a JSON object")
+                return data, stats_from(body)
+            except httpx.TimeoutException as exc:
+                raise ModelError("Model call timed out: %s" % (exc,))
             except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
                 last = exc
         raise ModelError("Model call failed: %s" % (last,))
@@ -272,6 +280,7 @@ class OllamaClient:
         model: Optional[str] = None,
         on_stats: Optional[Callable[[CallStats], None]] = None,
         num_predict: Optional[int] = None,
+        num_ctx: int = 16384,
     ) -> AsyncIterator[str]:
         """Stream a chat completion as text chunks.
 
@@ -281,6 +290,7 @@ class OllamaClient:
             model: Model name. None picks the preferred installed model.
             on_stats: Called with the stats from the final chunk.
             num_predict: Optional cap on output tokens.
+            num_ctx: Context window in tokens.
 
         Yields:
             Text chunks.
@@ -295,8 +305,9 @@ class OllamaClient:
             "stream": True,
             "think": think_value(model, "low"),
         }
+        payload["options"] = {"num_ctx": num_ctx}
         if num_predict is not None:
-            payload["options"] = {"num_predict": num_predict}
+            payload["options"]["num_predict"] = num_predict
         try:
             async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=3.0),
                                          transport=self.transport) as client:
@@ -310,6 +321,8 @@ class OllamaClient:
                             chunk = json.loads(line)
                         except json.JSONDecodeError:
                             continue
+                        if isinstance(chunk, dict) and chunk.get("error"):
+                            raise ModelError("Model stream failed: %s" % (chunk["error"],))
                         content = chunk.get("message", {}).get("content", "")
                         if content:
                             yield content

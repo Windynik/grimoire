@@ -113,3 +113,76 @@ def test_pick_model_prefers_gpt_oss():
     assert pick(["llama3:8b", "gpt-oss:20b", "qwen3:8b"]) == "gpt-oss:20b"
     assert pick(["llama3:8b", "qwen3.8:30b"]) == "qwen3.8:30b"
     assert pick([]) is None
+
+
+@pytest.mark.asyncio
+async def test_chat_structured_rejects_non_object():
+    calls = []
+
+    def handler(request):
+        calls.append(1)
+        return _reply("[1, 2]")
+
+    with pytest.raises(ModelError):
+        await _client(handler).chat_structured("hi", SCHEMA, model="m")
+    assert len(calls) == 2
+
+
+@pytest.mark.asyncio
+async def test_chat_structured_connect_error_and_missing_message():
+    def refuse(request):
+        raise httpx.ConnectError("down")
+
+    with pytest.raises(ModelError):
+        await _client(refuse).chat_structured("hi", SCHEMA, model="m")
+    with pytest.raises(ModelError):
+        await _client(lambda r: httpx.Response(200, json={"done": True})).chat_structured(
+            "hi", SCHEMA, model="m")
+
+
+@pytest.mark.asyncio
+async def test_chat_structured_timeout_does_not_retry():
+    calls = []
+
+    def handler(request):
+        calls.append(1)
+        raise httpx.ReadTimeout("slow")
+
+    with pytest.raises(ModelError):
+        await _client(handler).chat_structured("hi", SCHEMA, model="m")
+    assert len(calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_chat_structured_num_predict_and_no_models():
+    seen = []
+
+    def handler(request):
+        if request.url.path == "/api/tags":
+            return httpx.Response(200, json={"models": []})
+        seen.append(json.loads(request.content))
+        return _reply('{"a": 1}')
+
+    client = _client(handler)
+    with pytest.raises(ModelError):
+        await client.chat_structured("hi", SCHEMA)
+    await client.chat_structured("hi", SCHEMA, model="m", num_predict=8192)
+    assert seen[0]["options"]["num_predict"] == 8192
+
+
+@pytest.mark.asyncio
+async def test_stream_text_options_and_errors():
+    seen = []
+
+    def ok(request):
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, text=json.dumps({"message": {"content": "a"}, "done": True}))
+
+    _ = [c async for c in _client(ok).stream_text("p", model="m", num_predict=16)]
+    assert seen[0]["options"] == {"num_ctx": 16384, "num_predict": 16}
+
+    with pytest.raises(ModelError):
+        _ = [c async for c in _client(lambda r: httpx.Response(500)).stream_text("p", model="m")]
+    err = httpx.Response(200, text=json.dumps({"error": "boom"}))
+    with pytest.raises(ModelError):
+        _ = [c async for c in _client(lambda r: err).stream_text("p", model="m")]

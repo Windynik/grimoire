@@ -38,8 +38,8 @@ def test_backbone_prompt_has_full_text_and_no_decklists(rules):
     cards = _cards(rules, 10)
     graph = SynergyGraph(cards)
     prompt = backbone_prompt(rules["commander"], "a green deck", [_backbone(cards)], graph)
-    for card in cards:
-        assert "Unique ability number" in prompt
+    for i, card in enumerate(cards):
+        assert "Unique ability number %02d." % i in prompt
         assert card.name in prompt
     assert "bb1" in prompt and "a green deck" in prompt and "counters" in prompt
     assert "Do not reproduce a known decklist" in prompt
@@ -67,6 +67,52 @@ def test_backbone_prompt_respects_max_chars(rules):
     assert "Card 00" in prompt
 
 
+def test_backbone_prompt_truncation_drops_lowest_weight(rules):
+    cards = _cards(rules, 8)
+    graph = SynergyGraph(cards)
+    for i, card in enumerate(cards[1:], start=1):
+        graph.add_edge(Edge(src=card.id, dst=cards[0].id, hook="x", weight=float(i)))
+    full = backbone_prompt(rules["commander"], "w", [_backbone(cards)], graph)
+    one_less = len(full) - 1
+    prompt = backbone_prompt(rules["commander"], "w", [_backbone(cards)], graph,
+                             max_chars=one_less)
+    # The member with the lowest weight into the group is last in the sorted list.
+    order = sorted(cards, key=lambda c: -graph.weight_into(c.id, [x.id for x in cards]))
+    assert order[-1].name not in prompt
+    assert order[0].name in prompt
+
+
+def test_backbone_prompt_includes_commander(rules):
+    cards = _cards(rules, 4)
+    graph = SynergyGraph(cards)
+    bb = _backbone(cards[1:])
+    bb.commander_id = cards[0].id
+    prompt = backbone_prompt(rules["commander"], "w", [bb], graph)
+    assert "Commander: Card 00 {1}{G}" in prompt
+
+
+def test_prompts_state_contract(rules):
+    cards = _cards(rules, 4)
+    graph = SynergyGraph(cards)
+    prompt = backbone_prompt(rules["commander"], "w", [_backbone(cards)], graph)
+    for word in PLAYSTYLES:
+        assert word in prompt
+    for field in ("JSON only", "ranking", "candidate_id", "key_interactions", "extra_edges",
+                  "close_call", "question", "prefer_cards", "exact card name"):
+        assert field in prompt
+    deck, dcards = _deck(rules)
+    assert "JSON only" in borderline_prompt(deck, SynergyGraph(dcards))
+    assert "JSON only" in reasons_prompt(deck, [])
+
+
+def test_other_prompts_respect_max_chars(rules):
+    deck, dcards = _deck(rules)
+    graph = SynergyGraph(dcards)
+    assert len(borderline_prompt(deck, graph, max_chars=900)) <= 900
+    assert len(explanation_prompt(deck, "t", [], max_chars=700)) <= 700
+    assert len(reasons_prompt(deck, [], max_chars=500)) <= 500
+
+
 def test_schemas_shape():
     assert set(BACKBONE_SCHEMA["required"]) == {"ranking", "plans", "close_call"}
     plan = BACKBONE_SCHEMA["properties"]["plans"]["items"]
@@ -80,7 +126,6 @@ def test_schemas_shape():
 
 
 def _deck(rules, playbook=None):
-    from tests.forge.test_builder import CORE_NAMES  # noqa: F401
     fmt = rules["commander"]
     cards = _cards(rules, 6)
     plan = BuildPlan(backbone=_backbone(cards), playstyle="midrange")
@@ -140,3 +185,65 @@ async def test_forge_model_methods(rules):
     assert reasons == {"Card 02": "good"}
     text = "".join([c async for c in model.stream_explanation(deck, "t", [], None)])
     assert text == "ok"
+
+
+def _model(handler):
+    return ForgeModel(OllamaClient(transport=httpx.MockTransport(handler)), "gpt-oss:20b")
+
+
+@pytest.mark.asyncio
+async def test_probe_without_stats_raises():
+    def handler(request):
+        return httpx.Response(200, text="")
+    with pytest.raises(ModelError):
+        await _model(handler).probe()
+
+
+@pytest.mark.asyncio
+async def test_probe_prompt_has_nonce_and_same_ctx():
+    seen = []
+
+    def handler(request):
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, json={"message": {"content": "x"}, "done": True})
+
+    model = _model(handler)
+    await model.probe()
+    await model.probe()
+    assert seen[0]["messages"][-1]["content"] != seen[1]["messages"][-1]["content"]
+    assert seen[0]["options"]["num_ctx"] == 16384
+
+
+@pytest.mark.asyncio
+async def test_review_borderline_ignores_bad_swaps(rules):
+    deck, cards = _deck(rules)
+
+    def handler(request):
+        return httpx.Response(200, json={"message": {"content": '{"swaps": ["x", {"out": "a", '
+                                                                '"in": "b", "why": "c"}]}'},
+                                         "done": True})
+
+    swaps, _ = await _model(handler).review_borderline(deck, SynergyGraph(cards))
+    assert swaps == [{"out": "a", "in": "b", "why": "c"}]
+
+    def handler2(request):
+        return httpx.Response(200, json={"message": {"content": '{"swaps": "no"}'},
+                                         "done": True})
+
+    swaps, _ = await _model(handler2).review_borderline(deck, SynergyGraph(cards))
+    assert swaps == []
+
+
+@pytest.mark.asyncio
+async def test_judge_uses_larger_num_predict(rules):
+    deck, cards = _deck(rules)
+    seen = []
+
+    def handler(request):
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, json={"message": {"content": '{"ranking": [], "plans": [], '
+                                                                '"close_call": false}'},
+                                         "done": True})
+
+    await _model(handler).judge_backbones(deck.fmt, "w", [_backbone(cards)], SynergyGraph(cards))
+    assert seen[0]["options"]["num_predict"] == 8192
