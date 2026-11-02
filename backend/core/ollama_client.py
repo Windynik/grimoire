@@ -314,20 +314,24 @@ class OllamaClient:
                 async with client.stream("POST", f"{self.base_url}/api/chat",
                                          json=payload) as response:
                     response.raise_for_status()
-                    async for line in response.aiter_lines():
-                        if not line.strip():
-                            continue
-                        try:
-                            chunk = json.loads(line)
-                        except json.JSONDecodeError:
-                            continue
-                        if isinstance(chunk, dict) and chunk.get("error"):
-                            raise ModelError("Model stream failed: %s" % (chunk["error"],))
-                        content = chunk.get("message", {}).get("content", "")
-                        if content:
-                            yield content
-                        if chunk.get("done"):
-                            if on_stats is not None:
-                                on_stats(stats_from(chunk))
+                    lines = response.aiter_lines()
+                    try:
+                        async for line in lines:
+                            if not line.strip():
+                                continue
+                            try:
+                                chunk = json.loads(line)
+                            except json.JSONDecodeError:
+                                continue
+                            if isinstance(chunk, dict) and chunk.get("error"):
+                                raise ModelError("Model stream failed: %s" % (chunk["error"],))
+                            content = chunk.get("message", {}).get("content", "")
+                            if content:
+                                yield content
+                            if chunk.get("done"):
+                                if on_stats is not None:
+                                    on_stats(stats_from(chunk))
+                    finally:
+                        await lines.aclose()
         except httpx.HTTPError as exc:
             raise ModelError("Model stream failed: %s" % (exc,))
