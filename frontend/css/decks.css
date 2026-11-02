@@ -1,0 +1,228 @@
+/* Decks view and its dialogs. Scoped under #decks-view and .decks-dialog. */
+
+#decks-view,
+.decks-dialog {
+    --decks-gold: #e8c26a;
+    --decks-violet: #9b8cff;
+    --decks-font-display: "Cinzel", "Marcellus", Georgia, serif;
+    --decks-font-ui: "Inter", "Figtree", "Segoe UI", sans-serif;
+    font-family: var(--decks-font-ui);
+}
+
+#decks-view .decks-list[hidden],
+#decks-view .deck-editor[hidden],
+#decks-view p[hidden] {
+    display: none;
+}
+
+#decks-view .decks-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+#decks-view .decks-title {
+    font-family: var(--decks-font-display);
+    font-size: 1.9rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: var(--decks-gold);
+    margin-bottom: 0.3rem;
+}
+
+#decks-view .decks-lede {
+    color: var(--text-dim);
+    font-size: 0.92rem;
+}
+
+#decks-view .decks-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+}
+
+#decks-view .decks-empty {
+    padding: 1.1rem 1.25rem;
+    border: 1px dashed var(--border-bright);
+    border-radius: var(--radius-md);
+    color: var(--text-dim);
+}
+
+#decks-view .decks-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 1.1rem;
+}
+
+#decks-view .deck-tile {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+#decks-view .deck-tile:hover,
+#decks-view .deck-tile:focus-within {
+    transform: translateY(-3px);
+    border-color: var(--decks-violet);
+}
+
+#decks-view .deck-art {
+    aspect-ratio: 16 / 9;
+    background: linear-gradient(135deg, var(--surface-2), var(--surface));
+    overflow: hidden;
+}
+
+#decks-view .deck-art img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 22%;
+    display: block;
+}
+
+#decks-view .deck-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.9rem 1rem 1rem;
+}
+
+#decks-view .deck-title {
+    margin: 0;
+    font-family: var(--decks-font-display);
+    font-size: 1.1rem;
+    letter-spacing: 0.04em;
+}
+
+#decks-view .deck-name {
+    all: unset;
+    cursor: pointer;
+    color: var(--decks-gold);
+    overflow-wrap: anywhere;
+}
+
+#decks-view .deck-name:focus-visible {
+    outline: 2px solid var(--decks-violet);
+    outline-offset: 2px;
+}
+
+#decks-view .deck-commander,
+#decks-view .deck-meta {
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    overflow-wrap: anywhere;
+}
+
+#decks-view .deck-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.6rem;
+}
+
+/* Dialogs */
+.decks-dialog {
+    width: min(520px, calc(100vw - 2rem));
+    max-height: calc(100vh - 2rem);
+    padding: 1.5rem;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--border-bright);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.7);
+}
+
+.decks-dialog::backdrop {
+    background: rgba(5, 4, 2, 0.8);
+}
+
+.decks-dialog .decks-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.decks-dialog .decks-dialog-title {
+    font-family: var(--decks-font-display);
+    font-size: 1.4rem;
+    letter-spacing: 0.05em;
+    color: var(--decks-gold);
+}
+
+.decks-dialog .decks-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    font-size: 0.85rem;
+    color: var(--text-dim);
+}
+
+.decks-dialog input,
+.decks-dialog select,
+.decks-dialog textarea {
+    width: 100%;
+    padding: 0.55rem 0.7rem;
+    font: inherit;
+    font-size: 0.95rem;
+    color: var(--text);
+    background: var(--surface-2);
+    border: 1px solid var(--border-bright);
+    border-radius: var(--radius-sm);
+}
+
+.decks-dialog textarea {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    resize: vertical;
+}
+
+.decks-dialog input:focus-visible,
+.decks-dialog select:focus-visible,
+.decks-dialog textarea:focus-visible {
+    outline: 2px solid var(--decks-violet);
+    outline-offset: 1px;
+}
+
+.decks-dialog .decks-dialog-error {
+    color: var(--error);
+    font-size: 0.9rem;
+}
+
+.decks-dialog .decks-dialog-error[hidden] {
+    display: none;
+}
+
+.decks-dialog .decks-dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.6rem;
+}
+
+@media (max-width: 600px) {
+    #decks-view .decks-grid {
+        grid-template-columns: 1fr;
+    }
+
+    #decks-view .decks-actions .btn {
+        flex: 1 1 auto;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #decks-view .deck-tile {
+        transition: none;
+    }
+
+    #decks-view .deck-tile:hover,
+    #decks-view .deck-tile:focus-within {
+        transform: none;
+    }
+}

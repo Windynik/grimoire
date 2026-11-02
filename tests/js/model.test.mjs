@@ -1,0 +1,190 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import {
+  applyOp, entryKey, groupEntries, History, SaveQueue, SECTIONS,
+} from "../../frontend/js/decks/model.js";
+
+const bolt = { scryfall_id: "bolt", name: "Lightning Bolt", cmc: 1, type_line: "Instant" };
+const state0 = () => ({ sections: { main: [], sideboard: [], maybeboard: [] }, commander: null });
+
+test("entryKey uses the id, or basic:name without one", () => {
+  assert.equal(entryKey({ scryfall_id: "x", name: "A" }), "x");
+  assert.equal(entryKey({ name: "Forest", basic: true }), "basic:Forest");
+  assert.deepEqual(SECTIONS, ["main", "sideboard", "maybeboard"]);
+});
+
+test("applyOp add, inc, dec, remove never mutate", () => {
+  const s0 = state0();
+  const frozen = JSON.stringify(s0);
+  const s1 = applyOp(s0, { type: "add", section: "main", card: bolt });
+  assert.equal(JSON.stringify(s0), frozen);
+  assert.equal(s1.sections.main[0].count, 1);
+  const s2 = applyOp(s1, { type: "add", section: "main", card: bolt });
+  assert.equal(s2.sections.main[0].count, 2);
+  assert.equal(s1.sections.main[0].count, 1);
+  const s3 = applyOp(s2, { type: "inc", section: "main", key: "bolt" });
+  assert.equal(s3.sections.main[0].count, 3);
+  const s4 = applyOp(s3, { type: "dec", section: "main", key: "bolt" });
+  assert.equal(s4.sections.main[0].count, 2);
+  assert.equal(s3.sections.main[0].count, 3);
+  const s5 = applyOp(applyOp(s4, { type: "dec", section: "main", key: "bolt" }),
+    { type: "dec", section: "main", key: "bolt" });
+  assert.equal(s5.sections.main.length, 0);
+  const s6 = applyOp(s4, { type: "remove", section: "main", key: "bolt" });
+  assert.equal(s6.sections.main.length, 0);
+  assert.equal(s4.sections.main.length, 1);
+  assert.equal(s6.commander, null);
+});
+
+test("applyOp keeps the commander and ignores unknown keys", () => {
+  const cmd = { scryfall_id: "c", name: "Cmdr" };
+  const s = { ...state0(), commander: cmd };
+  const next = applyOp(s, { type: "add", section: "main", card: bolt });
+  assert.deepEqual(next.commander, cmd);
+  const same = applyOp(next, { type: "inc", section: "main", key: "nope" });
+  assert.deepEqual(same.sections, next.sections);
+});
+
+test("applyOp add treats a basic land by name", () => {
+  const forest = { name: "Forest", basic: true };
+  const s = applyOp(applyOp(state0(), { type: "add", section: "main", card: forest }),
+    { type: "add", section: "main", card: forest });
+  assert.equal(s.sections.main.length, 1);
+  assert.equal(s.sections.main[0].count, 2);
+});
+
+test("move merges into an existing entry and moves part of a stack", () => {
+  let s = state0();
+  for (let i = 0; i < 3; i++) s = applyOp(s, { type: "add", section: "main", card: bolt });
+  s = applyOp(s, { type: "add", section: "sideboard", card: bolt });
+  const part = applyOp(s, { type: "move", from: "main", to: "sideboard", key: "bolt", count: 2 });
+  assert.equal(part.sections.main[0].count, 1);
+  assert.equal(part.sections.sideboard.length, 1);
+  assert.equal(part.sections.sideboard[0].count, 3);
+  assert.equal(s.sections.main[0].count, 3);
+  const all = applyOp(s, { type: "move", from: "main", to: "maybeboard", key: "bolt" });
+  assert.equal(all.sections.main.length, 0);
+  assert.equal(all.sections.maybeboard[0].count, 3);
+  const over = applyOp(s, { type: "move", from: "main", to: "maybeboard", key: "bolt", count: 9 });
+  assert.equal(over.sections.main.length, 0);
+  assert.equal(over.sections.maybeboard[0].count, 3);
+});
+
+test("replace swaps the sections and keeps the commander", () => {
+  const s = { ...state0(), commander: { scryfall_id: "c", name: "C" } };
+  const sections = { main: [{ scryfall_id: "a", name: "A", count: 1 }], sideboard: [], maybeboard: [] };
+  const next = applyOp(s, { type: "replace", sections });
+  assert.equal(next.sections.main[0].name, "A");
+  assert.equal(next.commander.name, "C");
+  sections.main[0].count = 9;
+  assert.equal(next.sections.main[0].count, 1);
+});
+
+test("History undo and redo with a limit of 3", () => {
+  const h = new History(3);
+  const st = (n) => ({ sections: { main: [{ name: "n" + n, count: n }] }, commander: null });
+  assert.equal(h.canUndo, false);
+  assert.equal(h.undo(), null);
+  [1, 2, 3, 4].forEach((n) => h.push(st(n)));
+  assert.equal(h.undo().sections.main[0].count, 3);
+  assert.equal(h.undo().sections.main[0].count, 2);
+  assert.equal(h.undo(), null);
+  assert.equal(h.canUndo, false);
+  assert.equal(h.canRedo, true);
+  assert.equal(h.redo().sections.main[0].count, 3);
+  assert.equal(h.redo().sections.main[0].count, 4);
+  assert.equal(h.redo(), null);
+  h.undo();
+  h.push(st(9));
+  assert.equal(h.canRedo, false);
+});
+
+test("History stores deep copies", () => {
+  const h = new History();
+  const s = { sections: { main: [{ name: "a", count: 1 }] }, commander: null };
+  h.push(s);
+  h.push({ sections: { main: [] }, commander: null });
+  s.sections.main[0].count = 5;
+  const back = h.undo();
+  assert.equal(back.sections.main[0].count, 1);
+  back.sections.main[0].count = 7;
+  h.redo();
+  assert.equal(h.undo().sections.main[0].count, 1);
+});
+
+test("groupEntries by type uses the first front-face type in order", () => {
+  const entries = [
+    { name: "Golem", type_line: "Artifact Creature — Golem", cmc: 3 },
+    { name: "Bolt", type_line: "Instant", cmc: 1 },
+    { name: "Mdfc", type_line: "Creature — Elf // Land", cmc: 2 },
+    { name: "Forest", type_line: "Basic Land — Forest", cmc: 0 },
+    { name: "Mystery", type_line: "", cmc: 0 },
+    { name: "Ankh", type_line: "Artifact", cmc: 1 },
+    { name: "Aardvark", type_line: "Creature", cmc: 3, count: 2 },
+  ];
+  const groups = groupEntries(entries, "type");
+  assert.deepEqual(groups.map((g) => g.title), ["Creature", "Instant", "Artifact", "Land", "Other"]);
+  const creature = groups[0];
+  assert.deepEqual(creature.entries.map((e) => e.name), ["Mdfc", "Aardvark", "Golem"]);
+  assert.equal(creature.count, 1 + 2 + 1);
+});
+
+test("groupEntries by role falls back to analysis roles, then Other", () => {
+  const entries = [
+    { scryfall_id: "a", name: "A", role: "Ramp", cmc: 2 },
+    { scryfall_id: "b", name: "B", cmc: 1 },
+    { scryfall_id: "c", name: "C", cmc: 1 },
+  ];
+  const analysis = { b: { roles: ["Removal", "Ramp"] } };
+  const groups = groupEntries(entries, "role", analysis);
+  assert.deepEqual(groups.map((g) => g.title), ["Ramp", "Removal", "Other"]);
+});
+
+test("groupEntries by cmc puts lands first and 7+ last", () => {
+  const entries = [
+    { name: "Big", type_line: "Creature", cmc: 8 },
+    { name: "Zero", type_line: "Artifact", cmc: 0 },
+    { name: "Three", type_line: "Creature", cmc: 3 },
+    { name: "Swamp", type_line: "Basic Land — Swamp", cmc: 0 },
+    { name: "Seven", type_line: "Creature", cmc: 7 },
+  ];
+  const groups = groupEntries(entries, "cmc");
+  assert.deepEqual(groups.map((g) => g.title), ["Lands", "0", "3", "7+"]);
+  assert.deepEqual(groups[3].entries.map((e) => e.name), ["Seven", "Big"]);
+});
+
+const tick = () => new Promise((r) => setTimeout(r, 0));
+
+test("saveQueue sends only the newest snapshot", async () => {
+  const sent = [];
+  let started;
+  let startedPromise = new Promise((r) => { started = r; });
+  const send = async (snap) => {
+    sent.push(snap);
+    started();
+    await tick();
+    await tick();
+  };
+  const q = new SaveQueue(send, 5);
+  q.schedule("a");
+  await startedPromise;
+  q.schedule("b");
+  q.schedule("c");
+  await new Promise((r) => setTimeout(r, 60));
+  await q.flush();
+  assert.deepEqual(sent, ["a", "c"]);
+});
+
+test("saveQueue debounces and flush sends now with keepalive", async () => {
+  const calls = [];
+  const q = new SaveQueue(async (snap, opts) => { calls.push([snap, opts]); }, 10000);
+  q.schedule("x");
+  q.schedule("y");
+  assert.equal(calls.length, 0);
+  await q.flush();
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0], "y");
+  assert.equal(calls[0][1].keepalive, true);
+  await q.flush();
+  assert.equal(calls.length, 1);
+});

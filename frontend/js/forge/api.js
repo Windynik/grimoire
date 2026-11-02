@@ -1,5 +1,7 @@
 // Forge API client: JSON calls and the server-sent event stream.
 
+import { request, postJSON as post } from "../shared/http.js";
+
 const API = "/api";
 
 // Event names the server sends. "error" is also the browser's name for a
@@ -9,35 +11,6 @@ export const EVENT_TYPES = [
   "placed", "review", "explanation", "done", "error", "cancelled",
 ];
 export const TERMINAL = ["done", "error", "cancelled"];
-
-async function request(path, options) {
-  const response = await fetch(`${API}${path}`, options);
-  let data = null;
-  try {
-    data = await response.json();
-  } catch (e) {
-    data = null;
-  }
-  if (!response.ok) {
-    let detail = data && data.detail;
-    if (Array.isArray(detail)) detail = detail.map((d) => d.msg).join("; ");
-    if (typeof detail !== "string" || !detail) {
-      detail = response.statusText || `Request failed (${response.status})`;
-    }
-    const error = new Error(detail);
-    error.status = response.status;
-    throw error;
-  }
-  return data;
-}
-
-function post(path, body) {
-  return request(path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body || {}),
-  });
-}
 
 export function getFormats() {
   return request("/forge/formats");

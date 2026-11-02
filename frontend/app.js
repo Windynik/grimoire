@@ -12,6 +12,7 @@ const views = {
   process: document.getElementById("process-view"),
   viewer: document.getElementById("viewer-view"),
   forge: document.getElementById("forge-view"),
+  decks: document.getElementById("decks-view"),
   settings: document.getElementById("settings-view"),
 };
 
@@ -329,6 +330,9 @@ function switchView(viewName) {
   }
   if (viewName === "forge") {
     window.grimoireForge?.open();
+  }
+  if (viewName === "decks") {
+    window.grimoireDecks?.open();
   }
 }
 
@@ -1136,6 +1140,9 @@ function parseManaSymbols(manaCost) {
 
 // The forge result view (an ES module) reuses the mana parser.
 window.grimoireMana = { parseManaSymbols };
+// The deck screens (ES modules) switch tabs and open the card detail modal.
+window.grimoireNav = { activateTab };
+window.grimoireCard = { showCardDetail };
 
 // Escape oracle text for safety, then turn its "{...}" tokens into icons.
 // Escaping first is safe: it never introduces braces, so the token regex still

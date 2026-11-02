@@ -11,6 +11,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Marcellus&family=Figtree:ital,wght@0,400;0,600;0,700;0,800;1,400&family=IBM+Plex+Mono:wght@400;500;600&family=Cinzel:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/styles.css">
     <link rel="stylesheet" href="/css/forge.css">
+    <link rel="stylesheet" href="/css/decks.css">
 </head>
 <body>
     <!-- Atmospheric background layers -->
@@ -51,6 +52,7 @@
                 <button class="nav-item" data-view="process" role="tab" aria-selected="false">Process CSV</button>
                 <button class="nav-item" data-view="viewer" role="tab" aria-selected="false">Viewer</button>
                 <button class="nav-item" data-view="forge" role="tab" aria-selected="false">Deck Forge</button>
+                <button class="nav-item" data-view="decks" role="tab" aria-selected="false">Decks</button>
                 <button class="nav-item" data-view="settings" role="tab" aria-selected="false">Settings</button>
             </div>
         </nav>
@@ -308,6 +310,26 @@
                     </div>
                 </div>
 
+                <!-- Decks View -->
+                <div id="decks-view" class="view">
+                    <div id="decks-list" class="decks-list">
+                        <header class="decks-head">
+                            <div>
+                                <h2 class="decks-title">Decks</h2>
+                                <p class="decks-lede">Your saved decks. Open one to edit it.</p>
+                            </div>
+                            <div class="decks-actions">
+                                <button type="button" id="decks-import" class="btn btn-secondary">Import decklist</button>
+                                <button type="button" id="decks-new" class="btn btn-primary">New deck</button>
+                            </div>
+                        </header>
+                        <p id="decks-empty" class="decks-empty" hidden>No decks yet. Create one, import a decklist, or forge one.</p>
+                        <p id="decks-error" class="decks-empty" role="alert" hidden></p>
+                        <div id="decks-grid" class="decks-grid"></div>
+                    </div>
+                    <div id="deck-editor" class="deck-editor" hidden></div>
+                </div>
+
                 <!-- Settings View -->
                 <div id="settings-view" class="view">
                     <section class="card">
@@ -353,5 +375,6 @@
 
     <script src="/app.js"></script>
     <script type="module" src="/js/forge/forge.js"></script>
+    <script type="module" src="/js/decks/decks.js"></script>
 </body>
 </html>
