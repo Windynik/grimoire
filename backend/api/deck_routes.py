@@ -30,6 +30,7 @@ router = APIRouter(prefix="/api")
 
 _PLAYBOOK = load_playbook()
 _FORMATS = _PLAYBOOK.formats
+MAX_SECTION_ENTRIES = 400  # the same cap as SectionsIn
 
 
 def _collection_for(record: dict, collections: CollectionStore) -> Tuple[Optional[List[dict]],
@@ -127,6 +128,9 @@ async def import_deck(
         commander = None
     if commander is None and not any(sections.values()):
         raise HTTPException(status_code=400, detail="No card in the list matches the card data.")
+    if any(len(entries) > MAX_SECTION_ENTRIES for entries in sections.values()):
+        raise HTTPException(status_code=422, detail="A section has more than %d different cards."
+                            % MAX_SECTION_ENTRIES)
     record["commander"] = commander
     record["sections"] = sections
     # Hydrate before the strip so the saved entries keep their art URL

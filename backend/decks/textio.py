@@ -20,10 +20,11 @@ _BASICS = ("Plains", "Island", "Swamp", "Mountain", "Forest", "Wastes")
 BASIC_NAMES = {n.lower(): n for n in _BASICS}
 BASIC_NAMES.update({("snow-covered " + n).lower(): "Snow-Covered " + n
                     for n in _BASICS if n != "Wastes"})
+MAX_COUNT = 250  # the deck editor accepts 1..250 copies per entry
 CSV_HEADER = ["Section", "Count", "Name", "Set", "Collector Number", "Mana Cost", "Type Line",
               "Scryfall ID"]
 
-_COUNT = re.compile(r"^(\d+)\s*[xX]?\s+(.+)$")
+_COUNT = re.compile(r"^(\d{1,3})\s*[xX]?\s+(.+)$")
 _FOIL = re.compile(r"\s*\*[A-Za-z]\*\s*$")
 _PAREN_SET = re.compile(r"\s*\(([A-Za-z0-9]{2,6})\)\s*(\S+)?\s*$")
 _BRACKET_SET = re.compile(r"\s*\[([A-Za-z0-9]{2,6})\]\s*$")
@@ -144,6 +145,7 @@ def parse_decklist(text: str) -> List[ParsedLine]:
         (section, count, name, set code, collector number) per card line. Sections
         come from header lines. In a text with no header line, a blank line after
         main lines starts the sideboard (plain Arena exports). Set code is upper case.
+        A count outside 1..250 makes the whole line a name that matches no card.
     """
     lines = text.splitlines()
     has_headers = any(_header(line) for line in lines)
@@ -164,8 +166,9 @@ def parse_decklist(text: str) -> List[ParsedLine]:
         line = _FOIL.sub("", line)
         count = 1
         match = _COUNT.match(line)
-        if match:
+        if match and 1 <= int(match.group(1)) <= MAX_COUNT:
             count, line = int(match.group(1)), match.group(2)
+        # Any other count (0, over 250, over 3 digits) stays in the name, so the line is unknown
         code, number = None, None
         match = _PAREN_SET.search(line)
         if match:
@@ -256,7 +259,7 @@ def resolve(lines: List[ParsedLine], index: Dict[str, dict],
         target = sections["main" if section == "commander" else section]
         for existing in target:
             if entry_key(existing) == entry_key(entry):
-                existing["count"] += count
+                existing["count"] = min(MAX_COUNT, existing["count"] + count)
                 break
         else:
             target.append(entry)

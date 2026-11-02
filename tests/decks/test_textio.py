@@ -139,3 +139,14 @@ def test_import_reports_unknown_names():
         ("Swamp", 4), ("Snow-Covered Island", 2)]
     assert main[0]["scryfall_id"] == artist["id"] and main[2]["scryfall_id"] is None
     assert main[2]["basic"] is True
+
+
+def test_parse_counts_outside_range_are_not_card_lines():
+    huge = "9" * 5000
+    parsed = parse_decklist("0 Forest\n251 Forest\n1000 Forest\n%s Forest\n250 Forest\n" % huge)
+    assert [(p[1], p[2]) for p in parsed[:3]] == [
+        (1, "0 Forest"), (1, "251 Forest"), (1, "1000 Forest")]
+    assert parsed[3][1] == 1 and parsed[3][2].endswith(" Forest")
+    assert parsed[4] == ("main", 250, "Forest", None, None)
+    sections, _, unknown = resolve(parsed, {}, {})
+    assert len(unknown) == 4 and sections["main"][0]["count"] == 250

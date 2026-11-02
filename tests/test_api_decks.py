@@ -185,3 +185,34 @@ def test_import_nothing_matches_gives_400(overrides):
         assert r.status_code == 400
         assert r.json()["detail"] == "No card in the list matches the card data."
         assert client.get("/api/decks").json()["total"] == 0
+
+
+def test_import_bad_counts_give_unknown_not_500(overrides):
+    text = "0 Forest\n99999999999 Forest\n%s Forest\n2 Swamp\n" % ("9" * 5000)
+    with TestClient(app) as client:
+        r = client.post("/api/decks/import", json={"text": text, "format": "modern"})
+        assert r.status_code == 201
+        body = r.json()
+        assert len(body["unknown"]) == 3
+        assert [(e["name"], e["count"]) for e in body["sections"]["main"]] == [("Swamp", 2)]
+        r = client.put("/api/decks/%s" % body["id"], json=_body())
+        assert r.status_code == 200
+
+
+def test_import_over_400_entries_gives_422(overrides):
+    records = {}
+    for n in range(401):
+        record = _sac()
+        record = dict(record, id="many-%d" % n, name="Many %d" % n)
+        records[record["id"]] = record
+    _, bulk, _ = overrides
+    bulk.cards.update(records)
+    text = "\n".join("1 Many %d" % n for n in range(401))
+    with TestClient(app) as client:
+        r = client.post("/api/decks/import", json={"text": text, "format": "modern"})
+        assert r.status_code == 422
+        assert "400" in r.json()["detail"]
+        assert client.get("/api/decks").json()["total"] == 0
+        r = client.post("/api/decks/import", json={"text": "\n".join(text.split("\n")[:400]),
+                                                   "format": "modern"})
+        assert r.status_code == 201
