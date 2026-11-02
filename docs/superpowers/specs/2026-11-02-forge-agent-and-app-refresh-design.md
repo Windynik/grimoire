@@ -311,15 +311,19 @@ The meta source is an interface (`MetaSource`) with one implementation,
   `eval_count`, `eval_duration`) to feed the time estimate.
 - Set reasoning effort where the model supports it. gpt-oss takes
   `think: "low" | "medium" | "high"`. Default "medium" for backbones and "low" for
-  the other calls.
+  the other calls. Models with on/off thinking (Qwen, Gemma) have no thinking
+  budget, so they think only at "high". Every list in a reply schema has a
+  `maxItems` limit. (Changed 2026-11-02 after the qwen3.5:9b tests.)
 - Context: `num_ctx` 16k by default. Compact card text: name, cost, type, and
   oracle text, with reminder text removed.
 - **Model picker** in Settings: it lists installed models. It labels the known-good
   models with their sizes for a 24 GB Mac:
-  - `gpt-oss:20b` (recommended, ~15 GB, fast);
-  - `gemma4:26b-a4b-it-qat` (16 GB);
-  - `qwen3.8:27b` (18 GB, best quality, slow; close other apps first);
-  - `qwen3.5:9b` or `gemma4:12b` (light).
+  - `qwen3.5:9b` (recommended, 6.6 GB; fits next to other apps);
+  - `gemma4:12b-it-qat` (7.2 GB, light alternative);
+  - `gpt-oss:20b` (13 GB; close other apps first, because with other apps open
+    it ran out of memory on the owner's Mac);
+  - `qwen3.8:27b` (18 GB, slow; close other apps first).
+  The owner chose `qwen3.5:9b` on 2026-11-02.
 - If a model call fails or returns invalid JSON, retry once. After that, fall back
   to the engine's choice for that step and say so in the feed. The forge never
   fails because of the model.
@@ -513,8 +517,16 @@ collection that has that deck".
 | Sample | Format | Hidden core (all verified in the index and legal in that format) |
 |---|---|---|
 | Aristocrats | Commander, commander Teysa Karlov | Blood Artist, Zulaport Cutthroat, Cruel Celebrant, Viscera Seer, Carrion Feeder, Village Rites, Bastion of Remembrance, Pitiless Plunderer, Ophiomancer, Doomed Dissenter, Skullclamp, Falkenrath Noble, Elas il-Kor, Sadistic Pilgrim |
-| Counters artifacts | Modern | Hardened Scales, Walking Ballista, Arcbound Ravager, Steel Overseer, Animation Module, Winding Constrictor, Ozolith, the Shattered Spire, Patchwork Automaton, Stonecoil Serpent, Arcbound Worker |
-| Bogles (auras) | Pauper | Slippery Bogle, Gladecover Scout, Rancor, Ancestral Mask, Ethereal Armor, Utopia Sprawl, Abundant Growth, Cartouche of Solidarity, Heliod's Pilgrim, Silhana Ledgewalker, Spider Umbra, Hyena Umbra |
+| Counters artifacts | Modern | Hardened Scales, Walking Ballista, Arcbound Ravager, Steel Overseer, Hangarback Walker, Ozolith, the Shattered Spire, Patchwork Automaton, Stonecoil Serpent, Arcbound Worker |
+| Bogles (auras) | Pauper | Slippery Bogle, Gladecover Scout, Rancor, Ancestral Mask, Ethereal Armor, Utopia Sprawl, Abundant Growth, Silhana Ledgewalker, Hyena Umbra |
+
+The constructed cores have 9 cards each, all in the deck's colors. At 4 copies, 9
+cards need 36 slots. A 60-card deck with 22–24 lands has 36–38 nonland slots. The
+rest of the hidden deck is a **support** list (Counters: Animation Module; Bogles:
+Cartouche of Solidarity, Heliod's Pilgrim, Spider Umbra). Support cards are in the
+collection with 4 copies, like the core, but core recall does not count them.
+(Changed 2026-11-02: the first Counters core held Winding Constrictor, a black
+card, and 10 cards; the first Bogles core held 12 cards, which needed 48 copies.)
 
 **Fairness rules (designer's call):**
 
@@ -547,7 +559,7 @@ collection that has that deck".
 
 **Pass rules (designer's call):**
 
-- With the recommended model (`gpt-oss:20b`), each sample passes every criterion
+- With the recommended model (`qwen3.5:9b`), each sample passes every criterion
   in at least 2 of 3 runs (3 seeds).
 - Engine-only mode must be legal in every run and reach at least 50% core recall.
   The engine carries most of the card understanding, so it must find the backbone

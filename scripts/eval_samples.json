@@ -54,12 +54,14 @@
       "Walking Ballista",
       "Arcbound Ravager",
       "Steel Overseer",
-      "Animation Module",
-      "Winding Constrictor",
+      "Hangarback Walker",
       "Ozolith, the Shattered Spire",
       "Patchwork Automaton",
       "Stonecoil Serpent",
       "Arcbound Worker"
+    ],
+    "support": [
+      "Animation Module"
     ],
     "decoys": {
       "G landfall": [
@@ -100,11 +102,13 @@
       "Ethereal Armor",
       "Utopia Sprawl",
       "Abundant Growth",
+      "Silhana Ledgewalker",
+      "Hyena Umbra"
+    ],
+    "support": [
       "Cartouche of Solidarity",
       "Heliod's Pilgrim",
-      "Silhana Ledgewalker",
-      "Spider Umbra",
-      "Hyena Umbra"
+      "Spider Umbra"
     ],
     "decoys": {
       "G elves": [

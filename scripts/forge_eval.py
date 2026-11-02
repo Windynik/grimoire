@@ -158,7 +158,9 @@ def load_index() -> Dict[str, dict]:
 
 
 def sample_names(sample: dict) -> List[str]:
-    names = list(sample["core"])
+    # Support cards belong to the hidden deck and the collection, but core recall
+    # does not count them: all of the deck's 4-ofs do not fit in 60 cards.
+    names = list(sample["core"]) + list(sample.get("support", []))
     for decoy in sample["decoys"].values():
         names += decoy
     if sample.get("commander"):
@@ -197,7 +199,7 @@ def build_collection(sample: dict, cards: CardIndex, fmt: FormatRules, seed: int
 
     Commander samples own one copy of each card, and half the noise is inside
     the commander's colors. Constructed samples give every card a random count
-    from 1 to 4, then 4 copies to the core and decoy cards.
+    from 1 to 4, then 4 copies to the core, support, and decoy cards.
     """
     rng = random.Random(seed)
     named = [cards.find(name) for name in sample_names(sample)]
