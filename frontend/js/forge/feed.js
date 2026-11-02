@@ -144,16 +144,28 @@ export class ThoughtFeed {
    * Show a question with one button per option and a countdown bar.
    *
    * @param {Object} q Question event: question_id, text, options [{label,
-   *   description, color?}], timeout_seconds (null waits), default.
-   * @param {function(number)} onAnswer Called with the option index.
+   *   description, color?}], timeout_seconds (null waits), deadline (epoch
+   *   seconds, or null), default.
+   * @param {function(number)} onAnswer Called with the option index. A rejected
+   *   promise opens the options again while time is left.
    * @param {Object} [opts]
-   * @param {number} [opts.startedAt] performance.now() when the event came in,
-   *   so the countdown ends when the server stops waiting.
+   * @param {number} [opts.startedAt] performance.now() when the event came in.
+   *   Used only when the event has no deadline.
    */
   question(q, onAnswer, opts = {}) {
     const entry = el("div", "forge-thought forge-ask open");
     entry.appendChild(el("p", "forge-q", String(q.text || "")));
-    const buttons = (q.options || []).map((option, index) => {
+    const timer = el("div", "forge-timer");
+    const timerText = el("span", "", "");
+    const bar = el("i");
+    timer.append(timerText, bar);
+    const problem = el("p", "forge-ask-error");
+    problem.hidden = true;
+    const record = {
+      entry, buttons: [], timerText, bar, problem, locked: false, answered: false, ticker: null,
+      left: () => Infinity, timeout: 0, still: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+    };
+    record.buttons = (q.options || []).map((option, index) => {
       const button = el("button", "forge-opt");
       button.type = "button";
       const swatch = el("span", `forge-sw ${option.color || ""}`);
@@ -163,21 +175,23 @@ export class ThoughtFeed {
       if (index === q.default) button.appendChild(el("span", "forge-opt-tag", "Recommended"));
       button.addEventListener("click", () => {
         if (record.locked) return;
+        problem.hidden = true;
         this.lock(record, index, "Sending your choice.");
         Promise.resolve(onAnswer && onAnswer(index)).catch(() => {
-          record.timerText.textContent = "Could not send your choice.";
+          if (record.answered) return;
+          problem.hidden = false;
+          if (record.left() > 1) {
+            problem.textContent = "Could not send your choice. Try again.";
+            this.countdown(record);
+          } else {
+            problem.textContent = "Could not send your choice.";
+          }
         });
       });
       entry.appendChild(button);
       return button;
     });
-
-    const timer = el("div", "forge-timer");
-    const timerText = el("span", "", "");
-    const bar = el("i");
-    timer.append(timerText, bar);
-    entry.appendChild(timer);
-    const record = { entry, buttons, timerText, bar, locked: false, ticker: null };
+    entry.append(timer, problem);
     this.questions.set(q.question_id, record);
 
     const timeout = Number(q.timeout_seconds);
@@ -185,31 +199,51 @@ export class ThoughtFeed {
       timerText.textContent = "I will wait for your answer.";
       bar.hidden = true;
     } else {
-      const started = opts.startedAt || performance.now();
-      const deadline = started + timeout * 1000;
-      const left = () => Math.max(0, (deadline - performance.now()) / 1000);
-      const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      const tick = () => {
-        const seconds = Math.ceil(left());
-        if (seconds <= 0) {
-          this.lock(record, -1, "Time is up. I am taking the recommended option.");
-          return;
-        }
-        timerText.textContent = `I will choose for you in ${seconds} s`;
-        // With reduced motion the bar steps with the text instead of sliding.
-        if (still) bar.style.transform = `scaleX(${left() / timeout})`;
-      };
-      bar.style.transform = `scaleX(${left() / timeout})`;
-      tick();
-      if (!record.locked) {
-        record.ticker = setInterval(tick, TICK_MS);
-        if (!still) requestAnimationFrame(() => requestAnimationFrame(() => {
-          bar.style.transitionDuration = `${left()}s`;
-          bar.style.transform = "scaleX(0)";
-        }));
-      }
+      // The server and the page share one clock, so the deadline gives the
+      // real time left, also after a reload.
+      const server = Number(q.deadline);
+      const end = q.deadline !== null && q.deadline !== undefined && Number.isFinite(server)
+        ? performance.now() + (server - Date.now() / 1000) * 1000
+        : (opts.startedAt || performance.now()) + timeout * 1000;
+      record.timeout = timeout;
+      record.left = () => Math.max(0, (end - performance.now()) / 1000);
+      if (record.left() <= 0) this.lock(record, -1, "This question is closed. Waiting for the result.");
+      else this.countdown(record);
     }
     return this.add(entry);
+  }
+
+  /** Open the options and run the countdown text and bar until the time is up. */
+  countdown(record) {
+    record.locked = false;
+    record.buttons.forEach((button) => {
+      button.disabled = false;
+      button.classList.remove("chosen");
+    });
+    if (!(record.timeout > 0)) return;
+    const { bar, timerText, timeout, still } = record;
+    const tick = () => {
+      const seconds = Math.ceil(record.left());
+      if (seconds <= 0) {
+        this.lock(record, -1, "Time is up. I am taking the recommended option.");
+        return;
+      }
+      timerText.textContent = `I will choose for you in ${seconds} s`;
+      // With reduced motion the bar steps with the text instead of sliding.
+      if (still) bar.style.transform = `scaleX(${record.left() / timeout})`;
+    };
+    bar.style.transitionDuration = "0s";
+    bar.style.transform = `scaleX(${Math.min(1, record.left() / timeout)})`;
+    tick();
+    if (record.locked) return;
+    record.ticker = setInterval(tick, TICK_MS);
+    if (!still) {
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (record.locked) return;
+        bar.style.transitionDuration = `${record.left()}s`;
+        bar.style.transform = "scaleX(0)";
+      }));
+    }
   }
 
   lock(record, chosen, text) {
@@ -229,6 +263,8 @@ export class ThoughtFeed {
   answered(evt) {
     const record = this.questions.get(evt.question_id);
     if (!record) return;
+    record.answered = true;
+    record.problem.hidden = true;
     this.lock(record, evt.option, evt.by === "timeout"
       ? "No answer came, so I took the recommended option."
       : "You chose this option.");

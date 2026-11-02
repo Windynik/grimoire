@@ -304,6 +304,7 @@ class ForgeRun {
     this.centerSet = false;
     this.chosen = false;
     this.options = new Map(); // question id -> options with their cluster
+    this.questionOpen = false; // "Waiting for you" shows only while this is true
     this.statusText = "";
     this.timeline.setStage(0, 0);
     this.stage.setProgress(0);
@@ -400,7 +401,7 @@ class ForgeRun {
     this.stage.setProgress((index + progress) / STAGE_NAMES.length);
     if (index === STAGE_NAMES.length - 1 && progress >= 1) this.timeline.done();
     else if (typeof d.eta_seconds === "number") this.timeline.setEta(d.eta_seconds);
-    else if (index === 2) this.timeline.setEta(null);
+    else if (this.questionOpen) this.timeline.setEta(null);
   }
 
   onStatus(d) {
@@ -491,6 +492,8 @@ class ForgeRun {
     this.options.set(d.question_id, options);
     this.stage.pulse(options.map((o) => o.cluster && o.cluster.backbone_id).filter(Boolean));
     setStatus("Waiting for your choice.");
+    this.questionOpen = true;
+    this.timeline.setEta(null);
     this.feed.question({ ...d, options }, (index) => this.answer(d.question_id, index), { startedAt: at });
   }
 
@@ -500,6 +503,8 @@ class ForgeRun {
   }
 
   onAnswered(d) {
+    this.questionOpen = false;
+    this.timeline.clear(); // the next stage event brings a new estimate
     this.feed.answered(d);
     this.stage.pulse([]);
     const options = this.options.get(d.question_id) || [];

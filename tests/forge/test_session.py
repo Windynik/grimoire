@@ -1,4 +1,5 @@
 import asyncio
+import time
 
 import pytest
 
@@ -193,6 +194,8 @@ async def test_question_timeout_takes_default(tmp_path):
     events = await collect(session)
     question = of_type(events, "question")[0]
     assert question["timeout_seconds"] == pytest.approx(0.05)
+    # The deadline is epoch seconds: the time of the question plus the timeout.
+    assert time.time() - 5 < question["deadline"] <= time.time() + 0.05
     assert question["default"] == 0 and len(question["options"]) == 2
     assert all(o["card_ids"] for o in question["options"])
     answered = of_type(events, "answered")[0]
@@ -210,6 +213,7 @@ async def test_answer_selects_option(tmp_path):
 
     def pick(event):
         assert event["timeout_seconds"] is None
+        assert "deadline" in event and event["deadline"] is None
         assert session.state == "waiting"
         results.append(session.answer("not-the-id", 1))
         results.append(session.answer(event["question_id"], 5))

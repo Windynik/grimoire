@@ -165,13 +165,22 @@ def template_question(backbones: List[Backbone], graph: SynergyGraph,
             "options": options}
 
 
-def question_payload(question_id: str, question: dict,
-                     timeout: Optional[float]) -> dict:
-    """Return the question event fields. Option 0 is the default."""
+def question_payload(question_id: str, question: dict, timeout: Optional[float],
+                     deadline: Optional[float] = None) -> dict:
+    """Return the question event fields. Option 0 is the default.
+
+    Args:
+        question_id: Id the answer must name.
+        question: Question with text and options.
+        timeout: Seconds the session waits, or None when it waits for the answer.
+        deadline: Epoch seconds when the session stops waiting, or None. The
+            browser and the server share one clock, so a reattached page can
+            show the time that is really left.
+    """
     options = [{"label": o["label"], "description": o["description"],
                 "card_ids": list(o["card_ids"])} for o in question["options"]]
     return {"question_id": question_id, "text": question["text"], "options": options,
-            "timeout_seconds": timeout, "default": 0}
+            "timeout_seconds": timeout, "deadline": deadline, "default": 0}
 
 
 def _interactions(deck: BuiltDeck, graph: SynergyGraph, playbook: Playbook) -> List[str]:

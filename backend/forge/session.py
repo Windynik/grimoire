@@ -528,7 +528,8 @@ class ForgeSession:
         future = asyncio.get_running_loop().create_future()
         self._question = {"id": question_id, "count": len(question["options"]), "future": future}
         self.state = "waiting"
-        self._emit("question", **question_payload(question_id, question, timeout))
+        deadline = None if timeout is None else time.time() + timeout
+        self._emit("question", **question_payload(question_id, question, timeout, deadline))
         by = "you"
         try:
             if timeout is None:

@@ -746,6 +746,14 @@
     transition-timing-function: linear;
 }
 
+#forge-view .forge-ask-error {
+    margin-top: 4px;
+    font-size: 11px;
+    color: #f0b3a6;
+}
+
+#forge-view .forge-ask-error[hidden] { display: none; }
+
 #forge-view .forge-curve {
     display: flex;
     align-items: flex-end;
