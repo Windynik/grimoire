@@ -73,6 +73,8 @@ class Run:
     commander: str = ""
     combined: float = 0.0
     baseline: Optional[float] = None
+    base_recall: Optional[float] = None
+    base_dropped: int = 0  # required core cards the baseline could not place
     lands: int = 0
     land_range: Tuple[int, int] = (0, 0)
     lands_ok: bool = False
@@ -297,12 +299,39 @@ def land_count(deck: BuiltDeck) -> Tuple[int, int]:
     return lands, mdfc
 
 
+def core_recall(core: List[str], names) -> Tuple[float, List[str]]:
+    """Return (share of the core names in `names`, missing core names). Names compare lowercase."""
+    found = {n.lower() for n in names}
+    missing = [n for n in core if n.lower() not in found]
+    return 1 - len(missing) / len(core), missing
+
+
+def baseline_backbone(bones, cards, fmt: FormatRules, core: List[str], theme: str):
+    """Return the backbone with the theme hook whose colors fit the most core cards.
+
+    Ties go to the higher score (bones are best first). Returns None when no
+    backbone holds the theme hook.
+    """
+    wanted = {n.lower() for n in core}
+    owned = [c for c in cards if c.name.lower() in wanted and c.owned > 0]
+    best, best_fit = None, -1
+    for bone in bones:
+        if theme not in bone.hooks:
+            continue
+        fit = sum(1 for c in owned if (c.color_identity <= bone.colors if c.is_land
+                                       else fits_colors(c, bone.colors, fmt)))
+        if fit > best_fit:
+            best, best_fit = bone, fit
+    return best
+
+
 def baseline_deck(cards, graph, fmt: FormatRules, playbook: Playbook, core: List[str],
                   theme: str, commander) -> Optional[BuiltDeck]:
-    """Build the hidden core deck: the best engine backbone with the theme hook, core required."""
+    """Build the hidden core deck: the engine backbone with the theme hook whose
+    colors fit the most core cards, with the core required."""
     commander_id = commander.id if commander is not None else None
     bones = find_backbones(cards, graph, fmt, playbook, commander_id=commander_id, limit=1000)
-    bone = next((b for b in bones if theme in b.hooks), None)
+    bone = baseline_backbone(bones, cards, fmt, core, theme)
     if bone is None:
         return None
     plan = BuildPlan(backbone=bone, playstyle=engine_playstyle(bone, graph),
@@ -316,9 +345,7 @@ def grade(run: Run, session: EvalSession, sample: dict, collection: List[dict],
     deck = session.deck
     owned = owned_counts(collection, index)
     run.problems = legality_problems(deck, index, owned)
-    names = deck.names()
-    run.missing = [n for n in sample["core"] if n.lower() not in names]
-    run.recall = 1 - len(run.missing) / len(sample["core"])
+    run.recall, run.missing = core_recall(sample["core"], deck.names())
     run.hooks = tuple(deck.plan.backbone.hooks)
     run.hooks_ok = sample["theme"] in run.hooks
     run.commander = deck.commander.name if deck.commander is not None else ""
@@ -331,7 +358,11 @@ def grade(run: Run, session: EvalSession, sample: dict, collection: List[dict],
         wanted = sample["commander"].lower()
         commander = next((c for c in cards if c.name.lower() == wanted), None)
     base = baseline_deck(cards, graph, fmt, playbook, sample["core"], sample["theme"], commander)
-    run.baseline = deck_metrics(base, graph, playbook)["combined"] if base is not None else None
+    if base is not None:
+        run.baseline = deck_metrics(base, graph, playbook)["combined"]
+        run.base_recall = core_recall(sample["core"], base.names())[0]
+        run.base_dropped = sum(1 for w in base.warnings if w.startswith("Couldn't fit")
+                               or " is not an owned" in w)
     run.lands, mdfc = land_count(deck)
     lo, hi = fmt.lands
     run.land_range = (lo, hi)
@@ -382,12 +413,12 @@ def _yes(value: Optional[bool]) -> str:
 
 
 def print_runs(runs: List[Run]) -> None:
-    print("| sample | seed | mode | legal | recall | hooks | combined / base | lands | "
-          "sources | top3 | time | all |")
-    print("|---|---|---|---|---|---|---|---|---|---|---|---|")
+    print("| sample | seed | mode | legal | recall | hooks | combined / base | base recall | "
+          "lands | sources | top3 | time | all |")
+    print("|---|---|---|---|---|---|---|---|---|---|---|---|---|")
     for r in runs:
         if r.error:
-            print("| %s | %d | %s | ERROR: %s |  |  |  |  |  |  | %.0fs | NO |"
+            print("| %s | %d | %s | ERROR: %s |  |  |  |  |  |  |  | %.0fs | NO |"
                   % (r.sample, r.seed, r.mode, r.error, r.seconds))
             continue
         base = "%.3f" % r.baseline if r.baseline is not None else "none"
@@ -395,9 +426,13 @@ def print_runs(runs: List[Run]) -> None:
         if r.commander:
             hooks += " / " + r.commander
         sources = "ok" if not r.short else "%d warn" % len(r.short)
-        print("| %s | %d | %s | %s | %.0f%% | %s | %.3f / %s%s | %d (%d-%d)%s | %s | %s | %.0fs | %s |"
+        base_recall = "-" if r.base_recall is None else "%.0f%%" % (100 * r.base_recall)
+        if r.base_dropped:
+            base_recall += " (%d dropped)" % r.base_dropped
+        print("| %s | %d | %s | %s | %.0f%% | %s | %.3f / %s%s | %s | %d (%d-%d)%s | %s | %s | "
+              "%.0fs | %s |"
               % (r.sample, r.seed, r.mode, _yes(r.legal), 100 * r.recall, hooks, r.combined, base,
-                 "" if r.strong else " (NO)", r.lands, r.land_range[0], r.land_range[1],
+                 "" if r.strong else " (NO)", base_recall, r.lands, r.land_range[0], r.land_range[1],
                  "" if r.lands_ok else " (NO)", sources, _yes(r.top3), r.seconds,
                  _yes(r.passes_all())))
     print()
@@ -518,6 +553,9 @@ def main(argv: Optional[List[str]] = None) -> int:
             return 1
         samples = {args.sample: samples[args.sample]}
     index = load_index()
+    if args.real:
+        with tempfile.TemporaryDirectory() as tmp:
+            return 0 if real_checks(index, playbook, args.model, DeckStore(storage_dir=tmp)) else 1
     cards = CardIndex(index)
     invalid = validate(samples, cards, playbook)
     for line in invalid:
@@ -528,8 +566,6 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     with tempfile.TemporaryDirectory() as tmp:
         store = DeckStore(storage_dir=tmp)
-        if args.real:
-            return 0 if real_checks(index, playbook, args.model, store) else 1
         runs = []
         for key, sample in samples.items():
             variants = (True, False) if sample.get("commander") else (True,)
