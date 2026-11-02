@@ -1,4 +1,5 @@
 import dataclasses
+import json
 
 import pytest
 
@@ -129,3 +130,26 @@ def test_save_rejects_bad_id_and_leaves_no_temp_files(tmp_path, playbook):
         store.save(rec)
     store.save(_record(playbook))
     assert [p.suffix for p in tmp_path.iterdir()] == [".json"]
+
+
+def test_non_dict_json_is_skipped(tmp_path, playbook):
+    store = DeckStore(str(tmp_path))
+    good = store.save(_record(playbook))
+    for name, text in (("aa-1", "[]"), ("aa-2", '"x"'), ("aa-3", "null")):
+        (tmp_path / f"{name}.json").write_text(text, encoding="utf-8")
+        assert store.get(name) is None
+    assert [r["id"] for r in store.list()] == [good]
+
+
+def test_list_tolerates_odd_fields(tmp_path, playbook):
+    store = DeckStore(str(tmp_path))
+    rec = _record(playbook)
+    rec["updated"] = None
+    rec["sections"]["main"].append("junk")
+    path = tmp_path / "bb-1.json"
+    rec["id"] = "bb-1"
+    path.write_text(json.dumps(rec), encoding="utf-8")
+    other = store.save(_record(playbook))
+    rows = store.list()
+    assert [r["id"] for r in rows][0] == other
+    assert next(r for r in rows if r["id"] == "bb-1")["count"] == 7

@@ -67,9 +67,10 @@ class DeckStore:
             return None
         try:
             with open(path, 'r', encoding='utf-8') as f:
-                return json.load(f)
+                data = json.load(f)
         except (OSError, ValueError):
             return None
+        return data if isinstance(data, dict) else None
 
     def list(self) -> List[Dict]:
         """Summaries of all stored decks, newest first."""
@@ -78,17 +79,20 @@ class DeckStore:
             try:
                 with open(path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
+                if not isinstance(data, dict):
+                    continue
                 commander = data.get("commander")
-                count = sum(c.get("count", 1) for c in data["sections"]["main"])
+                count = sum(c.get("count", 1) for c in data["sections"]["main"]
+                            if isinstance(c, dict))
                 decks.append({
                     "id": data["id"],
                     "name": data.get("name", ""),
                     "format": data.get("format", ""),
                     "commander": commander["name"] if commander else None,
                     "count": count + (1 if commander else 0),
-                    "updated": data.get("updated", ""),
+                    "updated": str(data.get("updated") or ""),
                 })
-            except (OSError, ValueError, KeyError, TypeError):
+            except (OSError, ValueError, KeyError, TypeError, AttributeError):
                 continue
 
         decks.sort(key=lambda d: d["updated"], reverse=True)
