@@ -2,6 +2,7 @@
 //
 // Deck names, card names and server text go in with textContent only.
 
+import { h } from "../shared/dom.js";
 import * as api from "./api.js";
 // Defines window.grimoireEditor before the first hash route opens a deck.
 import "./editor.js";
@@ -17,23 +18,6 @@ const state = {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function h(tag, props, ...children) {
-  const el = document.createElement(tag);
-  Object.entries(props || {}).forEach(([key, value]) => {
-    if (value === undefined || value === null || value === false) return;
-    if (key === "class") el.className = value;
-    else if (key === "text") el.textContent = value;
-    else if (key.startsWith("on")) el.addEventListener(key.slice(2), value);
-    else el.setAttribute(key, value === true ? "" : value);
-  });
-  children.flat().forEach((child) => {
-    if (child !== null && child !== undefined) {
-      el.append(child.nodeType ? child : document.createTextNode(String(child)));
-    }
-  });
-  return el;
-}
 
 function toast(message, type) {
   if (typeof window.showToast === "function") window.showToast(message, type);

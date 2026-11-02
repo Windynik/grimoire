@@ -2,6 +2,7 @@
 //
 // Plan 2 replaces this view with the deck editor.
 
+import { manaNode } from "../shared/dom.js";
 import { renderExplanation } from "./feed.js";
 
 const METRICS = [
@@ -21,21 +22,6 @@ function el(tag, className, text) {
   if (className) node.className = className;
   if (text !== undefined) node.textContent = text;
   return node;
-}
-
-// Characters a mana cost can hold: "{2}{W/U}{½} // {X}". parseManaSymbols puts
-// symbol text into a title attribute, so quotes and markup must not reach it.
-const MANA_UNSAFE = /[^{}A-Za-z0-9/ ½∞]/g;
-
-/** Return mana symbol markup for a cost. Unsafe characters are removed before parsing. */
-function manaNode(cost) {
-  const span = el("span", "forge-mana");
-  const parse = window.grimoireMana && window.grimoireMana.parseManaSymbols;
-  if (!cost) return span;
-  const clean = String(cost).replace(MANA_UNSAFE, "");
-  if (typeof parse === "function") span.innerHTML = parse(clean);
-  else span.textContent = clean;
-  return span;
 }
 
 /**
@@ -107,7 +93,7 @@ function cardRow(card) {
   row.appendChild(el("span", "forge-result-count", `${card.count}`));
   const main = el("div", "forge-result-main");
   const line = el("div", "forge-result-line");
-  line.append(el("span", "forge-result-name", card.name || ""), manaNode(card.mana_cost));
+  line.append(el("span", "forge-result-name", card.name || ""), manaNode(card.mana_cost, "forge-mana"));
   main.appendChild(line);
   if (card.reason) main.appendChild(el("small", "forge-result-reason", card.reason));
   row.appendChild(main);

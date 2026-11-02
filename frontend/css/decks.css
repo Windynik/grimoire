@@ -392,6 +392,13 @@
     min-width: 0;
 }
 
+#decks-view .deck-commander-line {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    max-width: 100%;
+}
+
 #decks-view .deck-commander-body .deck-row-name {
     max-width: 100%;
     white-space: normal;

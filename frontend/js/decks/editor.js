@@ -6,7 +6,8 @@
 
 import * as api from "./api.js";
 import { applyOp, History, SaveQueue, SECTIONS } from "./model.js";
-import { hidePreview, renderPane, safeManaCost } from "./pane.js";
+import { safeManaCost } from "../shared/dom.js";
+import { hidePreview, renderPane } from "./pane.js";
 
 const GROUP_KEY = "grimoire.groupMode";
 const GROUP_MODES = ["type", "role", "cmc"];
@@ -185,11 +186,6 @@ function createSession(host, deckId, options) {
     if (snapshot === lastBody) {
       setStatus("saved");
       view.error.hidden = true;
-    } else {
-      // A request that flush() started has no follow-up: send the newest body if it waits.
-      setTimeout(() => {
-        if (!closed && queue.hasPending && !queue.timer && !queue.inflight) queue.schedule(lastBody);
-      }, 0);
     }
     render();
   }
@@ -215,7 +211,7 @@ function createSession(host, deckId, options) {
 
   // Send now. A failed body waits for its retry, so it goes back in the queue first.
   function flushNow(flushOptions) {
-    if (status === "retrying" && lastBody && !queue.hasPending) {
+    if (status === "retrying" && lastBody) {
       clearTimeout(retryTimer);
       queue.schedule(lastBody);
     }

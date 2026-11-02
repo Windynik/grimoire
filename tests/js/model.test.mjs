@@ -302,3 +302,21 @@ test("set and remove commander ops", () => {
   assert.deepEqual(applyOp(s0, { type: "setCommander", key: "nope" }), s0);
   assert.deepEqual(applyOp(s0, { type: "clearCommander" }), s0);
 });
+
+test("saveQueue sends a body scheduled during a closing flush after that request", async () => {
+  const { sent, gates, send } = controlledSend();
+  const q = new SaveQueue(send, 5);
+  q.schedule("a");
+  q.flush({ closing: true });
+  assert.deepEqual(sent, ["a"]);
+  q.schedule("b");
+  await wait(30);
+  // The timer fired during the request: the body waits for it.
+  assert.deepEqual(sent, ["a"]);
+  gates[0]();
+  await wait(10);
+  assert.deepEqual(sent, ["a", "b"]);
+  gates[1]();
+  await wait(5);
+  assert.equal(q.inflight, null);
+});

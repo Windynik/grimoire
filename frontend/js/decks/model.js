@@ -261,8 +261,15 @@ export class SaveQueue {
     return snapshot;
   }
 
+  // Send the newest snapshot. During a request (also one that flush started), wait
+  // for it, then send the snapshot that is still pending.
   _drain() {
-    if (this.inflight) return this.inflight;
+    if (this.inflight) {
+      return this.inflight.then(() => {
+        if (this.hasPending && !this.timer) return this._drain();
+        return undefined;
+      });
+    }
     if (!this.hasPending) return Promise.resolve();
     return this._send(this._take()).then(() => {
       if (this.hasPending && !this.timer) return this._drain();

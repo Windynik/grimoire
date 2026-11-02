@@ -2,8 +2,9 @@
 // rows, row actions, drag and drop between sections, and the hover preview.
 //
 // Card names and server text go in with textContent only. Mana costs go through
-// the MANA_UNSAFE filter before parseManaSymbols.
+// manaNode (shared/dom.js), which filters them before parseManaSymbols.
 
+import { h, manaNode } from "../shared/dom.js";
 import { SECTIONS, entryKey, groupEntries } from "./model.js";
 
 const SECTION_NAMES = { main: "Main", sideboard: "Sideboard", maybeboard: "Maybeboard" };
@@ -17,9 +18,6 @@ const ISSUE_LABELS = {
 };
 // The server accepts at most 250 copies on one line.
 const MAX_COUNT = 250;
-// Characters a mana cost can hold. parseManaSymbols puts symbol text into a
-// title attribute, so quotes and markup must not reach it.
-const MANA_UNSAFE = /[^{}A-Za-z0-9/ ½∞]/g;
 const PREVIEW_WIDTH = 244;
 const PREVIEW_HEIGHT = 340;
 const PREVIEW_GAP = 12;
@@ -33,35 +31,11 @@ const finePointer = () => Boolean(window.matchMedia
 const reducedMotion = () => Boolean(window.matchMedia
   && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 
-function h(tag, props, ...children) {
-  const el = document.createElement(tag);
-  Object.entries(props || {}).forEach(([key, value]) => {
-    if (value === undefined || value === null || value === false) return;
-    if (key === "class") el.className = value;
-    else if (key === "text") el.textContent = value;
-    else el.setAttribute(key, value === true ? "" : value);
-  });
-  children.flat().forEach((child) => {
-    if (child !== null && child !== undefined) {
-      el.append(child.nodeType ? child : document.createTextNode(String(child)));
-    }
-  });
-  return el;
-}
-
-function manaNode(cost) {
-  const span = h("span", { class: "deck-row-mana", "aria-hidden": "true" });
-  const parse = window.grimoireMana && window.grimoireMana.parseManaSymbols;
-  if (!cost) return span;
-  const clean = String(cost).replace(MANA_UNSAFE, "");
-  if (typeof parse === "function") span.innerHTML = parse(clean);
-  else span.textContent = clean;
+// Mana symbols of a row; screen readers get the card name instead.
+function rowMana(cost) {
+  const span = manaNode(cost, "deck-row-mana");
+  span.setAttribute("aria-hidden", "true");
   return span;
-}
-
-/** Return a mana cost without the characters that parseManaSymbols must not get. */
-export function safeManaCost(cost) {
-  return String(cost || "").replace(MANA_UNSAFE, "");
 }
 
 function frontTypeWords(card) {
@@ -126,6 +100,16 @@ function rowMenu(section, entry, id, commanderFormat) {
     summary, h("div", { class: "deck-row-menu-list", role: "menu" }, items));
 }
 
+// The flip control of a double-faced card: the hover preview shows the other face.
+function flipButton(card, state, focusId) {
+  if (!card.back_image_url) return null;
+  return h("button", {
+    type: "button", class: "deck-row-btn deck-row-flip", "data-action": "flip",
+    "data-focus": focusId, "aria-pressed": state.flipped.has(entryKey(card)) ? "true" : "false",
+    "aria-label": `Show the other face of ${card.name}`, title: "Flip",
+  }, "⟲");
+}
+
 function rowNode(section, entry, state, previous, commanderFormat) {
   const key = entryKey(entry);
   const id = rowId(section, key);
@@ -142,13 +126,7 @@ function rowNode(section, entry, state, previous, commanderFormat) {
     type: "button", class: "deck-row-name", "data-action": "detail", "data-focus": `${id}|detail`,
   });
   name.textContent = entry.name;
-  const flip = entry.back_image_url
-    ? h("button", {
-      type: "button", class: "deck-row-btn deck-row-flip", "data-action": "flip",
-      "data-focus": `${id}|flip`, "aria-pressed": state.flipped.has(key) ? "true" : "false",
-      "aria-label": `Show the other face of ${entry.name}`, title: "Flip",
-    }, "⟲")
-    : null;
+  const flip = flipButton(entry, state, `${id}|flip`);
   const actions = h("span", { class: "deck-row-actions" },
     h("button", {
       type: "button", class: "deck-row-btn", "data-action": "inc", "data-focus": `${id}|inc`,
@@ -164,7 +142,7 @@ function rowNode(section, entry, state, previous, commanderFormat) {
       "data-focus": `${id}|remove`, "aria-label": `Remove ${entry.name}`, title: "Remove",
     }, "×"),
     rowMenu(section, entry, id, commanderFormat));
-  row.append(count, name, flip || "", manaNode(entry.mana_cost), badges(info), actions);
+  row.append(count, name, flip || "", rowMana(entry.mana_cost), badges(info), actions);
   return row;
 }
 
@@ -221,7 +199,9 @@ function commanderNode(state, previousCommander) {
   }, h("button", {
     type: "button", class: "deck-commander-art", "data-action": "detail", tabindex: "-1",
     "aria-hidden": "true",
-  }, art), h("div", { class: "deck-commander-body" }, name, manaNode(card.mana_cost),
+  }, art), h("div", { class: "deck-commander-body" },
+    h("div", { class: "deck-commander-line" }, name, flipButton(card, state, "commander|flip")),
+    rowMana(card.mana_cost),
     h("button", {
       type: "button", class: "btn btn-secondary btn-compact", "data-action": "uncommander",
       "data-focus": "commander|remove",
@@ -335,11 +315,14 @@ function onClick(root, event) {
       break;
     }
     case "flip": {
+      // A row or the commander card.
+      const anchor = button.closest(ANCHORS);
+      const face = row ? key : anchor.dataset.commander;
       const flipped = ctx.state.flipped;
-      if (flipped.has(key)) flipped.delete(key);
-      else flipped.add(key);
-      button.setAttribute("aria-pressed", flipped.has(key) ? "true" : "false");
-      if (finePointer() && ctx.hover === row) showPreview(ctx, row, event);
+      if (flipped.has(face)) flipped.delete(face);
+      else flipped.add(face);
+      button.setAttribute("aria-pressed", flipped.has(face) ? "true" : "false");
+      if (finePointer() && ctx.hover === anchor) showPreview(ctx, anchor, event);
       break;
     }
     default:
