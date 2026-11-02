@@ -7,6 +7,7 @@
 import * as api from "./api.js";
 import { applyOp, History, SaveQueue, SECTIONS } from "./model.js";
 import { h, safeManaCost } from "../shared/dom.js";
+import { renderAgent } from "./agent.js";
 import { renderExplanation } from "../forge/feed.js";
 import { renderExportMenu } from "./exportmenu.js";
 import { renderHand } from "./hand.js";
@@ -98,6 +99,9 @@ function mount(host) {
     pane: pick("pane"),
     search: pick("search"),
     stats: pick("stats"),
+    side: pick("side"),
+    agent: pick("agent"),
+    sideTabs: host.querySelectorAll('[data-editor="side-tab"]'),
     body: pick("body"),
     tabs: host.querySelectorAll('[data-editor="tab"]'),
     center: pick("center"),
@@ -197,6 +201,8 @@ function createSession(host, deckId, options) {
       setStatus("saving");
       queue.schedule(lastBody);
     },
+    /** Send the pending edits. It rejects when the last save failed. */
+    saveNow: () => saveBeforeExport(),
     render,
   };
 
@@ -373,6 +379,11 @@ function createSession(host, deckId, options) {
     view.center.dataset.view = tab.dataset.view;
     view.viewTabs.forEach((other) => other.setAttribute("aria-selected", String(other === tab)));
   }));
+  // The side switch picks Stats or Agent inside the right panel. The layout tabs are not touched.
+  view.sideTabs.forEach((tab) => tab.addEventListener("click", () => {
+    view.side.dataset.side = tab.dataset.side;
+    view.sideTabs.forEach((other) => other.setAttribute("aria-selected", String(other === tab)));
+  }));
   view.undo.addEventListener("click", () => state.undo());
   view.redo.addEventListener("click", () => state.redo());
   view.back.forEach((button) => button.addEventListener("click", () => {
@@ -426,6 +437,7 @@ function createSession(host, deckId, options) {
       state.analysis = record.analysis || {};
       state.forge = { backbone: record.backbone || null, explanation: record.explanation || "" };
       history.push(state);
+      renderAgent(view.agent, state);
       renderExportMenu(view.exportMenu, deckId, { beforeExport: saveBeforeExport, toast });
       view.name.value = deck.name;
       fillCollections(collections.collections);

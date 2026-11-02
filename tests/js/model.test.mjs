@@ -387,3 +387,19 @@ test("drawHand draws 7 distinct copies with a seeded rng", () => {
   assert.equal(drawHand(main, seeded(1), 1).length, 1);
   assert.deepEqual(drawHand([], seeded(1)), []);
 });
+
+test("replace op is one undo step", () => {
+  const bolt = { scryfall_id: "bolt", name: "Bolt", count: 1 };
+  const hist = new History();
+  let s = { sections: { main: [], sideboard: [], maybeboard: [] }, commander: null };
+  hist.push(s);
+  ["a", "b", "c"].forEach((id) => {
+    s = applyOp(s, { type: "add", section: "main", card: { scryfall_id: id, name: id.toUpperCase(), count: 1 } });
+    hist.push(s);
+  });
+  const before = JSON.stringify(s.sections);
+  s = applyOp(s, { type: "replace", sections: { main: [bolt], sideboard: [], maybeboard: [] } });
+  hist.push(s);
+  assert.equal(s.sections.main.length, 1);
+  assert.equal(JSON.stringify(hist.undo().sections), before);
+});

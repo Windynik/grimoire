@@ -1352,6 +1352,164 @@
     }
 }
 
+/* Side panel switch and agent chat */
+#decks-view .side-switch {
+    display: flex;
+    gap: 0.4rem;
+    margin-bottom: 0.8rem;
+}
+
+#decks-view .side-tab {
+    flex: 1 1 0;
+    padding: 0.3rem 0.5rem;
+    font: inherit;
+    font-size: 0.82rem;
+    color: var(--text-dim);
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+
+#decks-view .side-tab[aria-selected="true"] {
+    color: var(--decks-violet);
+    border-color: var(--decks-violet);
+}
+
+#decks-view .side-tab:focus-visible {
+    outline: 2px solid var(--decks-violet);
+    outline-offset: 2px;
+}
+
+#decks-view [data-editor="side"][data-side="stats"] .agent-panel,
+#decks-view [data-editor="side"][data-side="agent"] [data-side-panel="stats"] {
+    display: none;
+}
+
+#decks-view .agent-log {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-height: 26rem;
+    min-height: 6rem;
+    overflow-y: auto;
+    font-size: 0.88rem;
+}
+
+#decks-view .agent-msg {
+    padding: 0.45rem 0.6rem;
+    border-radius: var(--radius-sm);
+    overflow-wrap: anywhere;
+}
+
+#decks-view .agent-user {
+    align-self: flex-end;
+    max-width: 90%;
+    background: rgba(155, 140, 255, 0.18);
+}
+
+#decks-view .agent-reply {
+    background: var(--surface);
+    border: 1px solid var(--border);
+}
+
+#decks-view .agent-status {
+    color: var(--decks-gold);
+}
+
+#decks-view .agent-error {
+    color: #ff9a9a;
+    border: 1px solid rgba(255, 154, 154, 0.4);
+}
+
+#decks-view .agent-thinking {
+    color: var(--text-dim);
+    animation: agent-pulse 1.2s ease-in-out infinite;
+}
+
+#decks-view .agent-notice {
+    margin: 0 0 0.6rem;
+    color: var(--text-dim);
+    font-size: 0.85rem;
+}
+
+#decks-view .agent-form {
+    display: flex;
+    gap: 0.4rem;
+    margin-top: 0.6rem;
+}
+
+#decks-view .agent-input {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+#decks-view .agent-changes {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+#decks-view .agent-swap,
+#decks-view .agent-cut {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3rem 0.5rem;
+}
+
+#decks-view .agent-card {
+    padding: 0.15rem 0.45rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    backface-visibility: hidden;
+}
+
+#decks-view .agent-card-out,
+#decks-view .agent-card-cut {
+    opacity: 0.55;
+    text-decoration: line-through;
+    animation: agent-flip-out 450ms ease-in both;
+}
+
+#decks-view .agent-card-in {
+    color: var(--decks-gold);
+    border-color: var(--decks-gold);
+    animation: agent-flip-in 450ms ease-out both;
+}
+
+#decks-view .agent-card-cut {
+    animation-name: agent-fade-out;
+}
+
+#decks-view .agent-why {
+    flex: 1 1 100%;
+    color: var(--text-dim);
+    font-size: 0.8rem;
+}
+
+@keyframes agent-pulse {
+    50% { opacity: 0.4; }
+}
+
+@keyframes agent-flip-out {
+    from { transform: perspective(500px) rotateY(0deg); opacity: 1; }
+    to { transform: perspective(500px) rotateY(90deg); opacity: 0.55; }
+}
+
+@keyframes agent-flip-in {
+    from { transform: perspective(500px) rotateY(-90deg); opacity: 0; }
+    to { transform: perspective(500px) rotateY(0deg); opacity: 1; }
+}
+
+@keyframes agent-fade-out {
+    from { opacity: 1; }
+    to { opacity: 0.55; }
+}
+
 @media (hover: none) {
     #decks-view .deck-row-actions {
         opacity: 1;
@@ -1429,6 +1587,11 @@
 
     #decks-view .hand-card {
         transition: none;
+    }
+
+    #decks-view .agent-thinking,
+    #decks-view .agent-card {
+        animation: none;
     }
 
     #decks-view .deck-row-actions,

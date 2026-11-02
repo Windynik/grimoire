@@ -384,7 +384,14 @@
                                     <div class="deck-view" data-view-panel="hand" data-editor="hand" role="tabpanel"></div>
                                     <div class="deck-view deck-explain" data-view-panel="explanation" data-editor="explanation" role="tabpanel"></div>
                                 </section>
-                                <aside class="editor-stats" data-panel="stats" data-editor="stats" aria-label="Deck stats"></aside>
+                                <aside class="editor-stats" data-panel="stats" data-editor="side" data-side="stats" aria-label="Deck stats and agent">
+                                    <div class="side-switch" role="tablist" aria-label="Stats and agent">
+                                        <button type="button" role="tab" class="side-tab" data-editor="side-tab" data-side="stats" aria-selected="true">Stats</button>
+                                        <button type="button" role="tab" class="side-tab" data-editor="side-tab" data-side="agent" aria-selected="false">Agent</button>
+                                    </div>
+                                    <div class="side-panel" data-side-panel="stats" data-editor="stats" role="tabpanel"></div>
+                                    <div class="side-panel agent-panel" data-side-panel="agent" data-editor="agent" role="tabpanel"></div>
+                                </aside>
                             </div>
                         </div>
                     </template>
