@@ -501,8 +501,9 @@ class ForgeSession:
         self._emit("answered", question_id=question_id, option=option, by=by)
         label = question["options"][option]["label"]
         if by == "timeout":
-            self._thought("No answer came in %g seconds, so I took the recommended option: %s."
-                          % (timeout, label))
+            unit = "second" if timeout == 1 else "seconds"
+            self._thought("No answer came in %g %s, so I took the recommended option: %s."
+                          % (timeout, unit, label))
         else:
             self._thought("You chose: %s." % label)
         return option
