@@ -134,7 +134,7 @@ def _deck(rules, playbook=None):
     entries.append(DeckEntry(card=None, name="Forest", count=10, role="land",
                              reason="", basic=True))
     return BuiltDeck(fmt=fmt, plan=plan, entries=entries, land_target=10,
-                     borderline_in=[cards[0].name], bench=[cards[5].name]), cards
+                     borderline_in=[cards[0].id], bench=[cards[5].id]), cards
 
 
 def test_other_prompts(rules):
@@ -147,9 +147,9 @@ def test_other_prompts(rules):
     for heading in ("## Game plan", "## How to pilot", "## Key interactions", "## Weaknesses"):
         assert heading in expl
     assert "my thesis" in expl and "combo" in expl
-    reasons = reasons_prompt(deck, ["Card 01"])
-    assert "Card 00" in reasons and "Card 02" in reasons
-    assert "Card 01 {" not in reasons
+    reasons = reasons_prompt(deck, ["card 01", "Card 02"])
+    assert "Card 01 {" in reasons and "Card 02 {" in reasons
+    assert "Card 00 {" not in reasons and "Card 03 {" not in reasons
 
 
 @pytest.mark.asyncio
@@ -181,8 +181,9 @@ async def test_forge_model_methods(rules):
     assert data["ranking"] == ["bb1"] and seen[-1]["think"] == "medium"
     swaps, _ = await model.review_borderline(deck, graph)
     assert swaps[0]["in"] == "Card 05" and seen[-1]["think"] == "low"
-    reasons, _ = await model.card_reasons(deck, [])
+    reasons, _ = await model.card_reasons(deck, ["Card 02"])
     assert reasons == {"Card 02": "good"}
+    assert "Card 02 {" in seen[-1]["messages"][-1]["content"]
     text = "".join([c async for c in model.stream_explanation(deck, "t", [], None)])
     assert text == "ok"
 

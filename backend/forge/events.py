@@ -79,7 +79,8 @@ def graph_payload(backbones: List[Backbone], shown: List[OwnedCard], graph: Syne
         playbook: Playbook with the hook labels.
 
     Returns:
-        {"clusters": [...], "edges": [{src, dst, hook}]}, where hook is the label.
+        {"clusters": [...], "edges": [{src, dst, hook, label}]}: hook is the
+        hook key ("death") and label its display text ("Aristocrats").
     """
     shown_ids = [c.id for c in shown]
     shown_set = set(shown_ids)
@@ -94,8 +95,8 @@ def graph_payload(backbones: List[Backbone], shown: List[OwnedCard], graph: Syne
         key = (edge.src, edge.dst, edge.hook)
         if key not in seen:
             seen.add(key)
-            edges.append({"src": edge.src, "dst": edge.dst,
-                          "hook": hook_label(edge.hook, playbook)})
+            edges.append({"src": edge.src, "dst": edge.dst, "hook": edge.hook,
+                          "label": hook_label(edge.hook, playbook)})
     return {"clusters": clusters, "edges": edges}
 
 
@@ -118,10 +119,15 @@ def hook_counts_text(cards: List[OwnedCard], playbook: Playbook) -> str:
 
 
 def template_thesis(bone: Backbone, commander: Optional[OwnedCard], playbook: Playbook) -> str:
-    """Return the engine's thesis: "Built around {name}: {hook labels}." """
-    name = commander.name if commander is not None else bone.name
-    labels = ", ".join(hook_label(h, playbook) for h in bone.hooks)
-    return "Built around %s: %s." % (name, labels)
+    """Return the engine's thesis.
+
+    "Built around {commander}: {hook labels}." with a commander, else
+    "Built around {hook labels}." (the backbone name is the labels already).
+    """
+    labels = " and ".join(hook_label(h, playbook) for h in bone.hooks)
+    if commander is not None:
+        return "Built around %s: %s." % (commander.name, labels)
+    return "Built around %s." % labels
 
 
 def engine_playstyle(bone: Backbone, graph: SynergyGraph) -> str:

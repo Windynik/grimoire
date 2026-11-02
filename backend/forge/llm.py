@@ -240,10 +240,6 @@ def backbone_prompt(fmt: FormatRules, wish: str, candidates: List[Backbone],
     return _fit(render, [members for _, members in blocks], max_chars)
 
 
-def _by_name(graph: SynergyGraph) -> Dict[str, OwnedCard]:
-    return {card.name.lower(): card for card in graph.cards.values()}
-
-
 def _deck_lines(deck: BuiltDeck) -> List[str]:
     return ["%dx %s" % (e.count, compact_text(e.card)) for e in deck.nonland_entries()]
 
@@ -253,19 +249,19 @@ def borderline_prompt(deck: BuiltDeck, graph: SynergyGraph,
     """Build the prompt that asks the model to review borderline cards.
 
     Args:
-        deck: Built deck. Its borderline_in cards are in the deck, its bench cards are not.
+        deck: Built deck. Its borderline_in cards (ids) are in the deck, its bench
+            cards (ids) are not.
         graph: Synergy graph of the owned pool.
         max_chars: Length limit. Card lists shrink, longest first, to fit.
 
     Returns:
         The prompt text.
     """
-    lookup = _by_name(graph)
     head = "Deck plan: %s (%s). %s" % (deck.plan.backbone.name, deck.plan.playstyle,
                                        _format_summary(deck.fmt))
     in_deck = _deck_lines(deck)
-    border = [compact_text(lookup[n.lower()]) for n in deck.borderline_in if n.lower() in lookup]
-    bench = [compact_text(lookup[n.lower()]) for n in deck.bench if n.lower() in lookup]
+    border = [compact_text(graph.cards[i]) for i in deck.borderline_in if i in graph.cards]
+    bench = [compact_text(graph.cards[i]) for i in deck.bench if i in graph.cards]
 
     def render() -> str:
         lines = [head, "", "Nonland cards in the deck:"]
@@ -318,11 +314,12 @@ def explanation_prompt(deck: BuiltDeck, thesis: str, interactions: List[dict],
 
 def reasons_prompt(deck: BuiltDeck, core_names: List[str],
                    max_chars: int = DEFAULT_MAX_CHARS) -> str:
-    """Build the prompt that asks for a one-line reason per non-core card.
+    """Build the prompt that asks for a one-line reason per core card.
 
     Args:
         deck: Built deck.
-        core_names: Names of the core cards, which need no reason.
+        core_names: Names of the core cards (any case). Only the nonland deck
+            entries with these names go into the prompt.
         max_chars: Length limit. The card list shrinks to fit.
 
     Returns:
@@ -330,7 +327,7 @@ def reasons_prompt(deck: BuiltDeck, core_names: List[str],
     """
     core = {name.lower() for name in core_names}
     head = "Deck: %s (%s)." % (deck.plan.backbone.name, deck.plan.playstyle)
-    cards = [compact_text(e.card) for e in deck.nonland_entries() if e.name.lower() not in core]
+    cards = [compact_text(e.card) for e in deck.nonland_entries() if e.name.lower() in core]
 
     def render() -> str:
         lines = [head, "", "Cards that need a reason:"]
@@ -406,7 +403,11 @@ class ForgeModel:
 
     async def card_reasons(self, deck: BuiltDeck,
                            core_names: List[str]) -> Tuple[Dict[str, str], CallStats]:
-        """Ask for a reason per non-core card.
+        """Ask for a reason per core card.
+
+        Args:
+            deck: Built deck.
+            core_names: Names of the core cards that need a reason.
 
         Returns:
             ({card name: reason}, stats).
@@ -414,8 +415,10 @@ class ForgeModel:
         data, stats = await self.client.chat_structured(
             reasons_prompt(deck, core_names), REASONS_SCHEMA, system=SYSTEM_PROMPT,
             model=self.model, think="low")
+        if not isinstance(data.get("reasons"), list):
+            raise ModelError("The reply has no reasons list")
         reasons = {}  # type: Dict[str, str]
-        for item in data.get("reasons", []):
+        for item in data["reasons"]:
             if isinstance(item, dict) and item.get("name") and item.get("reason"):
                 reasons[str(item["name"])] = str(item["reason"])
         return reasons, stats

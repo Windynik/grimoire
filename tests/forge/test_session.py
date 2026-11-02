@@ -62,8 +62,10 @@ class FakeClient:
         if schema is BACKBONE_SCHEMA:
             return self.backbone, STATS
         if schema is SWAP_SCHEMA:
-            return {"swaps": self.swaps}, STATS
+            swaps = self.swaps(prompt) if callable(self.swaps) else self.swaps
+            return {"swaps": swaps}, STATS
         if schema is REASONS_SCHEMA:
+            self.reasons_prompt = prompt
             return {"reasons": self.reasons}, STATS
         raise AssertionError("unknown schema")
 
@@ -173,7 +175,8 @@ async def test_study_and_backbone_events(tmp_path):
     assert all(set(c["members"]) <= shown for c in graph["clusters"])
     assert graph["edges"] and all(e["src"] in shown and e["dst"] in shown
                                   for e in graph["edges"])
-    assert "Aristocrats" in {e["hook"] for e in graph["edges"]}  # hook labels
+    assert all(set(e) == {"src", "dst", "hook", "label"} for e in graph["edges"])
+    assert ("death", "Aristocrats") in {(e["hook"], e["label"]) for e in graph["edges"]}
     assert events.index(second) < events.index(graph)
     placed = of_type(events, "placed")
     assert all(len(p["card_ids"]) <= 6 for p in placed)
@@ -326,7 +329,7 @@ async def test_model_question_with_prefer_fork(tmp_path):
         "close_call": True,
         "question": {"text": "Lean on which cards?", "options": [
             {"label": "Outlets", "description": "More outlets.",
-             "prefer_cards": ["Sac Outlet 3", "Invented Card"]},
+             "prefer_cards": ["Sac Outlet 3", "Invented Card", "Life Giver 1", 7]},
             {"label": "Payoffs", "description": "More payoffs.",
              "prefer_cards": ["Death Payoff 3"]}]},
     }
@@ -334,6 +337,8 @@ async def test_model_question_with_prefer_fork(tmp_path):
     events = await collect(session)
     questions = of_type(events, "question")
     assert len(questions) == 2  # the template backbone question, then the model fork
+    # The model ranks the black plan first, so the timeout keeps it; the white
+    # Life Giver 1 is outside its colors and is dropped from the fork.
     assert [o["card_ids"] for o in questions[1]["options"]] == [
         [card_id("Sac Outlet 3")], [card_id("Death Payoff 3")]]
     assert [a["by"] for a in of_type(events, "answered")] == ["timeout", "timeout"]
@@ -425,3 +430,199 @@ async def test_run_directly_catches_errors(tmp_path):
                            None, None)  # no deck store: saving fails
     await session.run()
     assert session.events[-1]["type"] == "error" and session.state == "error"
+
+
+ENGINE_RUNS = ["stage", "status", "thought", "cards", "thought", "stage", "status", "cards",
+               "graph", "stage", "thought", "stage", "status", "placed", "stage", "status",
+               "review", "stage", "explanation", "stage", "done"]
+
+
+@pytest.mark.asyncio
+async def test_engine_only_event_sequence(tmp_path):
+    session, _ = await start(tmp_path, ask_mode="never")
+    events = await collect(session)
+    runs = []
+    for event in events:
+        if not runs or runs[-1] != event["type"]:
+            runs.append(event["type"])
+    assert runs == ENGINE_RUNS
+    assert [(s["index"], s["progress"]) for s in of_type(events, "stage")] == [
+        (0, 0.0), (0, 1.0), (1, 0.0), (1, 0.5), (1, 1.0), (3, 0.0), (3, 0.5), (3, 1.0),
+        (4, 0.0), (4, 0.3), (4, 0.8), (4, 1.0)]
+    assert [e["type"] for e in events].count("explanation") == 4
+    assert events[2] == {"type": "status", "text": events[2]["text"]}
+    assert of_type(events, "thought")[0]["text"].startswith("The local model is off")
+
+
+@pytest.mark.asyncio
+async def test_cancel_during_countdown_question(tmp_path):
+    session, store = await start(tmp_path, question_timeout=30.0)
+    events = await collect(session, lambda event: session.cancel())
+    assert [e["type"] for e in events[-2:]] == ["question", "cancelled"]
+    assert not of_type(events, "answered")
+    assert session.state == "cancelled" and store.list() == []
+
+
+@pytest.mark.asyncio
+async def test_eta_is_null_while_waiting(tmp_path):
+    session, _ = await start(tmp_path, ask_mode="wait")
+    events = await collect(session, lambda e: session.answer(e["question_id"], 0))
+    stages = of_type(events, "stage")
+    waiting = [s for s in stages if s["index"] == 2 and s["progress"] < 1]
+    assert waiting and all(s["eta_seconds"] is None for s in waiting)
+    others = [s for s in stages if s not in waiting][:-1]
+    assert all(isinstance(s["eta_seconds"], int) for s in others)
+    assert stages[-1]["eta_seconds"] is None
+
+
+def filler_pool():
+    """The clear black plan plus vanilla black creatures that sit on the bench."""
+    collection, index = two_plan_pool(extra_death=4)
+    extra = [creature(f"Filler {i}", 80 + i, "", "B") for i in range(10)]
+    collection += make_pool(extra, [4] * len(extra))[0]
+    index.update({r["id"]: r for r in extra})
+    return collection, index
+
+
+def section(prompt, title):
+    """Card names listed under a borderline-prompt heading."""
+    lines = prompt.split(title, 1)[1].split("\n\n", 1)[0].splitlines()
+    return [line[2:].split(" {")[0] for line in lines if line.startswith("- ")]
+
+
+def outlets_only(monkeypatch):
+    """Make the only backbone the five Sac Outlets, so other cards are not core."""
+    from backend.forge import session as session_module
+    from backend.forge.graph import Backbone
+
+    def fake_find(cards, graph, fmt, playbook, **kw):
+        ids = [c.id for c in cards if c.name.startswith("Sac Outlet")]
+        return [Backbone(DEATH_ID, ("death",), "Aristocrats", ids, frozenset("B"), None, 1.0)]
+
+    monkeypatch.setattr(session_module, "find_backbones", fake_find)
+
+
+@pytest.mark.asyncio
+async def test_valid_swap_sends_its_thought(tmp_path, monkeypatch):
+    outlets_only(monkeypatch)
+    picked = {}
+
+    def swaps(prompt):
+        out = [n for n in section(prompt, "swap out candidates):")
+               if not n.startswith("Sac Outlet")]
+        bench = section(prompt, "swap in candidates):")
+        picked.update(out=out[0], into=bench[0])
+        return [{"out": out[0], "in": bench[0], "why": "better curve"}]
+
+    client = FakeClient(backbone={"ranking": [DEATH_ID], "plans": [], "close_call": False},
+                        swaps=swaps)
+    session, store = await start(tmp_path, pool=filler_pool(), client=client)
+    events = await collect(session)
+    swapped = [t for t in of_type(events, "thought") if t["text"].startswith("Swapped")]
+    assert [t["text"] for t in swapped] == [
+        "Swapped %s for %s: better curve" % (picked["out"], picked["into"])]
+    assert swapped[0]["cards"] == [card_id(picked["out"]), card_id(picked["into"])]
+    names = {line["name"] for line in saved(store, events)["sections"]["main"]}
+    assert picked["into"] in names and picked["out"] not in names
+
+
+@pytest.mark.asyncio
+async def test_reasons_prompt_lists_the_core(tmp_path, monkeypatch):
+    outlets_only(monkeypatch)
+    client = FakeClient(backbone={"ranking": [DEATH_ID], "plans": [], "close_call": False})
+    session, _ = await start(tmp_path, pool=filler_pool(), client=client)
+    await collect(session)
+    assert "Sac Outlet 0 {" in client.reasons_prompt
+    assert "Death Payoff" not in client.reasons_prompt and "Filler" not in client.reasons_prompt
+
+
+@pytest.mark.asyncio
+async def test_bad_shaped_model_replies_fall_back(tmp_path):
+    backbone = {"ranking": "death:B", "plans": 5, "close_call": "yes"}
+    client = FakeClient(backbone=backbone, reasons=5)
+    session, store = await start(tmp_path, client=client, ask_mode="never")
+    events = await collect(session)
+    assert events[-1]["type"] == "done"
+    failures = [t for t in of_type(events, "thought") if t["text"] == MODEL_FAILED]
+    assert len(failures) == 2  # the judge reply and the reasons reply
+    assert saved(store, events)["backbone"]["thesis"] == "Built around Blink and Lifegain."
+
+
+@pytest.mark.asyncio
+async def test_bad_typed_model_fields_are_ignored(tmp_path):
+    backbone = {
+        "ranking": [["death:B"], {"id": 1}, 3, LIFE_ID],
+        "plans": [{"candidate_id": [DEATH_ID]}, 7,
+                  {"candidate_id": LIFE_ID, "deck_name": ["x"], "thesis": 5, "playstyle": ["aggro"],
+                   "key_interactions": 3, "extra_edges": {"from": "a"}},
+                  {"candidate_id": DEATH_ID, "key_interactions": [{"cards": "Sac Outlet 0"}],
+                   "extra_edges": [{"from": ["Sac Outlet 0"], "to": {"x": 1}}]}],
+        "close_call": True,
+        "question": {"text": "Which?", "options": [
+            {"label": "A", "description": 3, "candidate_id": {"id": DEATH_ID},
+             "prefer_cards": 5},
+            {"label": "B", "description": "b", "candidate_id": [LIFE_ID],
+             "prefer_cards": [["Sac Outlet 1"], None]}]},
+    }
+    client = FakeClient(backbone=backbone,
+                        reasons=[{"name": ["Sac Outlet 0"], "reason": "x"}, "junk"])
+    session, store = await start(tmp_path, client=client)
+    events = await collect(session)
+    assert events[-1]["type"] == "done"
+    assert not [t for t in of_type(events, "thought") if t["text"] == MODEL_FAILED]
+    assert not [e for e in session.graph.edges if e.source == "model"]
+    record = saved(store, events)
+    assert record["backbone"]["thesis"] == "Built around Blink and Lifegain."
+    assert record["name"] == "Blink & Lifegain"
+
+
+@pytest.mark.asyncio
+async def test_model_question_puts_the_recommended_option_first(tmp_path):
+    backbone = {
+        "ranking": [DEATH_ID, LIFE_ID], "plans": [], "close_call": True,
+        "question": {"text": "Which plan?", "options": [
+            {"label": "Life", "description": "Gain life.", "candidate_id": LIFE_ID},
+            {"label": "Death", "description": "Sacrifice.", "candidate_id": DEATH_ID}]},
+    }
+    session, store = await start(tmp_path, client=FakeClient(backbone=backbone))
+    events = await collect(session)
+    question = of_type(events, "question")[0]
+    assert [o["label"] for o in question["options"]] == ["Death", "Life"]
+    assert len(of_type(events, "question")) == 1
+    assert saved(store, events)["backbone"]["name"] == "Aristocrats"
+
+
+@pytest.mark.asyncio
+async def test_closeness_uses_engine_scores(tmp_path, monkeypatch):
+    from backend.forge import session as session_module
+    from backend.forge.graph import Backbone
+
+    def fake_find(cards, graph, fmt, playbook, **kw):
+        ids = lambda prefix: [c.id for c in cards if c.name.startswith(prefix)]
+        black = ids("Sac Outlet") + ids("Death Payoff")
+        return [Backbone("death:B", ("death",), "Aristocrats", black, frozenset("B"), None, 10.0),
+                Backbone("life-a:W", ("lifegain",), "Lifegain", ids("Life"), frozenset("W"),
+                         None, 5.0),
+                Backbone("life-b:W", ("lifegain",), "Lifegain", ids("Life Payoff"),
+                         frozenset("W"), None, 4.9)]
+
+    monkeypatch.setattr(session_module, "find_backbones", fake_find)
+    backbone = {"ranking": ["life-a:W", "life-b:W"], "plans": [], "close_call": False}
+    session, _ = await start(tmp_path, client=FakeClient(backbone=backbone))
+    events = await collect(session)
+    assert events[-1]["type"] == "done"
+    assert not of_type(events, "question")  # the model's top two are close; the engine's are not
+
+
+def test_template_thesis_does_not_repeat_itself(playbook):
+    from backend.forge.events import template_thesis
+    from backend.forge.graph import Backbone
+    from tests.forge.conftest import hydrate_one
+
+    bone = Backbone("x", ("enchantments", "voltron"), "Enchantress & Voltron", [],
+                    frozenset("W"), None, 1.0)
+    assert template_thesis(bone, None, playbook) == "Built around Enchantress and Voltron."
+    leader = hydrate_one(make_record("Siona", type_line="Legendary Creature — Human"),
+                         playbook.formats["commander"])
+    assert (template_thesis(bone, leader, playbook)
+            == "Built around Siona: Enchantress and Voltron.")

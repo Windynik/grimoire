@@ -78,6 +78,16 @@ def _text(value, limit: int = TEXT_LIMIT) -> str:
     return value.strip()[:limit] if isinstance(value, str) else ""
 
 
+def _list(value) -> list:
+    """Return value when it is a list, else []. Model replies can have any shape."""
+    return value if isinstance(value, list) else []
+
+
+def _key(value) -> Optional[str]:
+    """Return value when it is a string (a usable id or name), else None."""
+    return value if isinstance(value, str) else None
+
+
 def wish_names(wish: str, cards: List[OwnedCard]) -> Set[str]:
     """Return the names of owned cards that the wish names as whole words (any case)."""
     text = (wish or "").lower()
@@ -106,8 +116,8 @@ def rank_by(backbones: List[Backbone], ranking) -> List[Backbone]:
     """Order backbones by the model ranking. Unknown ids are ignored; the rest keep engine order."""
     by_id = {bone.id: bone for bone in backbones}
     order = []  # type: List[Backbone]
-    for bone_id in ranking if isinstance(ranking, list) else []:
-        bone = by_id.get(bone_id) if isinstance(bone_id, str) else None
+    for bone_id in _list(ranking):
+        bone = by_id.get(_key(bone_id))
         if bone is not None and bone not in order:
             order.append(bone)
     return order + [bone for bone in backbones if bone not in order]
@@ -339,7 +349,8 @@ class ForgeSession:
                   or template_thesis(b, self._commander(b), self.playbook) for b in ranked}
         self._stage(1, 1.0)
 
-        bone, prefer = await self._ask(ranked, theses, close_call, model_question)
+        close = close_call or is_close(backbones)  # engine scores, engine order
+        bone, prefer = await self._ask(ranked, theses, close, model_question)
         plan_info = plans.get(bone.id, {})
         thesis = theses[bone.id]
         playstyle = plan_info.get("playstyle") or engine_playstyle(bone, graph)
@@ -381,16 +392,20 @@ class ForgeSession:
                      "medium")
         reply = await self._model_call("backbones", self.model.judge_backbones(
             fmt, self.params.wish, backbones, self.graph))
-        if not isinstance(reply, dict):
+        if reply is None:
+            return backbones, {}, False, None
+        if (not isinstance(reply, dict) or not isinstance(reply.get("ranking"), list)
+                or not isinstance(reply.get("plans"), list)):
+            self._thought(MODEL_FAILED)
             return backbones, {}, False, None
         by_id = {bone.id: bone for bone in backbones}
         plans = {}  # type: Dict[str, dict]
-        for item in reply.get("plans") if isinstance(reply.get("plans"), list) else []:
-            bone = by_id.get(item.get("candidate_id")) if isinstance(item, dict) else None
+        for item in reply["plans"]:
+            bone = by_id.get(_key(item.get("candidate_id"))) if isinstance(item, dict) else None
             if bone is not None and bone.id not in plans:
                 plans[bone.id] = self._plan(item, bone)
-        question = self._model_question(reply.get("question"), by_id)
-        ranked = rank_by(backbones, reply.get("ranking"))
+        ranked = rank_by(backbones, reply["ranking"])
+        question = self._model_question(reply.get("question"), by_id, ranked[0])
         return ranked, plans, reply.get("close_call") is True, question
 
     def _in_colors(self, name, bone: Backbone) -> Optional[OwnedCard]:
@@ -399,16 +414,16 @@ class ForgeSession:
 
     def _plan(self, item: dict, bone: Backbone) -> dict:
         """Keep the parts of a model plan that pass the engine's checks."""
-        playstyle = item.get("playstyle")
+        playstyle = _key(item.get("playstyle"))
         interactions = []
-        for found in item.get("key_interactions") or []:
-            if not isinstance(found, dict) or not isinstance(found.get("cards"), list):
+        for found in _list(item.get("key_interactions")):
+            if not isinstance(found, dict):
                 continue
-            named = [self._in_colors(n, bone) for n in found["cards"]]
+            named = [self._in_colors(n, bone) for n in _list(found.get("cards"))]
             names = list(dict.fromkeys(c.name for c in named if c is not None))
             if len(names) >= 2:
                 interactions.append({"cards": names, "why": _text(found.get("why"), WHY_LIMIT)})
-        for extra in item.get("extra_edges") or []:
+        for extra in _list(item.get("extra_edges")):
             if not isinstance(extra, dict):
                 continue
             src = self._in_colors(extra.get("from"), bone)
@@ -425,37 +440,56 @@ class ForgeSession:
                 "playstyle": playstyle if playstyle in PLAYSTYLES else "",
                 "key_interactions": interactions}
 
-    def _model_question(self, raw, by_id: Dict[str, Backbone]) -> Optional[dict]:
-        """Validate the model's question. A fork has only prefer_cards options."""
+    def _model_question(self, raw, by_id: Dict[str, Backbone],
+                        best: Backbone) -> Optional[dict]:
+        """Validate the model's question.
+
+        Options keep their raw prefer_cards names; _resolve checks them once the
+        backbone is known. The option that picks `best` goes first, so the
+        default (option 0) is the recommended one. A fork has only
+        prefer_cards options.
+        """
         if not isinstance(raw, dict) or not _text(raw.get("text")):
             return None
         options = []
-        for item in raw.get("options") if isinstance(raw.get("options"), list) else []:
+        for item in _list(raw.get("options")):
             if not isinstance(item, dict) or not _text(item.get("label"), NAME_LIMIT):
                 continue
-            bone = by_id.get(item.get("candidate_id"))
-            prefer = [self._owned(n) for n in item.get("prefer_cards") or []]
-            prefer = list({c.id: c for c in prefer if c is not None}.values())
             options.append({
                 "label": _text(item.get("label"), NAME_LIMIT),
                 "description": _text(item.get("description")),
-                "card_ids": ((list(bone.members[:OPTION_CARDS]) if bone else [])
-                             + [c.id for c in prefer]),
-                "backbone": bone,
-                "prefer": [c.name for c in prefer],
+                "backbone": by_id.get(_key(item.get("candidate_id"))),
+                "prefer_names": [n for n in _list(item.get("prefer_cards")) if _key(n)],
             })
         if len(options) < 2:
             return None
         options = options[:3]
+        options.sort(key=lambda o: o["backbone"] is not best)  # stable: best first
         fork = (all(o["backbone"] is None for o in options)
-                and any(o["prefer"] for o in options))
+                and any(o["prefer_names"] for o in options))
         return {"text": _text(raw["text"]), "options": options, "fork": fork}
 
-    async def _ask(self, ranked: List[Backbone], theses: Dict[str, str], close_call: bool,
+    def _resolve(self, question: dict, chosen: Backbone) -> dict:
+        """Resolve the prefer_cards of a model question and set each option's card_ids.
+
+        A name counts only when it is an owned, legal card inside the colors of
+        the option's backbone, or of `chosen` when the option picks none.
+        """
+        options = []
+        for option in question["options"]:
+            bone = option["backbone"] or chosen
+            cards = [self._in_colors(n, bone) for n in option["prefer_names"]]
+            prefer = list({c.id: c for c in cards if c is not None}.values())
+            members = list(option["backbone"].members[:OPTION_CARDS]) if option["backbone"] else []
+            options.append(dict(option, prefer=[c.name for c in prefer],
+                                card_ids=members + [c.id for c in prefer]))
+        return dict(question, options=options)
+
+    async def _ask(self, ranked: List[Backbone], theses: Dict[str, str], close: bool,
                    model_question: Optional[dict]) -> Tuple[Backbone, Set[str]]:
         """Stage 3: ask when the plans are close. Returns (backbone, preferred names)."""
         chosen, prefer = ranked[0], set()  # type: Backbone, Set[str]
-        if self.params.ask_mode == "never" or not (close_call or is_close(ranked)):
+        if self.params.ask_mode == "never" or not close:
             return chosen, prefer
         fork = model_question is not None and model_question["fork"]
         questions = []
@@ -469,6 +503,10 @@ class ForgeSession:
             return chosen, prefer
         self.eta.set_waiting(True)
         for k, question in enumerate(questions[:MAX_QUESTIONS]):
+            if question is model_question:
+                question = self._resolve(question, chosen)
+                if fork and not any(o["prefer"] for o in question["options"]):
+                    continue  # no preferred card is in the chosen colors
             self._stage(2, k / len(questions))
             picked = question["options"][await self._wait_for_answer(question)]
             chosen = picked["backbone"] or chosen
@@ -565,14 +603,15 @@ class ForgeSession:
         core = [e.name for e in deck.nonland_entries() if e.card.id in members]
         if self.model is None or not core:
             return {}
-        # card_reasons asks about every card that is not in its second argument.
-        others = [e.name for e in deck.nonland_entries() if e.card.id not in members]
-        self._expect("reasons", reasons_prompt(deck, others), "low")
-        reply = await self._model_call("reasons", self.model.card_reasons(deck, others))
+        self._expect("reasons", reasons_prompt(deck, core), "low")
+        reply = await self._model_call("reasons", self.model.card_reasons(deck, core))
+        if reply is not None and not isinstance(reply, dict):
+            self._thought(MODEL_FAILED)
+            reply = None
         canonical = {name.lower(): name for name in core}
         reasons = {}  # type: Dict[str, str]
         for name, reason in (reply or {}).items():
-            key = name.strip().lower()
+            key = name.strip().lower() if isinstance(name, str) else ""
             if key in canonical and _text(reason):
                 reasons[canonical[key]] = _text(reason)
         return reasons

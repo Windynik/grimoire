@@ -87,3 +87,62 @@ def test_curve_counts_copies(playbook):
     deck, _, _ = _hand_deck(playbook, 14, 10)
     # Bear A x2 (cmc 1) -> "1": 2; Zap (cmc 2) -> "2": 1; Bear B (cmc 3) -> "3": 1
     assert curve(deck) == {"1": 2, "2": 1, "3": 1, "4": 0, "5": 0, "6+": 0}
+
+
+FETCH = ("{T}, Sacrifice this land: Search your library for a basic land card, put it onto "
+         "the battlefield tapped, then shuffle.")
+
+
+def _mana_deck(playbook, bears, lands, fetches=0):
+    """A GW Modern deck of one-pip 2-drops.
+
+    bears maps color to copies; lands maps basic name to count.
+    """
+    from backend.forge.builder import BuildPlan, BuiltDeck, DeckEntry
+
+    recs = [creature("Green Bear", 1, colors=("G",)), creature("White Bear", 2, colors=("W",)),
+            land("Wide Wilds", (), colors=(), text=FETCH)]
+    cards = {c.name: c for c in tagged(playbook, "modern", recs, [4] * len(recs))}
+    entries = []
+    for color, n in bears.items():
+        name = {"G": "Green Bear", "W": "White Bear"}[color]
+        entries.append(DeckEntry(cards[name], name, n, "synergy", ""))
+    if fetches:
+        entries.append(DeckEntry(cards["Wide Wilds"], "Wide Wilds", fetches, "land", ""))
+    for name, n in lands.items():
+        entries.append(DeckEntry(None, name, n, "basic", "", basic=True))
+    plan = BuildPlan(backbone=backbone(list(cards.values()), set(), "GW"), playstyle="midrange")
+    deck = BuiltDeck(fmt=playbook.formats["modern"], plan=plan, entries=entries, land_target=24)
+    return deck, build_graph(list(cards.values()), playbook)
+
+
+def test_mana_counts_fetch_lands_as_sources(playbook):
+    # G 3 pips (primary, 14), W 1 pip (secondary, 10): 9 Plains alone fall short.
+    deck, graph = _mana_deck(playbook, {"G": 3, "W": 1}, {"Forest": 14, "Plains": 9})
+    assert deck_metrics(deck, graph, playbook)["mana_consistency"] == pytest.approx(0.5)
+    deck, graph = _mana_deck(playbook, {"G": 3, "W": 1}, {"Forest": 14, "Plains": 9}, fetches=1)
+    assert deck_metrics(deck, graph, playbook)["mana_consistency"] == pytest.approx(1.0)
+
+
+def test_mana_ignores_a_deck_color_with_no_pips(playbook):
+    deck, graph = _mana_deck(playbook, {"G": 4}, {"Forest": 14})  # white has no demand
+    assert deck_metrics(deck, graph, playbook)["mana_consistency"] == pytest.approx(1.0)
+
+
+def test_mana_ranks_colors_like_the_builder(playbook):
+    # Equal demand: the builder ranks W (first in WUBRG) primary (14) and G secondary (10).
+    deck, graph = _mana_deck(playbook, {"G": 2, "W": 2}, {"Forest": 10, "Plains": 14})
+    assert deck_metrics(deck, graph, playbook)["mana_consistency"] == pytest.approx(1.0)
+    deck, graph = _mana_deck(playbook, {"G": 2, "W": 2}, {"Forest": 14, "Plains": 10})
+    assert deck_metrics(deck, graph, playbook)["mana_consistency"] == pytest.approx(0.5)
+
+
+@pytest.mark.parametrize("fmt", ["pauper", "modern"])
+def test_built_deck_without_source_warnings_has_full_mana(playbook, fmt):
+    recs = gw_records() + [land("Selesnya Grove", ("G", "W")), basic("Forest", "G"),
+                           basic("Plains", "W"), land("Wide Wilds", (), colors=(), text=FETCH)]
+    cards = tagged(playbook, fmt, recs, [4] * len(recs))
+    deck = build(playbook, fmt, cards, backbone(cards, CORE_NAMES, "GW"))
+    assert not [w for w in deck.warnings if "sources" in w]
+    m = deck_metrics(deck, build_graph(cards, playbook), playbook)
+    assert m["mana_consistency"] == pytest.approx(1.0)

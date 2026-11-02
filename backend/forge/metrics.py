@@ -5,18 +5,16 @@ The UI shows the metrics and the evaluation harness compares decks with them.
 Makes no network calls.
 """
 
-from typing import Dict, FrozenSet, List
+from typing import Dict, FrozenSet
 
 from backend.forge.builder import (
-    BASIC_FOR_COLOR, BuiltDeck, DeckEntry, curve_bucket, deck_colors, land_colors, quota_keys,
+    BuiltDeck, curve_bucket, deck_colors, quota_keys, source_shortfalls,
 )
 from backend.forge.graph import SynergyGraph
 from backend.forge.playbook import Playbook
 
 BUCKETS = ("1", "2", "3", "4", "5", "6+")
 SYNERGY_CAP = "synergy_cap"  # metric_weights key that caps synergy_density, not a weight
-PRIMARY_SHARE = 0.40  # pip share that makes a color primary
-SECONDARY_SHARE = 0.15  # pip share that makes a color secondary
 # metric_weights key for each metric
 WEIGHT_KEYS = {"synergy_density": "synergy", "role_coverage": "roles", "curve_fit": "curve",
                "mana_consistency": "mana", "avg_quality": "quality"}
@@ -80,33 +78,13 @@ def _pip_demand(deck: BuiltDeck, colors: FrozenSet[str]) -> Dict[str, int]:
     return demand
 
 
-def _sources(entries: List[DeckEntry], colors: FrozenSet[str]) -> Dict[str, int]:
-    sources = {}  # type: Dict[str, int]
-    for entry in entries:
-        if entry.card is not None and not entry.card.is_land:
-            continue
-        made = land_colors(entry.card, colors) if entry.card is not None else {
-            c for c, n in BASIC_FOR_COLOR.items() if n == entry.name}
-        for color in made:
-            sources[color] = sources.get(color, 0) + entry.count
-    return sources
-
-
 def _mana_consistency(deck: BuiltDeck) -> float:
     colors = deck_colors(deck.plan, deck.fmt)
     demand = {c: n for c, n in _pip_demand(deck, colors).items() if n > 0}
     if not demand:
         return 1.0
-    sources = _sources(deck.entries, colors)
-    pips = sum(demand.values())
-    met = 0
-    for color, n in demand.items():
-        share = n / pips
-        tier = ("primary" if share >= PRIMARY_SHARE
-                else "secondary" if share >= SECONDARY_SHARE else "splash")
-        if sources.get(color, 0) >= deck.fmt.color_sources[tier]:
-            met += 1
-    return met / len(demand)
+    short = source_shortfalls(deck.entries, demand, deck.fmt, colors)
+    return 1 - len(short) / len(demand)
 
 
 def _avg_quality(deck: BuiltDeck) -> float:
@@ -130,8 +108,9 @@ def deck_metrics(deck: BuiltDeck, graph: SynergyGraph, playbook: Playbook) -> Di
         non-basic cards, commander included, per card; not capped),
         role_coverage (sum of min(have, quota) over the sum of quotas),
         curve_fit (1 - 0.5 * sum of absolute share gaps), mana_consistency
-        (share of the colors in the deck whose land sources meet
-        fmt.color_sources), avg_quality (copy-weighted mean card quality),
+        (share of the demanded deck colors whose land sources meet
+        fmt.color_sources, counted as the builder counts them; see
+        builder.source_shortfalls), avg_quality (copy-weighted mean card quality),
         and combined (weighted sum, synergy_density / synergy_cap capped at 1).
     """
     metrics = {

@@ -457,26 +457,44 @@ def _mana_base(lands: List[OwnedCard], colors: FrozenSet[str], demand: Dict[str,
     return entries, warnings + _source_warnings(entries, demand, fmt, colors), notes
 
 
-def _source_warnings(entries: List[DeckEntry], demand: Dict[str, int],
-                     fmt: FormatRules, colors: FrozenSet[str]) -> List[str]:
-    """Warn for each demanded color with fewer sources than fmt.color_sources.
+def source_shortfalls(entries: List[DeckEntry], demand: Dict[str, int], fmt: FormatRules,
+                      colors: FrozenSet[str]) -> List[Tuple[str, int, int]]:
+    """Return the demanded colors with fewer land sources than fmt.color_sources.
 
-    A nonbasic land is a source for each deck color in land_colors; a basic
-    land for its own color.
+    Args:
+        entries: Deck entries. A nonbasic land is a source for each deck color
+            in land_colors (fetch lands included); a basic land for its own color.
+        demand: Pip demand per deck color. Colors with no demand need no sources.
+        fmt: Format rules with color_sources.
+        colors: Deck colors.
+
+    Returns:
+        (color, sources, sources needed) per short color. The most demanded
+        color needs the primary count, the second the secondary count, and the
+        rest the splash count (ties in WUBRG order).
     """
     sources = {}  # type: Dict[str, int]
     for entry in entries:
+        if entry.card is not None and not entry.card.is_land:
+            continue
         made = land_colors(entry.card, colors) if entry.card is not None else {
             c for c, n in BASIC_FOR_COLOR.items() if n == entry.name}
         for color in made:
             sources[color] = sources.get(color, 0) + entry.count
-    warnings = []
+    short = []
     for rank, color in enumerate(_color_ranks(demand)):
         need = fmt.color_sources[SOURCE_RANKS[rank] if rank < len(SOURCE_RANKS) else "splash"]
         have = sources.get(color, 0)
         if have < need:
-            warnings.append(f"Only {have} {COLOR_NAMES[color]} sources; {need} recommended.")
-    return warnings
+            short.append((color, have, need))
+    return short
+
+
+def _source_warnings(entries: List[DeckEntry], demand: Dict[str, int],
+                     fmt: FormatRules, colors: FrozenSet[str]) -> List[str]:
+    """Warn for each demanded color with fewer sources than fmt.color_sources."""
+    return [f"Only {have} {COLOR_NAMES[color]} sources; {need} recommended."
+            for color, have, need in source_shortfalls(entries, demand, fmt, colors)]
 
 
 def _avg_cmc(cards: List[Tuple[OwnedCard, int]], fallback: float) -> float:
