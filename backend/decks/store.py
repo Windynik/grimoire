@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional
 from pathlib import Path
 import json
+import os
 import re
 import uuid
 
@@ -41,8 +42,15 @@ class DeckStore:
         now = datetime.now(timezone.utc).isoformat()
         record.setdefault("created", now)
         record["updated"] = now
-        with open(path, 'w', encoding='utf-8') as f:
-            json.dump(record, f, indent=2)
+        # Write beside the target, then swap in one step so readers never see a partial file
+        tmp = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+        try:
+            with open(tmp, 'w', encoding='utf-8') as f:
+                json.dump(record, f, indent=2)
+            os.replace(tmp, path)
+        finally:
+            if tmp.exists():
+                tmp.unlink()
         return record["id"]
 
     def get(self, deck_id: str) -> Optional[dict]:
@@ -52,13 +60,16 @@ class DeckStore:
             deck_id: Deck identifier
 
         Returns:
-            The deck record, or None if the id is invalid or not found
+            The deck record, or None if the id is invalid, not found, or unreadable
         """
         path = self._path(deck_id)
         if path is None or not path.exists():
             return None
-        with open(path, 'r', encoding='utf-8') as f:
-            return json.load(f)
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except (OSError, ValueError):
+            return None
 
     def list(self) -> List[Dict]:
         """Summaries of all stored decks, newest first."""
@@ -77,7 +88,7 @@ class DeckStore:
                     "count": count + (1 if commander else 0),
                     "updated": data.get("updated", ""),
                 })
-            except Exception:
+            except (OSError, ValueError, KeyError, TypeError):
                 continue
 
         decks.sort(key=lambda d: d["updated"], reverse=True)

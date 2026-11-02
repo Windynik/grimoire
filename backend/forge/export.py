@@ -39,8 +39,8 @@ def deck_to_record(deck: BuiltDeck, name: str, job_id: str, backbone_info: dict,
         metrics: Deck metrics
 
     Returns:
-        Deck record without id, created and updated (the store sets them).
-        The commander is outside sections.main, and null in other formats.
+        Deck record without an id (the store sets it). created and updated are
+        set to now; the store keeps created and refreshes updated. The commander is outside sections.main, and null in other formats.
     """
     commander = deck.commander
     bone = deck.plan.backbone

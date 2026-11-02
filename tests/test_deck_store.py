@@ -111,3 +111,21 @@ def test_decklist_text_sections(playbook):
     rec["commander"] = None
     rec["sections"]["sideboard"] = [{"name": "Side", "count": 2}]
     assert decklist_text(rec) == ("Deck\n2 Bear\n1 Gem\n3 Forest\n\nSideboard\n2 Side")
+
+
+def test_corrupt_file_is_skipped(tmp_path, playbook):
+    store = DeckStore(str(tmp_path))
+    good = store.save(_record(playbook))
+    (tmp_path / "abc-123.json").write_text("{not json", encoding="utf-8")
+    assert store.get("abc-123") is None
+    assert [r["id"] for r in store.list()] == [good]
+
+
+def test_save_rejects_bad_id_and_leaves_no_temp_files(tmp_path, playbook):
+    store = DeckStore(str(tmp_path))
+    rec = _record(playbook)
+    rec["id"] = "../evil"
+    with pytest.raises(ValueError):
+        store.save(rec)
+    store.save(_record(playbook))
+    assert [p.suffix for p in tmp_path.iterdir()] == [".json"]
