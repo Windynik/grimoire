@@ -102,3 +102,15 @@ def test_castable_in_reads_only_the_mana_cost(oracle, rules):
     for cost in ("{1}{U}", "{U/R}", "{G}{B}"):
         card = hydrate_one(make_record("Off Cost", mana_cost=cost, color_identity=()), modern)
         assert not castable_in(card, gw), cost
+
+
+def test_castable_in_needs_one_castable_face(rules):
+    modern = rules["modern"]
+    split = hydrate_one(make_record("Fire // Ice", type_line="Instant // Instant",
+                                    mana_cost="{1}{R} // {1}{U}", color_identity=("R", "U"),
+                                    layout="split"), modern)
+    assert castable_in(split, frozenset("R")) and castable_in(split, frozenset("U"))
+    assert not castable_in(split, frozenset("G"))
+    adventure = hydrate_one(make_record("Off Adventure", mana_cost="{1}{B} // {B}{B}",
+                                        color_identity=("B",), layout="adventure"), modern)
+    assert not castable_in(adventure, frozenset("GW"))

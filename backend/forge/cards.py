@@ -63,20 +63,8 @@ class OwnedCard:
         return counts
 
 
-def castable_in(card: "OwnedCard", colors: FrozenSet[str]) -> bool:
-    """Return True when every mana symbol in a card's cost can be paid with the colors.
-
-    Args:
-        card: Card to check. Its mana cost is read (all faces).
-        colors: Deck colors.
-
-    Returns:
-        True when each colored symbol has a color in `colors`. A hybrid symbol
-        needs one half in the colors ({2/W} passes with its generic half).
-        Phyrexian, generic, X and colorless symbols always pass. Rules text is
-        not read: this is the rule of formats without a commander.
-    """
-    for symbol in _SYMBOL.findall(card.mana_cost or ""):
+def _face_castable(cost: str, colors: FrozenSet[str]) -> bool:
+    for symbol in _SYMBOL.findall(cost):
         parts = symbol.split("/")
         colored = [part for part in parts if part in COLORS]
         if not colored or "P" in parts:
@@ -85,6 +73,25 @@ def castable_in(card: "OwnedCard", colors: FrozenSet[str]) -> bool:
             continue
         return False
     return True
+
+
+def castable_in(card: "OwnedCard", colors: FrozenSet[str]) -> bool:
+    """Return True when one face of a card can be paid with the colors.
+
+    Args:
+        card: Card to check. Its mana cost is read; faces are split by " // "
+            (split, adventure and modal double-faced cards).
+        colors: Deck colors.
+
+    Returns:
+        True when any one face has a color in `colors` for each colored
+        symbol of its cost. A hybrid symbol needs one half in the colors
+        ({2/W} passes with its generic half). Phyrexian, generic, X and
+        colorless symbols always pass. Rules text is not read: this is the
+        rule of formats without a commander.
+    """
+    faces = (card.mana_cost or "").split(" // ")
+    return any(_face_castable(face, colors) for face in faces)
 
 
 def fits_colors(card: "OwnedCard", colors: FrozenSet[str], fmt: FormatRules) -> bool:
