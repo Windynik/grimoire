@@ -374,3 +374,18 @@ export class SaveQueue {
     return undefined;
   }
 }
+
+/** Return true when two states hold the same sections and commander. */
+export function sameDeck(a, b) {
+  return JSON.stringify([a.sections, a.commander]) === JSON.stringify([b.sections, b.commander]);
+}
+
+/** Return a copy of the sections and commander, to compare with the deck later. */
+export function snapshotDeck(state) {
+  return JSON.parse(JSON.stringify({ sections: state.sections, commander: state.commander }));
+}
+
+/** Return true when an agent result still fits: the deck is the one the agent read. */
+export function agentResultFits(snapshot, current) {
+  return sameDeck(snapshot, current);
+}

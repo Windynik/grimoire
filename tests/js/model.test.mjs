@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   applyOp, drawHand, entryKey, groupEntries, History, issueSummary, manaValue, SaveQueue, SECTIONS,
-  toEntryCard,
+  toEntryCard, agentResultFits, snapshotDeck,
 } from "../../frontend/js/decks/model.js";
 
 const bolt = { scryfall_id: "bolt", name: "Lightning Bolt", cmc: 1, type_line: "Instant" };
@@ -402,4 +402,14 @@ test("replace op is one undo step", () => {
   hist.push(s);
   assert.equal(s.sections.main.length, 1);
   assert.equal(JSON.stringify(hist.undo().sections), before);
+});
+
+test("an agent result is applied only when the deck is unchanged", () => {
+  const s = { sections: { main: [{ scryfall_id: "a", name: "A", count: 1 }], sideboard: [], maybeboard: [] }, commander: null };
+  const snap = snapshotDeck(s);
+  assert.equal(agentResultFits(snap, s), true);
+  const edited = applyOp(s, { type: "inc", section: "main", key: "a" });
+  assert.equal(agentResultFits(snap, edited), false);
+  s.sections.main[0].name = "changed";
+  assert.equal(snap.sections.main[0].name, "A");
 });

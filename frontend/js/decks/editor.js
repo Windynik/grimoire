@@ -5,7 +5,7 @@
 // a newer edit. Deck names and server text go in with textContent only.
 
 import * as api from "./api.js";
-import { applyOp, History, SaveQueue, SECTIONS } from "./model.js";
+import { applyOp, History, SaveQueue, sameDeck, SECTIONS } from "./model.js";
 import { h, safeManaCost } from "../shared/dom.js";
 import { renderAgent } from "./agent.js";
 import { renderExplanation } from "../forge/feed.js";
@@ -53,10 +53,6 @@ function isTextField(el) {
   if (el.isContentEditable || el.tagName === "TEXTAREA") return true;
   return el.tagName === "INPUT"
     && !["button", "checkbox", "radio", "range", "submit", "reset"].includes(el.type);
-}
-
-function sameDeck(a, b) {
-  return JSON.stringify([a.sections, a.commander]) === JSON.stringify([b.sections, b.commander]);
 }
 
 function entryBody(entry) {

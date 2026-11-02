@@ -4,6 +4,7 @@
 // stage, the feed and the timeline. Other code can listen with onEvent too.
 
 import * as api from "./api.js";
+import { isRecommended as isRecommendedModel } from "../shared/models.js";
 import { ForgeStage } from "./stage.js";
 import { ThoughtFeed } from "./feed.js";
 import { Timeline, STAGE_NAMES } from "./timeline.js";
@@ -132,7 +133,7 @@ async function loadAiStatus() {
   select.textContent = "";
   const ai = state.ai;
   const models = ai.available ? ai.models || [] : [];
-  const isRecommended = (m) => ai.recommended && (m === ai.recommended || m.startsWith(`${ai.recommended}:`));
+  const isRecommended = (m) => isRecommendedModel(ai, m);
   models.forEach((m) => select.appendChild(option(m, isRecommended(m) ? `${m} (recommended)` : m)));
   select.appendChild(option(ENGINE_ONLY, "Engine only (no AI)"));
   // Preselect the recommended model only when it is installed; else run engine-only.

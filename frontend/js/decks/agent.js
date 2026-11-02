@@ -7,27 +7,13 @@
 
 import * as api from "./api.js";
 import { h } from "../shared/dom.js";
+import { pickModel } from "../shared/models.js";
+import { agentResultFits, snapshotDeck } from "./model.js";
 
 const MAX_LENGTH = 500;
 const STEP_MS = 150; // Delay between two swaps.
 const FLIP_MS = 700; // Time the last swap needs to finish.
 const NO_MODEL = "Start Ollama to chat with the deck agent.";
-
-const isRecommended = (ai, name) => Boolean(ai.recommended)
-  && (name === ai.recommended || name.startsWith(`${ai.recommended}:`));
-
-/**
- * Pick the model for the agent: the recommended model when it is installed,
- * else the default model.
- *
- * @param {{available: boolean, models: string[], default_model: ?string, recommended: ?string}} ai
- * @returns {?string} The model name, or null when no model runs.
- */
-export function pickModel(ai) {
-  if (!ai || !ai.available) return null;
-  const models = ai.models || [];
-  return models.find((name) => isRecommended(ai, name)) || ai.default_model || models[0] || null;
-}
 
 function reducedMotion() {
   return Boolean(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
@@ -55,7 +41,8 @@ function cutRow(cut, index) {
  * Build the agent panel in root. Call it once per editor.
  *
  * @param {HTMLElement} root
- * @param {{deckId: string, apply: function(Object), saveNow: function(): Promise}} state
+ * @param {{deckId: string, sections: Object, commander: ?Object, apply: function(Object),
+ *   saveNow: function(): Promise}} state
  *   saveNow sends the pending edits, so the server reads the deck the owner sees.
  */
 export function renderAgent(root, state) {
@@ -84,7 +71,7 @@ export function renderAgent(root, state) {
     return node;
   };
 
-  async function play(result) {
+  async function play(result, snapshot) {
     const swaps = result.swaps || [];
     const cuts = result.cuts || [];
     if (!swaps.length && !cuts.length) {
@@ -95,6 +82,11 @@ export function renderAgent(root, state) {
       swaps.map(swapRow), cuts.map(cutRow));
     add("agent-changes-box", list);
     if (!reducedMotion()) await wait(Math.max(swaps.length, cuts.length) * STEP_MS + FLIP_MS);
+    // The server worked from the saved deck. An edit made since then must not be overwritten.
+    if (!agentResultFits(snapshot, state)) {
+      add("agent-error", "The deck changed while the agent worked. Ask again.");
+      return;
+    }
     state.apply({ type: "replace", sections: result.sections });
     add("agent-status",
       `Applied ${swaps.length} swaps and ${cuts.length} cuts. Undo reverts them.`);
@@ -110,10 +102,11 @@ export function renderAgent(root, state) {
     const thinking = add("agent-thinking", "Thinking…");
     try {
       await state.saveNow();
+      const snapshot = snapshotDeck(state);
       const result = await api.askAgent(state.deckId, message, model);
       thinking.remove();
       if (result.reply) add("agent-reply", result.reply);
-      await play(result);
+      await play(result, snapshot);
     } catch (error) {
       thinking.remove();
       add("agent-error", error && error.message ? error.message : "The request failed.");
