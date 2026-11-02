@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from backend.api.routes import router
+from backend.api.forge_routes import router as forge_router
 from pathlib import Path
 
 
@@ -25,6 +26,7 @@ app.add_middleware(
 
 # Include API routes first (before static files)
 app.include_router(router)
+app.include_router(forge_router)
 
 # Serve frontend static files last (catch-all)
 frontend_path = Path(__file__).parent / "frontend"

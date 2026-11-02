@@ -4,6 +4,7 @@ from backend.core.collection_store import CollectionStore
 from backend.core.csv_processor import CSVProcessor
 from backend.core.ollama_client import OllamaClient
 from backend.decks.store import DeckStore
+from backend.forge.session import ForgeManager
 
 
 @lru_cache()
@@ -54,3 +55,13 @@ def get_deck_store() -> DeckStore:
         DeckStore instance
     """
     return DeckStore()
+
+
+@lru_cache()
+def get_forge_manager() -> ForgeManager:
+    """Get singleton ForgeManager instance.
+
+    Returns:
+        ForgeManager instance
+    """
+    return ForgeManager()
