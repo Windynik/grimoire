@@ -1054,6 +1054,12 @@
         grid-row: 1;
     }
 
+    /* The deck is always shown here, so "deck" selects the Add cards tab. */
+    #decks-view .editor-shell:has(.editor-body[data-tab="deck"]) .editor-tab[data-tab="search"] {
+        color: var(--decks-gold);
+        border-color: var(--decks-gold);
+    }
+
     #decks-view .editor-body[data-tab="stats"] .editor-search,
     #decks-view .editor-body:not([data-tab="stats"]) .editor-stats {
         display: none;
