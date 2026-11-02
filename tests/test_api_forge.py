@@ -166,6 +166,17 @@ def test_formats_and_commanders(overrides):
         assert no_cmd.json()["detail"] == "Format has no commander"
 
 
+def test_commanders_route_does_not_tag_cards(overrides, monkeypatch):
+    def fail(*args, **kwargs):
+        raise AssertionError("tag_cards ran")
+
+    monkeypatch.setattr("backend.forge.tagging.tag_cards", fail)
+    monkeypatch.setattr("backend.api.forge_routes.tag_cards", fail, raising=False)
+    with TestClient(app) as client:
+        body = client.get("/api/forge/commanders/aaa1?format=commander").json()
+    assert [c["name"] for c in body["commanders"]] == ["Atraxa Test"]
+
+
 def test_decks_read_routes(overrides):
     _, _, decks = overrides
     with TestClient(app) as client:

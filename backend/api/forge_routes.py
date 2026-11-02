@@ -23,7 +23,6 @@ from backend.forge.events import TERMINAL
 from backend.forge.graph import commander_candidates
 from backend.forge.playbook import load_playbook
 from backend.forge.session import ForgeManager, ForgeParams
-from backend.forge.tagging import tag_cards
 
 
 router = APIRouter(prefix="/api")
@@ -93,9 +92,7 @@ async def forge_commanders(
     index = await bulk_data_manager.load_bulk_data()
 
     def find() -> list:
-        cards = hydrate(collection, index, fmt)
-        tag_cards(cards, playbook)
-        return commander_candidates(cards, fmt)
+        return commander_candidates(hydrate(collection, index, fmt), fmt)
 
     found = await asyncio.to_thread(find)
     commanders = [{"id": c.id, "name": c.name, "image_url": c.image_url,
