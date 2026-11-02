@@ -192,7 +192,7 @@ def compact_text(card: OwnedCard) -> str:
     return "%s — %s: %s" % (head, card.type_line, text)
 
 
-def _format_summary(fmt: FormatRules) -> str:
+def format_summary(fmt: FormatRules) -> str:
     parts = ["Format: %s" % fmt.name, "deck size %d" % fmt.deck_size]
     parts.append("singleton" if fmt.singleton else "up to %d copies of a card" % fmt.max_copies)
     if fmt.commander:
@@ -201,7 +201,7 @@ def _format_summary(fmt: FormatRules) -> str:
     return ", ".join(parts) + "."
 
 
-def _fit(render: Callable[[], str], lists: List[List[str]], max_chars: int) -> str:
+def fit_prompt(render: Callable[[], str], lists: List[List[str]], max_chars: int) -> str:
     """Render a prompt, dropping the last line of the longest list until it fits.
 
     Args:
@@ -236,7 +236,7 @@ def backbone_prompt(fmt: FormatRules, wish: str, candidates: List[Backbone],
     Returns:
         The prompt text.
     """
-    header = "%s\nPlayer wish: %s" % (_format_summary(fmt), wish.strip() or "(none)")
+    header = "%s\nPlayer wish: %s" % (format_summary(fmt), wish.strip() or "(none)")
     blocks = []  # type: List[Tuple[str, List[str]]]
     for cand in candidates:
         ids = [i for i in cand.members if i in graph.cards]
@@ -256,7 +256,7 @@ def backbone_prompt(fmt: FormatRules, wish: str, candidates: List[Backbone],
         lines += ["", BACKBONE_INSTRUCTION, "", BACKBONE_CONTRACT]
         return "\n".join(lines)
 
-    return _fit(render, [members for _, members in blocks], max_chars)
+    return fit_prompt(render, [members for _, members in blocks], max_chars)
 
 
 def _deck_lines(deck: BuiltDeck) -> List[str]:
@@ -277,7 +277,7 @@ def borderline_prompt(deck: BuiltDeck, graph: SynergyGraph,
         The prompt text.
     """
     head = "Deck plan: %s (%s). %s" % (deck.plan.backbone.name, deck.plan.playstyle,
-                                       _format_summary(deck.fmt))
+                                       format_summary(deck.fmt))
     in_deck = _deck_lines(deck)
     border = [compact_text(graph.cards[i]) for i in deck.borderline_in if i in graph.cards]
     bench = [compact_text(graph.cards[i]) for i in deck.bench if i in graph.cards]
@@ -292,7 +292,7 @@ def borderline_prompt(deck: BuiltDeck, graph: SynergyGraph,
         lines += ["", SWAP_CONTRACT]
         return "\n".join(lines)
 
-    return _fit(render, [in_deck, border, bench], max_chars)
+    return fit_prompt(render, [in_deck, border, bench], max_chars)
 
 
 def explanation_prompt(deck: BuiltDeck, thesis: str, interactions: List[dict],
@@ -309,7 +309,7 @@ def explanation_prompt(deck: BuiltDeck, thesis: str, interactions: List[dict],
         The prompt text.
     """
     head = ["Deck: %s (%s). %s" % (deck.plan.backbone.name, deck.plan.playstyle,
-                                   _format_summary(deck.fmt)),
+                                   format_summary(deck.fmt)),
             "Thesis: %s" % thesis]
     if deck.commander is not None:
         head.append("Commander: " + compact_text(deck.commander))
@@ -328,7 +328,7 @@ def explanation_prompt(deck: BuiltDeck, thesis: str, interactions: List[dict],
                   "Keep each section short. Mention only cards in the list."]
         return "\n".join(lines)
 
-    return _fit(render, [cards, found], max_chars)
+    return fit_prompt(render, [cards, found], max_chars)
 
 
 def reasons_prompt(deck: BuiltDeck, core_names: List[str],
@@ -354,7 +354,7 @@ def reasons_prompt(deck: BuiltDeck, core_names: List[str],
         lines += ["", REASONS_CONTRACT]
         return "\n".join(lines)
 
-    return _fit(render, [cards], max_chars)
+    return fit_prompt(render, [cards], max_chars)
 
 
 class ForgeModel:

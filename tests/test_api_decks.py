@@ -2,6 +2,8 @@ import json
 
 from fastapi.testclient import TestClient
 
+from backend.api.dependencies import get_ollama_client
+from backend.core.ollama_client import ModelError
 from main import app
 from tests.test_api_forge import overrides, synthetic_records  # noqa: F401
 
@@ -216,3 +218,40 @@ def test_import_over_400_entries_gives_422(overrides):
         r = client.post("/api/decks/import", json={"text": "\n".join(text.split("\n")[:400]),
                                                    "format": "modern"})
         assert r.status_code == 201
+
+
+class _Client:
+    def __init__(self, available):
+        self.available = available
+
+    async def status(self):
+        return {"available": self.available, "models": ["m"] if self.available else [],
+                "default_model": "m" if self.available else None}
+
+    async def chat_structured(self, *args, **kwargs):
+        raise ModelError("bad")
+
+
+def _agent_deck(client):
+    deck = client.post("/api/decks", json={"format": "modern", "collection_job_id": "aaa1"}).json()
+    client.put("/api/decks/%s" % deck["id"], json=_body())
+    return deck["id"]
+
+
+def test_agent_route_503_when_ollama_off(overrides):
+    with TestClient(app) as client:
+        deck_id = _agent_deck(client)
+        r = client.post("/api/decks/%s/agent" % deck_id, json={"message": "faster"})
+        assert r.status_code == 503
+        assert r.json()["detail"] == "The local model is not running."
+
+
+def test_agent_route_502_on_model_error(overrides):
+    app.dependency_overrides[get_ollama_client] = lambda: _Client(True)
+    with TestClient(app) as client:
+        deck_id = _agent_deck(client)
+        r = client.post("/api/decks/%s/agent" % deck_id, json={"message": "faster"})
+        assert r.status_code == 502
+        assert r.json()["detail"] == "The model did not give a usable answer. Try again."
+        assert client.post("/api/decks/nope/agent", json={"message": "x"}).status_code == 404
+        assert client.post("/api/decks/%s/agent" % deck_id, json={"message": ""}).status_code == 422

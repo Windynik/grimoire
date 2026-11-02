@@ -9,9 +9,12 @@ from backend.api.dependencies import (
     get_bulk_data_manager,
     get_collection_store,
     get_deck_store,
+    get_ollama_client,
 )
 from backend.core.bulk_data import BulkDataManager
 from backend.core.collection_store import CollectionStore
+from backend.core.ollama_client import ModelError, OllamaClient
+from backend.decks.agent import run_agent
 from backend.decks.analysis import analyze, owned_counts
 from backend.decks.records import (
     CreateDeck,
@@ -220,3 +223,37 @@ async def export_deck(
     filename = "%s.%s" % (_slug(record.get("name", "")), "csv" if csv_kind else "txt")
     return Response(content=body, media_type=media,
                     headers={"Content-Disposition": 'attachment; filename="%s"' % filename})
+
+
+class AgentAsk(BaseModel):
+    message: str = Field(min_length=1, max_length=500)
+    model: str = Field("", max_length=100)
+
+
+@router.post("/decks/{deck_id}/agent")
+async def deck_agent(
+    deck_id: str,
+    request: AgentAsk,
+    store: DeckStore = Depends(get_deck_store),
+    bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager),
+    collections: CollectionStore = Depends(get_collection_store),
+    client: OllamaClient = Depends(get_ollama_client),
+):
+    """Ask the local model for swaps and cuts. The engine checks them and nothing is saved."""
+    record = _stored(store, deck_id)
+    status = await client.status()
+    model = request.model or status.get("default_model")
+    if not status.get("available") or not model:
+        raise HTTPException(status_code=503, detail="The local model is not running.")
+    _check_format(record.get("format"))
+    index = await bulk_data_manager.load_bulk_data()
+    rows, meta = _collection_for(record, collections)
+    try:
+        result = await run_agent(record, request.message, model, index, rows or [],
+                                 _PLAYBOOK, client)
+    except ModelError:
+        raise HTTPException(status_code=502,
+                            detail="The model did not give a usable answer. Try again.")
+    proposed = dict(record, sections=result["sections"])
+    result["analysis"] = analyze(proposed, index, rows, meta, _PLAYBOOK)
+    return result

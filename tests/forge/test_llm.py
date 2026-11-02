@@ -4,6 +4,7 @@ import httpx
 import pytest
 
 from backend.core.ollama_client import CallStats, ModelError, OllamaClient
+from backend.decks.agent import AGENT_SCHEMA
 from backend.forge.builder import BuildPlan, BuiltDeck, DeckEntry
 from backend.forge.graph import Backbone, Edge, SynergyGraph
 from backend.forge.llm import (
@@ -139,7 +140,7 @@ def _arrays(schema, path="$"):
 
 def test_every_schema_list_has_a_limit():
     # Small models can repeat list items until they run out of tokens.
-    for schema in (BACKBONE_SCHEMA, SWAP_SCHEMA, REASONS_SCHEMA):
+    for schema in (BACKBONE_SCHEMA, SWAP_SCHEMA, REASONS_SCHEMA, AGENT_SCHEMA):
         for path, node in _arrays(schema):
             assert isinstance(node.get("maxItems"), int), path
 
