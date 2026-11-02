@@ -367,6 +367,8 @@ lives in a `backend/forge/` package. Its structure is the builder's call.
 
 ## 6. Decks, editor, and export
 
+Status: Implemented in Plan 2.
+
 ### 6.1 Saved decks
 
 - The app stores each deck as `.scryfall_cache/decks/{deck_id}.json`. A deck holds:

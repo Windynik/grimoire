@@ -375,6 +375,8 @@ async function loadDashboardCollections() {
           c.created ? " · " + esc(new Date(c.created).toLocaleDateString()) : ""
         }</span>
         <span class="collection-row-cta">View →</span>
+        <a class="collection-export" href="${API_BASE}/collection/${encodeURIComponent(c.job_id)}/export" download
+           title="Download this collection as a CSV" aria-label="Export ${esc(c.name)} as CSV">Export CSV</a>
         <button class="collection-del" title="Delete this collection" aria-label="Delete ${esc(c.name)}">&times;</button>`;
 
       const openIt = () => {
@@ -389,6 +391,12 @@ async function loadDashboardCollections() {
           e.preventDefault();
           openIt();
         }
+      });
+
+      row.querySelector(".collection-export").addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        exportCollection(c);
       });
 
       row.querySelector(".collection-del").addEventListener("click", async (e) => {
@@ -423,6 +431,35 @@ async function loadDashboardCollections() {
     });
   } catch (error) {
     console.error("Error loading dashboard collections:", error);
+  }
+}
+
+// Fetch the collection CSV and save it. A failed export shows the server's reason.
+async function exportCollection(c) {
+  try {
+    const res = await fetch(`${API_BASE}/collection/${encodeURIComponent(c.job_id)}/export`);
+    if (!res.ok) {
+      let detail = `Export failed (HTTP ${res.status})`;
+      try {
+        const body = await res.json();
+        if (body && typeof body.detail === "string") detail = body.detail;
+      } catch (e) {
+        // The body is not JSON: keep the status text.
+      }
+      showToast(detail, "error");
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${c.name || "collection"}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (error) {
+    showToast("Error exporting collection", "error");
   }
 }
 

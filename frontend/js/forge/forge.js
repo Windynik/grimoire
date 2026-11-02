@@ -8,7 +8,6 @@ import { isRecommended as isRecommendedModel } from "../shared/models.js";
 import { ForgeStage } from "./stage.js";
 import { ThoughtFeed } from "./feed.js";
 import { Timeline, STAGE_NAMES } from "./timeline.js";
-import { renderResult } from "./result.js";
 
 const AI_OFF_MESSAGE = "Local AI is off. The engine still builds the deck. "
   + "Install Ollama and run `ollama pull qwen3.5:9b` for deeper decks.";
@@ -563,7 +562,7 @@ class ForgeRun {
     }
     const total = main.reduce((n, c) => n + (Number(c.count) || 0), 0) + (commander ? 1 : 0);
     this.feed.reveal(deck.name, `${total} cards. Every card has a reason you can read.`);
-    this.later(this.rushing() ? 0 : REVEAL_MS, () => showResult(deck));
+    this.later(this.rushing() ? 0 : REVEAL_MS, () => showResult(d.deck_id));
   }
 
   onEnd(text, kind) {
@@ -590,37 +589,35 @@ function endButtons(showNew) {
   $("forge-new").hidden = !showNew;
 }
 
-/** Return the display name of a format key, for example "Standard Brawl". */
-async function formatName(key) {
-  try {
-    await loadFormats();
-  } catch (e) {
-    // Without the format list the result shows the key.
-  }
-  const fmt = state.formats.find((f) => f.key === key);
-  return fmt ? fmt.name : key;
-}
+const HANDOFF_MS = 380; // the forge view fades out this long before the editor opens
 
-async function showResult(deck) {
-  const root = $("forge-result");
+/**
+ * Open the editor on the new deck. The center card scales toward the editor and
+ * the stage fades out. Under reduced motion the editor opens at once. The forge
+ * then resets to its setup for the next run.
+ */
+async function showResult(deckId) {
   const forgeId = state.forgeId;
-  const name = await formatName(deck.format);
-  if (state.forgeId !== forgeId) return; // the owner left this run meanwhile
-  renderResult(root, deck, {
-    onAgain: () => {
-      showSetup();
-      open();
-    },
-    toast,
-    formatName: name,
-  });
-  $("forge-run").hidden = true;
-  root.hidden = false;
-  const title = root.querySelector("h2");
-  if (title) {
-    title.tabIndex = -1;
-    title.focus({ preventScroll: true });
+  if (state.forgeId !== forgeId) return;
+  const stage = $("forge-stage");
+  let fades = [];
+  const reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!reduced && !stage.hidden && stage.animate) {
+    const core = stage.querySelector(".forge-core");
+    const timing = { duration: HANDOFF_MS, easing: "ease-in", fill: "forwards" };
+    fades = [stage.animate([{ opacity: 1 }, { opacity: 0 }], timing)];
+    if (core) {
+      fades.push(core.animate([
+        { transform: "scale(1) translateY(0)" },
+        { transform: "scale(0.55) translateY(-40px)" },
+      ], timing));
+    }
+    await Promise.all(fades.map((a) => a.finished.catch(() => null)));
+    if (state.forgeId !== forgeId) return; // the owner left this run meanwhile
   }
+  if (window.grimoireDecks) window.grimoireDecks.openEditor(deckId, { from: "forge" });
+  showSetup();
+  fades.forEach((a) => a.cancel()); // the next run shows the stage at full opacity
 }
 
 function destroyRun() {
@@ -668,7 +665,7 @@ async function showSavedDeck(forgeId, deckId) {
     return;
   }
   endButtons(false);
-  showResult(deck);
+  showResult(deckId);
 }
 
 function attach(forgeId, opts = {}) {
@@ -680,8 +677,6 @@ function attach(forgeId, opts = {}) {
   $("forge-setup").hidden = true;
   $("forge-stage").hidden = false;
   $("forge-run").hidden = false;
-  $("forge-result").hidden = true;
-  $("forge-result").textContent = "";
   $("forge-cancel").hidden = false;
   $("forge-cancel").disabled = false;
   $("forge-new").hidden = true;
@@ -782,8 +777,6 @@ function showSetup() {
   store(sessionStorage, COMMANDER_KEY, null);
   store(sessionStorage, DECK_KEY, null);
   $("forge-stage").hidden = true;
-  $("forge-result").hidden = true;
-  $("forge-result").textContent = "";
   $("forge-setup").hidden = false;
 }
 

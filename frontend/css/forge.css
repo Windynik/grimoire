@@ -220,8 +220,7 @@
     background: #12151f;
 }
 
-#forge-view .forge-run[hidden],
-#forge-view .forge-result[hidden] {
+#forge-view .forge-run[hidden] {
     display: none;
 }
 
@@ -808,133 +807,6 @@
     border-top: 1px solid var(--forge-line);
 }
 
-/* --------------------------------------------------------------------------
-   Result view (Plan 2 replaces it with the deck editor)
-   -------------------------------------------------------------------------- */
-#forge-view .forge-result {
-    padding: 1.75rem 1.5rem;
-    animation: forge-result-in 0.5s ease both;
-}
-
-@keyframes forge-result-in {
-    from { opacity: 0; transform: translateY(10px); }
-}
-
-#forge-view .forge-result-kicker {
-    font-size: 0.75rem;
-    font-weight: 600;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--text-dim);
-}
-
-#forge-view .forge-result-name-title {
-    margin: 0.2rem 0;
-    font-family: var(--forge-font-display);
-    font-size: 1.9rem;
-    color: var(--forge-gold);
-    overflow-wrap: anywhere;
-}
-
-#forge-view .forge-result-name-title:focus { outline: none; }
-
-#forge-view .forge-result-commander { color: var(--parchment); }
-#forge-view .forge-result-thesis { margin: 0.5rem 0 1rem; color: var(--text-dim); max-width: 70ch; }
-
-#forge-view .forge-result-stats {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-    gap: 0.6rem;
-    margin: 1.25rem 0;
-}
-
-#forge-view .forge-stat {
-    padding: 0.6rem 0.75rem;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--surface-2);
-}
-
-#forge-view .forge-stat dt { font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); }
-#forge-view .forge-stat dd { margin: 0; font-size: 1.15rem; font-variant-numeric: tabular-nums; color: var(--parchment); }
-
-#forge-view .forge-result-notes {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 1rem;
-    margin-bottom: 1.25rem;
-}
-
-#forge-view .forge-result-list h4,
-#forge-view .forge-result-group h4 {
-    margin-bottom: 0.4rem;
-    font-family: var(--forge-font-display);
-    font-size: 1rem;
-    color: var(--forge-gold);
-}
-
-#forge-view .forge-result-list ul {
-    padding-left: 1.1rem;
-    font-size: 0.9rem;
-}
-
-#forge-view .forge-result-list.warning li { color: #ead9b0; }
-#forge-view .forge-result-list.note li { color: var(--text-dim); }
-
-#forge-view .forge-result-sections {
-    columns: 2 300px;
-    column-gap: 1.5rem;
-}
-
-#forge-view .forge-result-group {
-    break-inside: avoid;
-    margin-bottom: 1.25rem;
-}
-
-#forge-view .forge-result-group ul { list-style: none; padding: 0; }
-
-#forge-view .forge-result-card {
-    display: flex;
-    gap: 0.6rem;
-    padding: 0.3rem 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-    font-size: 0.9rem;
-}
-
-#forge-view .forge-result-count {
-    min-width: 1.5rem;
-    color: var(--text-dim);
-    font-variant-numeric: tabular-nums;
-}
-
-#forge-view .forge-result-main { min-width: 0; flex: 1; }
-
-#forge-view .forge-result-line {
-    display: flex;
-    justify-content: space-between;
-    gap: 0.5rem;
-}
-
-#forge-view .forge-result-name { overflow-wrap: anywhere; color: var(--parchment); }
-#forge-view .forge-mana { flex-shrink: 0; white-space: nowrap; }
-#forge-view .forge-result-reason { display: block; font-size: 0.78rem; color: var(--text-dim); }
-
-#forge-view .forge-result-explain {
-    margin-top: 1rem;
-    padding-top: 1rem;
-    border-top: 1px solid var(--border);
-    max-width: 75ch;
-}
-
-#forge-view .forge-result-explain h3 {
-    font-family: var(--forge-font-display);
-    color: var(--forge-gold);
-    margin-bottom: 0.25rem;
-}
-
-#forge-view .forge-result-explain .forge-explain-body { font-size: 0.92rem; }
-#forge-view .forge-result-explain .forge-explain-body h4 { font-size: 1rem; margin-top: 0.9rem; }
-
 /* Below 820 px the feed moves under the stage. */
 @media (max-width: 820px) {
     #forge-view .forge-scene {
@@ -955,7 +827,6 @@
     #forge-view .forge-stage { --forge-core-w: 84px; }
     #forge-view .forge-tip { width: 160px; }
     #forge-view .forge-seg { font-size: 10px; }
-    #forge-view .forge-result { padding: 1.25rem 1rem; }
     #forge-view .forge-top { flex-wrap: wrap; }
 }
 

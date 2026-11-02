@@ -44,6 +44,24 @@ The forge runs five stages. The screen shows each stage as it runs.
 
 The engine has the last word on legality. It checks every card name from the model against the cards you own.
 
+When the forge ends, the editor opens on the new deck.
+
+### Decks and the editor
+
+The *Decks* tab lists your saved decks. Each deck belongs to one format.
+
+- **Create:** press *New deck*, then pick a name, a format, and a commander. The forge also saves each deck it builds.
+- **Import:** press *Import*, then paste a decklist. Plain text and Arena formats both work. The editor flags cards you do not own.
+- **Edit:** search your cards, add or remove copies, and move cards between sections. Undo and redo work. The stats panel shows the curve, the colors, and the legality checks.
+- **Autosave:** the editor saves each change after a short pause. It saves again when you leave. If a save fails, the editor says so, and it refuses an export until a save works.
+- **Export:** the export menu gives plain text, Arena-style text, and CSV. You can copy the text or download it.
+- **Sample hand:** draw a hand of seven cards, and take a mulligan, or draw one more card.
+- **Agent panel:** ask the local model to suggest swaps. This needs Ollama (see below). The engine checks each swap before the editor shows it.
+
+### Collection export
+
+Each collection row on the dashboard has an *Export CSV* button. It downloads the enhanced CSV at any time. Collections stored before this feature may need a re-import. In that case the app shows a message.
+
 ### Optional: local AI
 
 ```bash
@@ -90,7 +108,7 @@ backend/            FastAPI application
   data/playbook.json  Format rules and card-role patterns
   models/           Pydantic schemas
 frontend/           Vanilla JS single-page app (no build step)
-  js/forge/         Deck Forge screens (setup, stage, feed, timeline, result)
+  js/forge/         Deck Forge screens (setup, stage, feed, timeline)
   css/forge.css     Deck Forge styles
 scripts/forge_eval.py  Hidden-deck evaluation for the forge
 tests/              Pytest suite
@@ -102,7 +120,8 @@ examples/           Sample ManaBox export for testing
 
 ```bash
 pip install -r requirements.txt
-pytest tests/ -v        # run the test suite
+pytest tests/ -v        # run the Python test suite
+node --test tests/js/*.test.mjs   # run the JavaScript tests
 python main.py          # run the server
 ```
 
