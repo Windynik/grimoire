@@ -10,7 +10,7 @@ own — all running locally, no internet required after the first download.
 - ⚡ **Fast processing** — enriches 850+ card collections in under 5 seconds using Scryfall bulk data
 - 🗃️ **Unlimited viewer** — browse your collection or all 114k+ cards in the Scryfall archive with infinite scroll, name search, price/name sorting, a shuffle button, and full card details
 - 🔍 **Filters** — slice any view by card type, color, rarity, and (for your collection) foil
-- 🛠️ **Deck Forge** — an agent builds Commander or casual 60-card decks from *only the cards you own*. It reads the full rules text of each card. It builds a synergy graph, picks a backbone plan, builds a legal deck with a real mana base, and reviews the result
+- 🛠️ **Deck Forge** — an agent builds decks from *only the cards you own*, for every supported format: Commander, Brawl, Standard Brawl, Standard, Pioneer, Modern, Legacy, Vintage, Pauper, and Casual. It reads the full rules text of each card. It builds a synergy graph, picks a backbone plan, builds a legal deck with a real mana base, and reviews the result
 - 🤖 **Optional local AI** — if [Ollama](https://ollama.com) is running, a local model ranks the strategies, judges borderline swaps, and writes the explanation. No cloud, no API keys. Everything stays on your machine. Choose the model "Engine only" to run without Ollama
 - 📦 **Offline capable** — works without internet after the initial bulk data download
 - 🎨 **Polished web UI** — real-time progress streaming, drag-and-drop upload, mana symbol rendering
@@ -39,8 +39,8 @@ The forge runs five stages. The screen shows each stage as it runs.
 1. **Study cards** — the engine reads the full rules text of your cards.
 2. **Find backbones** — the engine builds a synergy graph and finds candidate plans.
 3. **Ask you** — when two plans are close, the agent asks you a question. If you do not answer, it takes its recommended option when the countdown ends.
-4. **Build** — the engine builds a legal deck and a mana base.
-5. **Review** — the engine checks the deck and swaps weak cards. The model can judge borderline swaps.
+4. **Build** — the engine builds a legal deck and a mana base. When a model is on, the model can swap borderline cards. The engine checks each swap. Without a model, the forge makes no swaps.
+5. **Review** — the engine checks the deck: the mana curve, the metrics, and the warnings. Then the forge writes the explanation and a reason for each card. When a model is on, the model writes the explanation and the reasons for the core cards. The engine writes the rest from templates.
 
 The engine has the last word on legality. It checks every card name from the model against the cards you own.
 
