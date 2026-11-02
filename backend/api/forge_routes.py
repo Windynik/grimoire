@@ -194,18 +194,3 @@ async def forge_cancel(
     _session(manager, forge_id).cancel()
     return {"cancelled": True}
 
-
-@router.get("/decks")
-async def list_decks(store: DeckStore = Depends(get_deck_store)):
-    """Summaries of the saved decks, newest first."""
-    decks = store.list()
-    return {"decks": decks, "total": len(decks)}
-
-
-@router.get("/decks/{deck_id}")
-async def get_deck(deck_id: str, store: DeckStore = Depends(get_deck_store)):
-    """One saved deck."""
-    deck = store.get(deck_id)
-    if deck is None:
-        raise HTTPException(status_code=404, detail="Deck not found")
-    return deck

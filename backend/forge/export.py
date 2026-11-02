@@ -53,6 +53,8 @@ def deck_to_record(deck: BuiltDeck, name: str, job_id: str, backbone_info: dict,
         "name": name,
         "format": deck.fmt.key,
         "collection_job_id": job_id,
+        "deck_size": deck.fmt.deck_size,
+        "max_copies": deck.fmt.max_copies,
         "commander": ({"scryfall_id": commander.id, "name": commander.name,
                        "image_url": commander.image_url} if commander else None),
         "backbone": {

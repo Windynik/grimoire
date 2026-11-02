@@ -153,3 +153,52 @@ def test_list_tolerates_odd_fields(tmp_path, playbook):
     rows = store.list()
     assert [r["id"] for r in rows][0] == other
     assert next(r for r in rows if r["id"] == "bb-1")["count"] == 7
+
+
+def test_delete_removes_file_and_rejects_bad_id(tmp_path, playbook):
+    store = DeckStore(str(tmp_path))
+    deck_id = store.save(_record(playbook))
+    assert store.delete(deck_id) is True
+    assert store.get(deck_id) is None
+    assert store.delete(deck_id) is False
+    assert store.delete("../x") is False
+
+
+def test_duplicate_copies_with_new_id_and_name(tmp_path, playbook):
+    store = DeckStore(str(tmp_path))
+    deck_id = store.save(_record(playbook))
+    original = store.get(deck_id)
+    new_id = store.duplicate(deck_id)
+    assert new_id and new_id != deck_id
+    copy = store.get(new_id)
+    assert copy["name"] == "My Deck (copy)" and copy["id"] == new_id
+    assert copy["sections"] == original["sections"]
+    assert copy["created"] >= original["created"]
+    assert store.get(deck_id)["name"] == "My Deck"
+    assert store.duplicate("nope-1") is None
+    assert store.duplicate("../x") is None
+
+
+def test_list_summary_has_image_and_job(tmp_path, playbook):
+    store = DeckStore(str(tmp_path))
+    rec = _record(playbook)
+    rec["commander"]["image_url"] = "http://img/chief"
+    with_commander = store.save(rec)
+    rec = _record(playbook, fmt="modern")
+    rec["commander"] = None
+    rec["sections"]["main"][1]["image_url"] = "http://img/gem"
+    without = store.save(rec)
+    rec = _record(playbook, fmt="modern")
+    rec["commander"] = None
+    bare = store.save(rec)
+    rows = {r["id"]: r for r in store.list()}
+    assert rows[with_commander]["image_url"] == "http://img/chief"
+    assert rows[without]["image_url"] == "http://img/gem"
+    assert rows[bare]["image_url"] == ""
+    assert rows[bare]["collection_job_id"] == "job1"
+
+
+def test_deck_to_record_has_size_and_copies(playbook):
+    rec = _record(playbook)
+    assert rec["deck_size"] == playbook.formats["commander"].deck_size
+    assert rec["max_copies"] == playbook.formats["commander"].max_copies

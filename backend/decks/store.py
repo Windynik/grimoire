@@ -9,6 +9,17 @@ import uuid
 _ID = re.compile(r"^[a-f0-9-]+$")
 
 
+def _summary_image(data: dict) -> str:
+    """Art URL for a deck list row: the commander's, else the first main card with one."""
+    commander = data.get("commander")
+    if isinstance(commander, dict) and commander.get("image_url"):
+        return commander["image_url"]
+    for entry in data["sections"]["main"]:
+        if isinstance(entry, dict) and entry.get("image_url"):
+            return entry["image_url"]
+    return ""
+
+
 class DeckStore:
     """Store and retrieve forged decks as JSON files."""
 
@@ -72,6 +83,41 @@ class DeckStore:
             return None
         return data if isinstance(data, dict) else None
 
+    def delete(self, deck_id: str) -> bool:
+        """Delete a deck file.
+
+        Args:
+            deck_id: Deck identifier
+
+        Returns:
+            True when a deck was deleted, False when the id is invalid or no deck exists
+        """
+        path = self._path(deck_id)
+        if path is None:
+            return False
+        try:
+            path.unlink()
+        except OSError:
+            return False
+        return True
+
+    def duplicate(self, deck_id: str) -> Optional[str]:
+        """Save a copy of a deck under a new id, with "(copy)" added to the name.
+
+        Args:
+            deck_id: Identifier of the deck to copy
+
+        Returns:
+            The new deck id, or None when the deck does not exist
+        """
+        record = self.get(deck_id)
+        if record is None:
+            return None
+        record.pop("id", None)
+        record.pop("created", None)
+        record["name"] = f"{record.get('name', '')} (copy)"
+        return self.save(record)
+
     def list(self) -> List[Dict]:
         """Summaries of all stored decks, newest first."""
         decks = []
@@ -91,6 +137,8 @@ class DeckStore:
                     "commander": commander["name"] if commander else None,
                     "count": count + (1 if commander else 0),
                     "updated": str(data.get("updated") or ""),
+                    "image_url": _summary_image(data),
+                    "collection_job_id": data.get("collection_job_id") or "",
                 })
             except (OSError, ValueError, KeyError, TypeError, AttributeError):
                 continue
