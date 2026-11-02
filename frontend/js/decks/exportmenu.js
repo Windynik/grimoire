@@ -16,7 +16,7 @@ const KINDS = [
  *
  * @param {HTMLElement} root
  * @param {string} deckId
- * @param {{beforeExport: function(): Promise<void>, toast: function(string, string)}} [hooks]
+ * @param {{beforeExport: function(): Promise<void> (rejects when the deck is not saved), toast: function(string, string)}} [hooks]
  */
 export function renderExportMenu(root, deckId, hooks = {}) {
   const before = async () => {
@@ -30,6 +30,11 @@ export function renderExportMenu(root, deckId, hooks = {}) {
   async function copy(kind) {
     try {
       await before();
+    } catch (error) {
+      toast(`Could not save the deck: ${error.message}`, "error");
+      return;
+    }
+    try {
       const text = await api.exportText(deckId, kind);
       await navigator.clipboard.writeText(text);
       toast("Copied", "success");

@@ -273,6 +273,12 @@ function createSession(host, deckId, options) {
     return queue.flush(flushOptions);
   }
 
+  // The export reads the saved deck, so it must not run after a failed save.
+  async function saveBeforeExport() {
+    await flushNow();
+    if (status !== "saved") throw new Error("the last change is not saved");
+  }
+
   function showCard(card) {
     const info = (state.analysis.cards || {})[card.scryfall_id || `basic:${card.name}`] || {};
     if (window.grimoireCard && window.grimoireCard.showCardDetail) {
@@ -420,7 +426,7 @@ function createSession(host, deckId, options) {
       state.analysis = record.analysis || {};
       state.forge = { backbone: record.backbone || null, explanation: record.explanation || "" };
       history.push(state);
-      renderExportMenu(view.exportMenu, deckId, { beforeExport: () => flushNow(), toast });
+      renderExportMenu(view.exportMenu, deckId, { beforeExport: saveBeforeExport, toast });
       view.name.value = deck.name;
       fillCollections(collections.collections);
       setStatus("saved");
