@@ -66,3 +66,20 @@ def test_apply_swaps_matches_names_case_insensitively(playbook):
     applied = apply_swaps(deck, [{"out": f"  {out.name.upper()} ", "in": new.name.lower()}],
                           pool, set())
     assert applied[0]["out"] == out.name and applied[0]["in"] == new.name
+
+
+def test_apply_swaps_partial_swap_keeps_remaining_copies(playbook):
+    from dataclasses import replace
+    deck, pool = _setup(playbook)
+    out = next(e for e in deck.nonland_entries() if e.name not in CORE_NAMES and e.count > 1)
+    new = replace(_outside(deck, pool), owned=1)
+    pool[new.name.lower()] = new
+    total, before, basics = out.count, deck.total(), {e.name: e.count for e in deck.entries if e.basic}
+    applied = apply_swaps(deck, [{"out": out.name, "in": new.name, "why": "partial"}], pool, set())
+    assert len(applied) == 1
+    kept = next(e for e in deck.entries if e.name == out.name)
+    assert kept.count == total - 1
+    assert next(e for e in deck.entries if e.name == new.name).count == 1
+    assert {e.name: e.count for e in deck.entries if e.basic} == basics
+    assert deck.total() == before
+    assert out.card.id not in deck.bench

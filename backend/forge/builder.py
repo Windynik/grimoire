@@ -151,7 +151,7 @@ def _playable(card: OwnedCard, colors: FrozenSet[str], commander_id: Optional[st
             and card.color_identity <= colors)
 
 
-def _quota_keys(card: OwnedCard) -> Set[str]:
+def quota_keys(card: OwnedCard) -> Set[str]:
     keys = set(card.roles)
     if "Creature" in card.types:
         keys.add(CREATURES)
@@ -207,7 +207,7 @@ def _card_score(card: OwnedCard, state: _State) -> float:
     """
     w = state.weights
     open_keys = {key for key, quota in state.quotas.items() if state.have.get(key, 0) < quota}
-    fills = 1 if _quota_keys(card) & open_keys else 0
+    fills = 1 if quota_keys(card) & open_keys else 0
     bucket = curve_bucket(card.cmc)
     target = state.curve.get(bucket, 0.0) * state.slots
     curve_fit = 1 if state.buckets.get(bucket, 0) < target else -1
@@ -238,7 +238,7 @@ def _place(card: OwnedCard, role: str, reason: str, state: _State) -> None:
     state.filled += count
     bucket = curve_bucket(card.cmc)
     state.buckets[bucket] = state.buckets.get(bucket, 0) + count
-    for key in _quota_keys(card):
+    for key in quota_keys(card):
         state.have[key] = state.have.get(key, 0) + count
     state.picks.append(_Pick(card, count, role, reason))
 
@@ -269,7 +269,7 @@ def _place_nonland(pool: List[OwnedCard], members: List[OwnedCard],
         _place(card, "core", f"Core card of the {plan.backbone.name} plan.", state)
     for key, quota in state.quotas.items():
         while state.have.get(key, 0) < quota and state.filled < state.slots:
-            candidates = [c for c in _open(pool, state) if key in _quota_keys(c)]
+            candidates = [c for c in _open(pool, state) if key in quota_keys(c)]
             if not candidates:
                 break
             card = _best(candidates, state)

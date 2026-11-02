@@ -5,11 +5,10 @@ The UI shows the metrics and the evaluation harness compares decks with them.
 Makes no network calls.
 """
 
-from typing import Dict, FrozenSet, List, Tuple
+from typing import Dict, FrozenSet, List
 
 from backend.forge.builder import (
-    BASIC_FOR_COLOR, SOURCE_RANKS, BuiltDeck, DeckEntry, _quota_keys, curve_bucket,
-    deck_colors, land_colors,
+    BASIC_FOR_COLOR, BuiltDeck, DeckEntry, curve_bucket, deck_colors, land_colors, quota_keys,
 )
 from backend.forge.graph import SynergyGraph
 from backend.forge.playbook import Playbook
@@ -54,7 +53,7 @@ def _role_coverage(deck: BuiltDeck, playbook: Playbook) -> float:
         return 1.0
     have = {}  # type: Dict[str, int]
     for entry in deck.nonland_entries():
-        for key in _quota_keys(entry.card):
+        for key in quota_keys(entry.card):
             have[key] = have.get(key, 0) + entry.count
     return sum(min(have.get(key, 0), quota) for key, quota in quotas.items()) / total
 
@@ -143,6 +142,8 @@ def deck_metrics(deck: BuiltDeck, graph: SynergyGraph, playbook: Playbook) -> Di
         "avg_quality": _avg_quality(deck),
     }
     cap = playbook.metric_weights.get(SYNERGY_CAP, 3.0)
+    if cap <= 0:
+        cap = 1.0
     combined = 0.0
     for name, key in WEIGHT_KEYS.items():
         value = min(1.0, metrics[name] / cap) if name == "synergy_density" else metrics[name]
