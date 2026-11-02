@@ -15,7 +15,7 @@ from backend.api.dependencies import (
 )
 from backend.core.bulk_data import NON_GAME_LAYOUTS, BulkDataManager
 from backend.core.collection_store import CollectionStore
-from backend.core.csv_processor import CSVProcessor
+from backend.core.csv_processor import CSVProcessor, enrich_rows, write_enriched_csv
 from backend.core.ollama_client import OllamaClient
 from backend.models.schemas import CacheStatus, ProcessResult
 
@@ -23,6 +23,18 @@ from backend.models.schemas import CacheStatus, ProcessResult
 router = APIRouter(prefix="/api")
 
 RECOMMENDED_MODEL = "qwen3.5:9b"
+PROGRESS_DIR = Path(".scryfall_cache/progress")
+
+
+def progress_file(job_id: str) -> Path:
+    """Path of a job's enhanced CSV, checked to lie inside the progress directory."""
+    progress_dir = PROGRESS_DIR.resolve()
+    output_file = (progress_dir / f"{job_id}.csv").resolve()
+    try:
+        output_file.relative_to(progress_dir)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid job ID")
+    return output_file
 
 
 def best_price(prices: dict):
@@ -238,6 +250,8 @@ async def process_csv(
         store.store_collection(
             result.job_id, result._enriched_rows, bulk_data,
             source_name=file.filename or "",
+            original_headers=getattr(result, '_original_headers', None),
+            original_rows=getattr(result, '_original_rows', None),
         )
 
     return result
@@ -250,17 +264,48 @@ async def download_result(job_id: str):
     if not re.match(r'^[a-f0-9-]+$', job_id):
         raise HTTPException(status_code=400, detail="Invalid job ID format")
 
-    progress_dir = Path(".scryfall_cache/progress").resolve()
-    output_file = (progress_dir / f"{job_id}.csv").resolve()
-
-    # Ensure the resolved path is within the expected directory
-    try:
-        output_file.relative_to(progress_dir)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid job ID")
+    output_file = progress_file(job_id)
 
     if not output_file.exists():
         raise HTTPException(status_code=404, detail="Job not found")
+
+    return FileResponse(
+        path=str(output_file),
+        media_type="text/csv",
+        filename=f"enhanced_collection_{job_id}.csv"
+    )
+
+
+@router.get("/collection/{job_id}/export")
+async def export_collection(
+    job_id: str,
+    store: CollectionStore = Depends(get_collection_store),
+    bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager),
+):
+    """Export the enhanced CSV, rebuilding it from the original rows if needed."""
+    if not re.match(r'^[a-f0-9-]+$', job_id):
+        raise HTTPException(status_code=400, detail="Invalid job ID format")
+    if store.get_collection(job_id) is None:
+        raise HTTPException(status_code=404, detail="Collection not found")
+
+    output_file = progress_file(job_id)
+    if not output_file.exists():
+        original = store.get_original(job_id)
+        if original is None:
+            raise HTTPException(
+                status_code=409,
+                detail="This collection was stored before the app kept the original "
+                       "CSV. Import the CSV again to export it.",
+            )
+        bulk_data = await bulk_data_manager.load_bulk_data()
+        if not bulk_data:
+            raise HTTPException(
+                status_code=400,
+                detail="Bulk data not available. Please download cache first."
+            )
+        headers, rows, _errors, _count = enrich_rows(original[0], original[1], bulk_data)
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+        write_enriched_csv(output_file, headers, rows)
 
     return FileResponse(
         path=str(output_file),
@@ -292,13 +337,11 @@ async def delete_collection(
         raise HTTPException(status_code=404, detail="Collection not found")
 
     # Clean up the enhanced CSV produced by the same job, if it's still around
-    progress_dir = Path(".scryfall_cache/progress").resolve()
-    output_file = (progress_dir / f"{job_id}.csv").resolve()
     try:
-        output_file.relative_to(progress_dir)
+        output_file = progress_file(job_id)
         if output_file.exists():
             output_file.unlink()
-    except (ValueError, OSError):
+    except (HTTPException, OSError):
         pass
 
     return {"success": True}

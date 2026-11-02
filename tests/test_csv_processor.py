@@ -1,7 +1,7 @@
 import pytest
 import csv
 from io import StringIO
-from backend.core.csv_processor import CSVProcessor
+from backend.core.csv_processor import CSVProcessor, enrich_rows
 from backend.models.schemas import ProcessResult
 
 
@@ -171,3 +171,32 @@ new ones,Lightning Bolt"""
     assert result.status == "error"
     assert len(result.errors) > 0
     assert "Scryfall ID" in result.errors[0]["error"]
+
+
+@pytest.mark.asyncio
+async def test_enrich_rows_matches_process_csv_output(mock_bulk_data, tmp_path):
+    """enrich_rows gives the same headers and rows as the file process_csv writes."""
+    csv_content = """Name,Binder,Scryfall ID,Quantity
+Lightning Bolt,red,abc-123,1
+Mystery Card,misc,xyz-999,2
+Counterspell,blue,def-456,3"""
+
+    processor = CSVProcessor(progress_dir=str(tmp_path))
+    result = await processor.process_csv(csv_content, mock_bulk_data)
+
+    headers, rows, errors, success_count = enrich_rows(
+        result._original_headers, result._original_rows, mock_bulk_data
+    )
+
+    with open(result.output_file, 'r', encoding='utf-8', newline='') as f:
+        reader = csv.DictReader(f)
+        assert headers == reader.fieldnames
+        assert rows == list(reader)
+    assert headers == ["Name", "Binder", "Scryfall ID", "Quantity",
+                       "Mana Cost", "Oracle Text", "Type Line"]
+    assert success_count == 2
+    assert errors == result.errors
+    # The original rows keep every column and stay free of enhanced columns
+    assert len(result._original_rows) == 3
+    assert "Mana Cost" not in result._original_rows[0]
+    assert result._original_rows[1]["Binder"] == "misc"

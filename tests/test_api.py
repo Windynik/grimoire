@@ -3,8 +3,14 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.api.dependencies import get_bulk_data_manager, get_collection_store
+import backend.api.routes as routes
+from backend.api.dependencies import (
+    get_bulk_data_manager,
+    get_collection_store,
+    get_csv_processor,
+)
 from backend.core.collection_store import CollectionStore
+from backend.core.csv_processor import CSVProcessor
 from main import app
 
 
@@ -94,3 +100,66 @@ def test_collection_search_hydrates_missing_face_images(overrides):
     assert card["image_url"] == "https://img/front.jpg"
     assert card["back_image_url"] == "https://img/back.jpg"
     assert card["owned"] is True
+
+
+MANABOX_CSV = (
+    "Name,Set code,Set name,Collector number,Foil,Rarity,Quantity,ManaBox ID,"
+    "Scryfall ID,Purchase price,Misprint,Altered,Condition,Language,"
+    "Purchase price currency,Binder\n"
+    "Alpha,tst,Test Set,1,normal,common,2,100,id-a,0.50,false,false,"
+    "near_mint,en,USD,Red binder\n"
+    "Bravo,tst,Test Set,2,foil,rare,1,101,id-b,4.25,false,false,"
+    "near_mint,en,USD,Blue binder\n"
+)
+JOB_ID = "abc123-def"
+
+
+@pytest.fixture
+def export_env(overrides, tmp_path, monkeypatch):
+    store, bulk = overrides
+    progress = tmp_path / "progress"
+    monkeypatch.setattr(routes, "PROGRESS_DIR", progress)
+    processor = CSVProcessor(progress_dir=str(progress))
+    app.dependency_overrides[get_csv_processor] = lambda: processor
+    return store, progress
+
+
+def test_collection_export_regenerates_from_original_rows(export_env):
+    store, progress = export_env
+    response = client.post(
+        "/api/process", files={"file": ("my_cards.csv", MANABOX_CSV, "text/csv")}
+    )
+    assert response.status_code == 200
+    job_id = response.json()["job_id"]
+
+    first = client.get(f"/api/collection/{job_id}/export")
+    assert first.status_code == 200
+    assert (progress / f"{job_id}.csv").read_bytes() == first.content
+
+    (progress / f"{job_id}.csv").unlink()
+    second = client.get(f"/api/collection/{job_id}/export")
+    assert second.status_code == 200
+    assert second.content == first.content
+    assert (progress / f"{job_id}.csv").exists()
+
+    header = second.text.splitlines()[0].split(",")
+    assert "Binder" in header
+    assert "Purchase price" in header
+    assert header[-3:] == ["Mana Cost", "Oracle Text", "Type Line"]
+    assert "enhanced_collection_" in second.headers["content-disposition"]
+
+
+def test_collection_export_legacy_without_rows_gives_409(export_env):
+    store, progress = export_env
+    store.store_collection(JOB_ID, [], {})
+    response = client.get(f"/api/collection/{JOB_ID}/export")
+    assert response.status_code == 409
+    assert response.json()["detail"] == (
+        "This collection was stored before the app kept the original CSV. "
+        "Import the CSV again to export it."
+    )
+
+
+def test_collection_export_bad_and_unknown_ids(export_env):
+    assert client.get("/api/collection/NOT_VALID!/export").status_code == 400
+    assert client.get("/api/collection/ffff-0000/export").status_code == 404

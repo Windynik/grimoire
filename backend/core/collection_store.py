@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 from pathlib import Path
 import json
 
@@ -12,7 +12,9 @@ class CollectionStore:
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 
     def store_collection(self, job_id: str, cards: List[Dict], bulk_data: Dict,
-                         source_name: str = ""):
+                         source_name: str = "",
+                         original_headers: Optional[List[str]] = None,
+                         original_rows: Optional[List[Dict]] = None):
         """Store collection with card images for viewing.
 
         Args:
@@ -20,6 +22,8 @@ class CollectionStore:
             cards: List of processed card data
             bulk_data: Full bulk data for image URLs
             source_name: Original CSV filename, used as the collection's display name
+            original_headers: CSV headers before enrichment, kept for export
+            original_rows: CSV rows before enrichment, kept for export
         """
         collection_data = []
 
@@ -59,6 +63,11 @@ class CollectionStore:
             },
             "cards": collection_data,
         }
+        if original_headers is not None and original_rows is not None:
+            payload["original"] = {
+                "headers": list(original_headers),
+                "rows": original_rows,
+            }
         collection_file = self.storage_dir / f"{job_id}.json"
         with open(collection_file, 'w', encoding='utf-8') as f:
             json.dump(payload, f, indent=2)
@@ -84,6 +93,27 @@ class CollectionStore:
         if isinstance(data, dict):
             return data.get("cards", [])
         return data
+
+    def get_original(self, job_id: str) -> Optional[Tuple[List[str], List[Dict]]]:
+        """The original CSV headers and rows, or None when not stored.
+
+        Args:
+            job_id: Job identifier
+
+        Returns:
+            (headers, rows), or None for a missing or legacy collection
+        """
+        collection_file = self.storage_dir / f"{job_id}.json"
+        if not collection_file.exists():
+            return None
+
+        with open(collection_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+
+        original = data.get("original") if isinstance(data, dict) else None
+        if not original:
+            return None
+        return original["headers"], original["rows"]
 
     def delete_collection(self, job_id: str) -> bool:
         """Delete a stored collection. Returns True if it existed."""
