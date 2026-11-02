@@ -398,7 +398,7 @@ class ForgeModel:
         """
         async for chunk in self.client.stream_text(
                 explanation_prompt(deck, thesis, interactions), system=SYSTEM_PROMPT,
-                model=self.model, on_stats=on_stats):
+                model=self.model, on_stats=on_stats, num_predict=4096):
             yield chunk
 
     async def card_reasons(self, deck: BuiltDeck,

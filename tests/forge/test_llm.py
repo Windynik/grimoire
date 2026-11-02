@@ -186,6 +186,7 @@ async def test_forge_model_methods(rules):
     assert "Card 02 {" in seen[-1]["messages"][-1]["content"]
     text = "".join([c async for c in model.stream_explanation(deck, "t", [], None)])
     assert text == "ok"
+    assert seen[-1]["stream"] and seen[-1]["options"]["num_predict"] == 4096
 
 
 def _model(handler):

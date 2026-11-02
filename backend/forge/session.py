@@ -47,6 +47,8 @@ MAX_BACKBONES = 5
 NAME_LIMIT = 60
 TEXT_LIMIT = 300
 WHY_LIMIT = 160
+EXPLAIN_BATCH_CHARS = 80  # send the model explanation after this many characters
+EXPLAIN_BATCH_SECONDS = 0.2  # or after this long since the last explanation event
 # A wish word that negates the card name after it, with an optional "a", "an", "the" or "any".
 NEGATION = re.compile(r"(?<!\w)(?:no|not|without|except)\s+(?:(?:a|an|the|any)\s+)?$")
 NO_STATS = CallStats(prompt_tokens=0, prompt_seconds=0.0, output_tokens=0, output_seconds=0.0)
@@ -595,17 +597,31 @@ class ForgeSession:
             self._status("The local model is writing the explanation.")
             self._expect("explanation", explanation_prompt(deck, thesis, interactions), "low")
             found = []  # type: List[CallStats]
+            # Model chunks are often one token. Send them in batches, so the
+            # stored event list does not grow by one event per token.
+            pending = ""
+            sent_at = time.monotonic()
             try:
                 async for chunk in self.model.stream_explanation(deck, thesis, interactions,
                                                                  on_stats=found.append):
                     parts.append(chunk)
-                    self._emit("explanation", text=chunk)
+                    pending += chunk
+                    now = time.monotonic()
+                    if (len(pending) >= EXPLAIN_BATCH_CHARS
+                            or now - sent_at >= EXPLAIN_BATCH_SECONDS):
+                        self._emit("explanation", text=pending)
+                        pending, sent_at = "", now
+                if pending:
+                    self._emit("explanation", text=pending)
+                    pending = ""
                 if not "".join(parts).strip():
                     raise ValueError("The explanation is empty")
                 self.eta.observe("explanation", found[0] if found else NO_STATS)
                 return "".join(parts)
             except Exception:
                 logger.warning("Model explanation failed", exc_info=True)
+                if pending:
+                    self._emit("explanation", text=pending)
                 self.eta.observe("explanation", NO_STATS)
                 self._thought(MODEL_FAILED)
             if parts:

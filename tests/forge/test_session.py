@@ -367,6 +367,41 @@ async def test_session_survives_model_failure(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_explanation_chunks_are_sent_in_batches(tmp_path):
+    tokens = ["Word%d " % (i % 10) for i in range(400)]  # 2400 characters
+    client = FakeClient(explanation=tokens)
+    session, store = await start(tmp_path, client=client, ask_mode="never")
+    events = await collect(session)
+    sent = of_type(events, "explanation")
+    assert "".join(e["text"] for e in sent) == "".join(tokens)
+    assert saved(store, events)["explanation"] == "".join(tokens)
+    assert 2400 // 86 <= len(sent) <= 2400 // 80 + 1  # about 80 characters per event
+    assert all(len(e["text"]) < 86 for e in sent)
+
+
+@pytest.mark.asyncio
+async def test_explanation_batches_flush_on_time_and_on_failure(tmp_path, monkeypatch):
+    monkeypatch.setattr("backend.forge.session.EXPLAIN_BATCH_SECONDS", 0.0)
+    session, _ = await start(tmp_path, client=FakeClient(explanation=("a", "b", "c")),
+                             ask_mode="never")
+    assert [e["text"] for e in of_type(await collect(session), "explanation")] == ["a", "b", "c"]
+
+    def broken():
+        yield "Half a sentence"
+        raise ModelError("scripted failure")
+
+    monkeypatch.setattr("backend.forge.session.EXPLAIN_BATCH_SECONDS", 60.0)
+    session, store = await start(tmp_path, client=FakeClient(explanation=broken()),
+                                 ask_mode="never")
+    events = await collect(session)
+    sent = of_type(events, "explanation")
+    assert sent[0]["text"] == "Half a sentence" and sent[1]["text"] == "\n\n"
+    failed = next(e for e in events if e.get("text") == MODEL_FAILED)
+    assert events.index(sent[0]) < events.index(failed) < events.index(sent[1])
+    assert saved(store, events)["explanation"].startswith("Half a sentence\n\n## Game plan")
+
+
+@pytest.mark.asyncio
 async def test_subscribe_replays_after_index(tmp_path):
     manager = ForgeManager()
     session, _ = await start(tmp_path, manager=manager, ask_mode="never")
