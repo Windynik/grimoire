@@ -37,7 +37,7 @@ from backend.decks.store import DeckStore  # noqa: E402
 from backend.forge.builder import (  # noqa: E402
     BASIC_FOR_COLOR, COLORLESS_BASIC, BuildPlan, BuiltDeck, build_deck, deck_colors,
 )
-from backend.forge.cards import COLORS, front_types, is_game_card  # noqa: E402
+from backend.forge.cards import COLORS, fits_colors, front_types, is_game_card  # noqa: E402
 from backend.forge.events import engine_playstyle  # noqa: E402
 from backend.forge.graph import build_graph, commander_candidates, find_backbones  # noqa: E402
 from backend.forge.metrics import deck_metrics  # noqa: E402
@@ -242,27 +242,36 @@ def owned_counts(collection: List[dict], index: Dict[str, dict]) -> Dict[str, in
 
 def legality_problems(deck: BuiltDeck, index: Dict[str, dict],
                       owned: Dict[str, int]) -> List[str]:
-    """Return every legality problem: token, off-color, illegal, over the limit, unowned, size."""
+    """Return every legality problem: token, off-color, illegal, over the limit, unowned, size.
+
+    Off-color follows the forge's rule: color identity for lands and in
+    commander formats, the mana cost (castable_in) for other cards.
+    """
     fmt = deck.fmt
     colors = deck_colors(deck.plan, fmt)
     problems = []
     used = {}  # type: Dict[str, int]
-    cards = [(e.card.id, e.name, e.count) for e in deck.entries if not e.basic]
+    cards = [(e.card, e.name, e.count) for e in deck.entries if not e.basic]
     if deck.commander is not None:
-        cards.append((deck.commander.id, deck.commander.name, 1))
+        cards.append((deck.commander, deck.commander.name, 1))
         if deck.commander not in commander_candidates([deck.commander]):
             problems.append("%s cannot be a commander" % deck.commander.name)
     for entry in deck.entries:
         if entry.basic and entry.name not in BASICS:
             problems.append("%s is not a basic land" % entry.name)
-    for card_id, name, count in cards:
-        record = index.get(card_id)
+    for card, name, count in cards:
+        record = index.get(card.id)
         if record is None:
             problems.append("%s is not in the index" % name)
             continue
         if not is_game_card(record):
             problems.append("%s is a token or non-game card" % name)
-        if not set(record.get("color_identity") or []) <= colors:
+        # Lands and commander formats use the color identity; other cards the mana cost.
+        if card.is_land or card is deck.commander:
+            in_colors = card.color_identity <= colors
+        else:
+            in_colors = fits_colors(card, colors, fmt)
+        if not in_colors:
             problems.append("%s is off-color" % name)
         legality = (record.get("legalities") or {}).get(fmt.legality_key)
         if fmt.legality_key is not None and legality not in LEGAL:
