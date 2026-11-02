@@ -8,8 +8,9 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Marcellus&family=Figtree:ital,wght@0,400;0,600;0,700;0,800;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Marcellus&family=Figtree:ital,wght@0,400;0,600;0,700;0,800;1,400&family=IBM+Plex+Mono:wght@400;500;600&family=Cinzel:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="/css/forge.css">
 </head>
 <body>
     <!-- Atmospheric background layers -->
@@ -222,116 +223,80 @@
 
                 <!-- Deck Forge View -->
                 <div id="forge-view" class="view">
-                    <section class="card">
-                        <h2>Deck Forge</h2>
-                        <p class="settings-note"><strong>Forge Deck</strong> builds instantly from the rules engine — no AI needed. With a local model running (via Ollama), <strong>Let the AI Forge</strong> hands your collection to the model and lets it <em>write the decklist itself</em>, card by card.</p>
-
-                        <div class="forge-controls">
-                            <select id="forge-collection" class="filter-select" aria-label="Collection to forge from"></select>
-                            <select id="forge-format" class="filter-select" aria-label="Deck format">
-                                <option value="commander">Commander (100)</option>
-                                <option value="brawl">Brawl (60)</option>
-                                <option value="sixty">Casual 60</option>
-                                <option value="pauper">Pauper (commons only)</option>
-                                <option value="custom">Custom&hellip;</option>
-                            </select>
-                            <select id="forge-commander" class="filter-select" aria-label="Commander">
-                                <option value="">Commander: Auto-pick</option>
-                            </select>
-                            <button id="forge-build" class="btn btn-primary">Forge Deck</button>
-                            <button class="ai-status" id="ai-status" title="Local AI via Ollama — click for details" aria-expanded="false">
-                                <span class="ai-dot"></span>
-                                <span id="ai-status-text">Checking local AI&hellip;</span>
-                            </button>
-                        </div>
-
-                        <!-- Custom format knobs -->
-                        <div id="custom-panel" class="custom-panel" hidden>
-                            <label class="custom-field">
-                                <span>Deck size</span>
-                                <input type="number" id="custom-size" min="40" max="250" value="60">
+                    <div id="forge-setup" class="forge-panel">
+                        <h2 class="forge-title">Deck Forge</h2>
+                        <p class="forge-lede">The agent studies your collection and builds a deck from cards you own.</p>
+                        <p id="forge-ai-banner" class="forge-banner" hidden>Local AI is off. The engine still builds the deck. Install Ollama and run <code>ollama pull gpt-oss:20b</code> for deeper decks.</p>
+                        <p id="forge-empty" class="forge-banner" hidden>No collection yet. Process a CSV first, then come back here.</p>
+                        <form id="forge-form" class="forge-form" autocomplete="off">
+                            <div class="forge-row">
+                                <label class="forge-field">
+                                    <span>Collection</span>
+                                    <select id="forge-collection"></select>
+                                </label>
+                                <label class="forge-field">
+                                    <span>Format</span>
+                                    <select id="forge-format"></select>
+                                </label>
+                            </div>
+                            <fieldset id="forge-commander-group" class="forge-field forge-commanders" hidden>
+                                <legend>Commander</legend>
+                                <div id="forge-commander-grid" class="forge-tiles" role="radiogroup" aria-label="Commander"></div>
+                                <p id="forge-commander-note" class="forge-hint"></p>
+                            </fieldset>
+                            <div id="forge-casual" class="forge-row" hidden>
+                                <label class="forge-field">
+                                    <span>Deck size</span>
+                                    <input type="number" id="forge-deck-size" min="40" max="250" value="60">
+                                </label>
+                                <label class="forge-field">
+                                    <span>Max copies</span>
+                                    <input type="number" id="forge-max-copies" min="1" max="4" value="4">
+                                </label>
+                                <fieldset class="forge-field">
+                                    <legend>Colors</legend>
+                                    <div id="forge-colors" class="forge-colors">
+                                        <button type="button" class="forge-color" data-color="W" aria-pressed="false">W</button>
+                                        <button type="button" class="forge-color" data-color="U" aria-pressed="false">U</button>
+                                        <button type="button" class="forge-color" data-color="B" aria-pressed="false">B</button>
+                                        <button type="button" class="forge-color" data-color="R" aria-pressed="false">R</button>
+                                        <button type="button" class="forge-color" data-color="G" aria-pressed="false">G</button>
+                                    </div>
+                                </fieldset>
+                            </div>
+                            <label class="forge-field">
+                                <span>Wish</span>
+                                <textarea id="forge-wish" rows="3" maxlength="2000" placeholder="Describe the deck you want, or leave this empty."></textarea>
                             </label>
-                            <label class="custom-field">
-                                <span>Max copies</span>
-                                <select id="custom-copies" class="filter-select">
-                                    <option value="4">4</option>
-                                    <option value="3">3</option>
-                                    <option value="2">2</option>
-                                    <option value="1">1 (singleton)</option>
-                                </select>
-                            </label>
-                            <div class="custom-field">
-                                <span>Colors <small>(none = auto)</small></span>
-                                <div class="color-picker" role="group" aria-label="Deck colors">
-                                    <button class="pip pip-w color-chip" data-color="W" aria-pressed="false" title="White"></button>
-                                    <button class="pip pip-u color-chip" data-color="U" aria-pressed="false" title="Blue"></button>
-                                    <button class="pip pip-b color-chip" data-color="B" aria-pressed="false" title="Black"></button>
-                                    <button class="pip pip-r color-chip" data-color="R" aria-pressed="false" title="Red"></button>
-                                    <button class="pip pip-g color-chip" data-color="G" aria-pressed="false" title="Green"></button>
-                                </div>
+                            <div class="forge-row">
+                                <label class="forge-field">
+                                    <span>Model</span>
+                                    <select id="forge-model"></select>
+                                </label>
+                                <label class="forge-field">
+                                    <span>Ask me</span>
+                                    <select id="forge-ask-mode">
+                                        <option value="countdown">With a countdown</option>
+                                        <option value="wait">Wait for my answer</option>
+                                        <option value="never">Never ask</option>
+                                    </select>
+                                </label>
                             </div>
+                            <div class="forge-actions">
+                                <button type="submit" id="forge-start" class="btn btn-primary">Forge</button>
+                            </div>
+                        </form>
+                    </div>
+                    <!-- Task 14 renders the stage, feed, timeline, and result here -->
+                    <div id="forge-stage" class="forge-stage" hidden>
+                        <div class="forge-actions">
+                            <button type="button" id="forge-cancel" class="btn btn-secondary">Cancel</button>
+                            <button type="button" id="forge-new" class="btn btn-secondary" hidden>New forge</button>
                         </div>
-
-                        <!-- AI Forge: the local model authors the decklist itself -->
-                        <div id="ai-forge" class="ai-forge" hidden>
-                            <p class="ai-forge-intro">The local AI writes the deck for the format selected above, choosing the actual cards from your collection. Every pick is verified to be real and owned.</p>
-                            <div class="ai-forge-row">
-                                <input type="text" id="ai-wish" class="search-input"
-                                       placeholder="Tell the grimoire what you crave&hellip; e.g. “something aggressive with tokens”">
-                                <button id="ai-forge-btn" class="btn btn-primary">Let the AI Forge</button>
-                            </div>
-                            <p class="ai-forge-status" id="ai-forge-status" hidden></p>
-                        </div>
-
-                        <div id="ai-help" class="ai-help" hidden>
-                            <p>Deck explanations run on a <strong>local model</strong> via
-                                <a href="https://ollama.com" target="_blank" rel="noopener noreferrer">Ollama</a>
-                                — nothing ever leaves your machine. To enable it:</p>
-                            <ol>
-                                <li>Install Ollama: <code>brew install ollama</code> (or grab the app from ollama.com)</li>
-                                <li>Pull a model: <code>ollama pull llama3.1:8b</code> (~5&nbsp;GB, one-time)</li>
-                                <li>Make sure it's running: <code>ollama serve</code> (the desktop app runs automatically)</li>
-                            </ol>
-                            <p>Then hit re-check — the forge will grow an <em>Explain with Local AI</em> button.</p>
-                            <button id="ai-recheck" class="btn btn-secondary btn-compact">Re-check</button>
-                        </div>
-
-                        <p id="forge-empty" class="settings-note" hidden>
-                            No collection loaded yet — head to <strong>Process CSV</strong> and upload your ManaBox export first.
-                        </p>
-
-                        <div id="forge-result" hidden>
-                            <div class="forge-header">
-                                <h3 id="forge-title"></h3>
-                                <div class="theme-chips" id="forge-themes"></div>
-                            </div>
-
-                            <div class="curve-chart" id="forge-curve" aria-label="Mana curve"></div>
-
-                            <ul class="forge-notes" id="forge-notes"></ul>
-
-                            <div class="deck-columns" id="forge-categories"></div>
-
-                            <div class="actions forge-actions">
-                                <button id="forge-export" class="btn btn-secondary">Copy Decklist</button>
-                                <button id="forge-explain" class="btn btn-secondary" hidden>Explain with Local AI</button>
-                            </div>
-
-                            <div id="forge-explanation" class="forge-explanation" hidden></div>
-
-                            <!-- Conversational deck tuning with the local AI -->
-                            <div id="refine-chat" class="refine-chat" hidden>
-                                <h4 class="refine-title">Tune with the Grimoire</h4>
-                                <p class="refine-hint">Ask for changes and the AI reshapes the deck — every swap checked against your collection.</p>
-                                <div id="refine-log" class="refine-log" aria-live="polite"></div>
-                                <div class="refine-row">
-                                    <input type="text" id="refine-input" class="search-input"
-                                           placeholder="&ldquo;more removal&rdquo; &hellip; &ldquo;make it faster&rdquo; &hellip; &ldquo;why this card?&rdquo;">
-                                    <button id="refine-send" class="btn btn-secondary btn-compact">Send</button>
-                                </div>
-                            </div>
-                        </div>
-                    </section>
+                        <p id="forge-status" class="forge-hint" aria-live="polite"></p>
+                        <!-- Temporary plain-text event log. Task 14 replaces it. -->
+                        <pre id="forge-log" class="forge-log" aria-label="Forge events"></pre>
+                    </div>
                 </div>
 
                 <!-- Settings View -->
@@ -378,5 +343,6 @@
     </div>
 
     <script src="/app.js"></script>
+    <script type="module" src="/js/forge/forge.js"></script>
 </body>
 </html>

@@ -1,0 +1,232 @@
+/* Forge view. Everything is scoped under #forge-view. */
+
+#forge-view {
+    --forge-gold: #e8c26a;
+    --forge-violet: #9b8cff;
+    --forge-teal: #6fd3c7;
+    --forge-green: #6fd39a;
+    --forge-font-display: "Cinzel", "Marcellus", Georgia, serif;
+    --forge-font-ui: "Inter", "Figtree", "Segoe UI", sans-serif;
+    font-family: var(--forge-font-ui);
+}
+
+#forge-view .forge-panel,
+#forge-view .forge-stage {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 1.75rem 1.5rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+}
+
+#forge-view .forge-title {
+    font-family: var(--forge-font-display);
+    font-size: 1.9rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: var(--forge-gold);
+    margin-bottom: 0.35rem;
+}
+
+#forge-view .forge-lede,
+#forge-view .forge-hint {
+    color: var(--text-dim);
+    font-size: 0.92rem;
+    margin-bottom: 1rem;
+}
+
+#forge-view .forge-banner {
+    padding: 0.8rem 1rem;
+    margin-bottom: 1.25rem;
+    border: 1px solid rgba(232, 194, 106, 0.4);
+    border-left: 3px solid var(--forge-gold);
+    border-radius: var(--radius-sm);
+    background: rgba(232, 194, 106, 0.08);
+    font-size: 0.92rem;
+}
+
+#forge-view .forge-banner code {
+    font-family: var(--font-mono);
+    color: var(--forge-gold);
+}
+
+#forge-view .forge-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+#forge-view .forge-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    align-items: start;
+}
+
+#forge-view .forge-row[hidden],
+#forge-view fieldset[hidden],
+#forge-view .forge-stage[hidden],
+#forge-view .forge-panel[hidden] {
+    display: none;
+}
+
+#forge-view .forge-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    border: 0;
+    padding: 0;
+    min-width: 0;
+}
+
+#forge-view .forge-field > span,
+#forge-view .forge-field > legend {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    padding: 0;
+}
+
+#forge-view select,
+#forge-view input[type="number"],
+#forge-view textarea {
+    width: 100%;
+    padding: 0.6rem 0.75rem;
+    font: inherit;
+    font-size: 0.95rem;
+    color: var(--parchment);
+    background: var(--surface-2);
+    border: 1px solid var(--border-bright);
+    border-radius: var(--radius-sm);
+}
+
+#forge-view textarea {
+    resize: vertical;
+}
+
+#forge-view select:focus-visible,
+#forge-view input:focus-visible,
+#forge-view textarea:focus-visible,
+#forge-view .forge-tile:focus-visible,
+#forge-view .forge-color:focus-visible {
+    outline: 2px solid var(--forge-violet);
+    outline-offset: 2px;
+}
+
+/* Commander tiles */
+#forge-view .forge-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 0.75rem;
+    max-height: 26rem;
+    overflow-y: auto;
+    padding: 0.35rem;
+}
+
+#forge-view .forge-tile {
+    position: relative;
+    display: block;
+    padding: 0;
+    aspect-ratio: 488 / 680;
+    border: 2px solid transparent;
+    border-radius: 10px;
+    background: var(--surface-2);
+    color: var(--parchment);
+    cursor: pointer;
+    overflow: hidden;
+    transition: transform 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+    opacity: 0.8;
+}
+
+#forge-view .forge-tile img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+#forge-view .forge-tile:hover {
+    opacity: 1;
+    transform: translateY(-2px);
+}
+
+#forge-view .forge-tile.selected {
+    opacity: 1;
+    border-color: var(--forge-gold);
+    box-shadow: 0 0 0 3px rgba(232, 194, 106, 0.25);
+}
+
+#forge-view .forge-tile-text {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem;
+    text-align: center;
+    font-family: var(--forge-font-display);
+    font-size: 0.95rem;
+    border: 2px dashed var(--border-bright);
+}
+
+#forge-view .forge-tile-text.selected {
+    border-style: solid;
+}
+
+/* Color chips */
+#forge-view .forge-colors {
+    display: flex;
+    gap: 0.4rem;
+}
+
+#forge-view .forge-color {
+    width: 2.4rem;
+    height: 2.4rem;
+    border-radius: 50%;
+    border: 1px solid var(--border-bright);
+    background: var(--surface-2);
+    color: var(--text-dim);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+#forge-view .forge-color[aria-pressed="true"] {
+    border-color: var(--forge-gold);
+    color: var(--forge-gold);
+    background: rgba(232, 194, 106, 0.14);
+}
+
+#forge-view .forge-actions {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 0.25rem;
+}
+
+/* Temporary event log. Task 14 replaces it. */
+#forge-view .forge-log {
+    max-height: 24rem;
+    overflow: auto;
+    padding: 0.85rem 1rem;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--forge-teal);
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: var(--radius-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #forge-view .forge-tile,
+    #forge-view .forge-color {
+        transition: none;
+    }
+
+    #forge-view .forge-tile:hover {
+        transform: none;
+    }
+}
