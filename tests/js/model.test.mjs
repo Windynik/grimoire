@@ -263,3 +263,42 @@ test("saveQueue reports a send error and keeps going", async () => {
   assert.deepEqual(sent, ["bad", "good"]);
   assert.equal(q.inflight, null);
 });
+
+test("set and remove commander ops", () => {
+  const rhys = {
+    scryfall_id: "rhys", name: "Rhys", count: 2, basic: false, role: "core", reason: "r",
+    type_line: "Legendary Creature — Elf", image_url: "art",
+  };
+  const s0 = { ...state0(), sections: { main: [rhys, bolt], sideboard: [], maybeboard: [] } };
+  const frozen = JSON.stringify(s0);
+  const s1 = applyOp(s0, { type: "setCommander", key: "rhys" });
+  assert.equal(JSON.stringify(s0), frozen);
+  assert.deepEqual(Object.keys(s1).sort(), ["commander", "sections"]);
+  assert.equal(s1.commander.scryfall_id, "rhys");
+  assert.equal(s1.commander.image_url, "art");
+  assert.equal(s1.commander.count, undefined);
+  assert.equal(s1.sections.main[0].count, 1);
+
+  // A second commander sends the first one back to main.
+  const elf = { scryfall_id: "elf", name: "Elf", count: 1, basic: false };
+  const s2 = applyOp(applyOp(s1, { type: "add", section: "main", card: elf }),
+    { type: "setCommander", key: "elf" });
+  assert.equal(s2.commander.scryfall_id, "elf");
+  assert.equal(s2.sections.main.find((e) => e.scryfall_id === "rhys").count, 2);
+  assert.equal(s2.sections.main.some((e) => e.scryfall_id === "elf"), false);
+
+  // Remove: the commander returns to main as one copy; with no line it gets a new one.
+  const s3 = applyOp(s1, { type: "clearCommander" });
+  assert.equal(s3.commander, null);
+  assert.equal(s3.sections.main.find((e) => e.scryfall_id === "rhys").count, 2);
+  const solo = { ...state0(), commander: { scryfall_id: "c", name: "C" } };
+  const s4 = applyOp(solo, { type: "clearCommander" });
+  assert.equal(s4.commander, null);
+  assert.deepEqual(s4.sections.main, [
+    { scryfall_id: "c", name: "C", count: 1, basic: false, role: "", reason: "" },
+  ]);
+
+  // A key that is not in main, or no commander to clear, changes nothing.
+  assert.deepEqual(applyOp(s0, { type: "setCommander", key: "nope" }), s0);
+  assert.deepEqual(applyOp(s0, { type: "clearCommander" }), s0);
+});

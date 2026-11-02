@@ -1,0 +1,418 @@
+// Deck editor: loads one deck, keeps the undo history, and saves every change.
+//
+// Every card edit goes through state.apply(op): history push, render, save.
+// The PUT response replaces only the analysis, so a slow response never undoes
+// a newer edit. Deck names and server text go in with textContent only.
+
+import * as api from "./api.js";
+import { applyOp, History, SaveQueue, SECTIONS } from "./model.js";
+import { hidePreview, renderPane, safeManaCost } from "./pane.js";
+
+const GROUP_KEY = "grimoire.groupMode";
+const GROUP_MODES = ["type", "role", "cmc"];
+const RETRY_MS = 3000;
+const STATUS_TEXT = {
+  saving: "Saving…",
+  saved: "Saved",
+  retrying: "Not saved — retrying",
+  failed: "Not saved",
+};
+
+let session = null;
+
+function toast(message, type) {
+  if (typeof window.showToast === "function") window.showToast(message, type);
+}
+
+function readGroupMode() {
+  try {
+    const mode = localStorage.getItem(GROUP_KEY);
+    return GROUP_MODES.includes(mode) ? mode : "type";
+  } catch (e) {
+    return "type";
+  }
+}
+
+function writeGroupMode(mode) {
+  try {
+    localStorage.setItem(GROUP_KEY, mode);
+  } catch (e) {
+    // The choice lasts only for this page.
+  }
+}
+
+function isTextField(el) {
+  if (!el) return false;
+  if (el.isContentEditable || el.tagName === "TEXTAREA") return true;
+  return el.tagName === "INPUT"
+    && !["button", "checkbox", "radio", "range", "submit", "reset"].includes(el.type);
+}
+
+function sameDeck(a, b) {
+  return JSON.stringify([a.sections, a.commander]) === JSON.stringify([b.sections, b.commander]);
+}
+
+function entryBody(entry) {
+  return {
+    scryfall_id: entry.scryfall_id || null,
+    name: entry.name,
+    count: entry.count,
+    basic: Boolean(entry.basic),
+    role: entry.role || "",
+    reason: entry.reason || "",
+  };
+}
+
+function option(value, label) {
+  const el = document.createElement("option");
+  el.value = value;
+  el.textContent = label;
+  return el;
+}
+
+// Copy the editor markup from its template into the host.
+function mount(host) {
+  const template = document.getElementById("deck-editor-template");
+  host.textContent = "";
+  host.append(template.content.cloneNode(true));
+  const pick = (name) => host.querySelector(`[data-editor="${name}"]`);
+  return {
+    loading: pick("loading"),
+    loadingText: pick("loading-text"),
+    shell: pick("shell"),
+    error: pick("error"),
+    back: host.querySelectorAll('[data-editor="back"]'),
+    name: pick("name"),
+    format: pick("format"),
+    collection: pick("collection"),
+    status: pick("status"),
+    undo: pick("undo"),
+    redo: pick("redo"),
+    group: pick("group"),
+    pane: pick("pane"),
+  };
+}
+
+function createSession(host, deckId, options) {
+  const view = mount(host);
+  const history = new History();
+  const queue = new SaveQueue(send);
+  let closed = false;
+  let deck = null; // Loaded fields the editor sends back unchanged, plus name and collection.
+  let lastBody = null; // Newest body given to the queue.
+  let status = "saved";
+  let retryTimer = null;
+
+  const state = {
+    deckId,
+    sections: { main: [], sideboard: [], maybeboard: [] },
+    commander: null,
+    analysis: {},
+    groupMode: readGroupMode(),
+    flipped: new Set(),
+    get canUndo() {
+      return history.canUndo;
+    },
+    get canRedo() {
+      return history.canRedo;
+    },
+    /** Apply one edit: push it on the history, render, and schedule a save. */
+    apply(op) {
+      if (!deck || closed) return;
+      const next = applyOp(state, op);
+      if (sameDeck(next, state)) return;
+      state.sections = next.sections;
+      state.commander = next.commander;
+      history.push(next);
+      state.render();
+      state.save();
+    },
+    undo() {
+      restore(history.undo());
+    },
+    redo() {
+      restore(history.redo());
+    },
+    /** Schedule a save of the whole deck. */
+    save() {
+      if (!deck || closed) return;
+      lastBody = body();
+      clearTimeout(retryTimer);
+      setStatus("saving");
+      queue.schedule(lastBody);
+    },
+    render,
+  };
+
+  const handlers = { apply: (op) => state.apply(op), showCard };
+
+  function restore(snapshot) {
+    if (!snapshot || closed) return;
+    state.sections = snapshot.sections;
+    state.commander = snapshot.commander;
+    render();
+    state.save();
+  }
+
+  function body() {
+    const sections = {};
+    SECTIONS.forEach((section) => {
+      sections[section] = (state.sections[section] || []).map(entryBody);
+    });
+    const commander = state.commander
+      ? { scryfall_id: state.commander.scryfall_id, name: state.commander.name } : null;
+    return {
+      name: deck.name,
+      format: deck.format,
+      commander,
+      collection_job_id: deck.collection_job_id,
+      deck_size: deck.deck_size,
+      max_copies: deck.max_copies,
+      sections,
+    };
+  }
+
+  function setStatus(next) {
+    status = next;
+    view.status.textContent = STATUS_TEXT[next];
+    view.status.dataset.state = next;
+  }
+
+  async function send(snapshot, sendOptions) {
+    const response = await api.saveDeck(deckId, snapshot, sendOptions);
+    if (closed) return;
+    if (response && response.analysis) state.analysis = response.analysis;
+    if (snapshot === lastBody) {
+      setStatus("saved");
+      view.error.hidden = true;
+    } else {
+      // A request that flush() started has no follow-up: send the newest body if it waits.
+      setTimeout(() => {
+        if (!closed && queue.hasPending && !queue.timer && !queue.inflight) queue.schedule(lastBody);
+      }, 0);
+    }
+    render();
+  }
+
+  queue.onError = (error) => {
+    if (closed) {
+      toast(`Could not save the deck: ${error.message}`, "error");
+      return;
+    }
+    // A 4xx answer does not change on a retry.
+    if (error.status >= 400 && error.status < 500) {
+      setStatus("failed");
+      view.error.textContent = `Could not save the deck: ${error.message}`;
+      view.error.hidden = false;
+      return;
+    }
+    setStatus("retrying");
+    clearTimeout(retryTimer);
+    retryTimer = setTimeout(() => {
+      if (!closed && status === "retrying") queue.schedule(lastBody);
+    }, RETRY_MS);
+  };
+
+  // Send now. A failed body waits for its retry, so it goes back in the queue first.
+  function flushNow(flushOptions) {
+    if (status === "retrying" && lastBody && !queue.hasPending) {
+      clearTimeout(retryTimer);
+      queue.schedule(lastBody);
+    }
+    return queue.flush(flushOptions);
+  }
+
+  function showCard(card) {
+    const info = (state.analysis.cards || {})[card.scryfall_id || `basic:${card.name}`] || {};
+    if (window.grimoireCard && window.grimoireCard.showCardDetail) {
+      window.grimoireCard.showCardDetail({
+        name: card.name,
+        image_url: card.image_url || "",
+        mana_cost: safeManaCost(card.mana_cost),
+        type_line: card.type_line || "",
+        price: card.price || 0,
+        quantity: info.owned || 0,
+      });
+    }
+  }
+
+  function render() {
+    if (!deck || closed) return;
+    view.undo.disabled = !history.canUndo;
+    view.redo.disabled = !history.canRedo;
+    const fmt = state.analysis.format || {};
+    view.format.textContent = fmt.name || deck.format || "";
+    // With no collection chosen, the server uses the newest one.
+    const newest = view.collection.options[0];
+    const used = (state.analysis.collection || {}).name;
+    if (newest) {
+      if (!deck.collection_job_id && used) newest.textContent = `Newest (${used})`;
+      else newest.textContent = view.collection.options.length > 1 ? "Newest collection" : "No collection";
+    }
+    renderPane(view.pane, state, handlers);
+  }
+
+  function fillCollections(collections) {
+    const select = view.collection;
+    const list = (collections || []).slice()
+      .sort((a, b) => String(b.created || "").localeCompare(String(a.created || "")));
+    select.replaceChildren(option("", "No collection"));
+    list.forEach((c) => select.append(option(c.job_id, c.name || c.job_id)));
+    const current = deck.collection_job_id;
+    if (current && !list.some((c) => c.job_id === current)) {
+      const named = (state.analysis.collection || {}).name;
+      select.append(option(current, named || "Unknown collection"));
+    }
+    select.value = current || "";
+  }
+
+  // ---- Header controls ----
+
+  function commitName() {
+    const value = view.name.value.trim();
+    if (!value) {
+      view.name.value = deck.name;
+      return;
+    }
+    if (value === deck.name) return;
+    deck.name = value;
+    state.save();
+  }
+
+  view.name.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      view.name.blur();
+    } else if (event.key === "Escape") {
+      view.name.value = deck ? deck.name : "";
+      view.name.blur();
+    }
+  });
+  view.name.addEventListener("blur", () => {
+    if (deck) commitName();
+  });
+  view.collection.addEventListener("change", () => {
+    if (!deck) return;
+    deck.collection_job_id = view.collection.value || null;
+    state.save();
+  });
+  view.group.value = state.groupMode;
+  view.group.addEventListener("change", () => {
+    state.groupMode = GROUP_MODES.includes(view.group.value) ? view.group.value : "type";
+    writeGroupMode(state.groupMode);
+    render();
+  });
+  view.undo.addEventListener("click", () => state.undo());
+  view.redo.addEventListener("click", () => state.redo());
+  view.back.forEach((button) => button.addEventListener("click", () => {
+    if (options.onClose) options.onClose();
+    else closeEditor();
+  }));
+
+  // ---- Page events ----
+
+  function onKey(event) {
+    if (closed || !deck || host.hidden || !host.getClientRects().length) return;
+    if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+    if (String(event.key).toLowerCase() !== "z") return;
+    if (isTextField(document.activeElement)) return;
+    event.preventDefault();
+    if (event.shiftKey) state.redo();
+    else state.undo();
+  }
+
+  function onPageHide() {
+    flushNow({ closing: true });
+  }
+
+  function onVisibility() {
+    if (document.visibilityState === "hidden") flushNow({ closing: true });
+  }
+
+  document.addEventListener("keydown", onKey);
+  window.addEventListener("pagehide", onPageHide);
+  document.addEventListener("visibilitychange", onVisibility);
+
+  async function load() {
+    try {
+      const [record, collections] = await Promise.all([
+        api.getDeck(deckId),
+        api.getCollections().catch(() => ({ collections: [] })),
+      ]);
+      if (closed) return;
+      deck = {
+        name: record.name || "Untitled deck",
+        format: record.format,
+        collection_job_id: record.collection_job_id || null,
+        deck_size: record.deck_size ?? null,
+        max_copies: record.max_copies ?? null,
+      };
+      const sections = record.sections || {};
+      SECTIONS.forEach((section) => {
+        state.sections[section] = Array.isArray(sections[section]) ? sections[section] : [];
+      });
+      state.commander = record.commander || null;
+      state.analysis = record.analysis || {};
+      history.push(state);
+      view.name.value = deck.name;
+      fillCollections(collections.collections);
+      setStatus("saved");
+      view.loading.hidden = true;
+      view.shell.hidden = false;
+      render();
+      if (options.isNew) {
+        view.name.focus();
+        view.name.select();
+      }
+    } catch (error) {
+      if (closed) return;
+      view.loadingText.textContent = `Could not load the deck: ${error.message}`;
+      view.loadingText.setAttribute("role", "alert");
+    }
+  }
+
+  async function close() {
+    if (closed) return;
+    document.removeEventListener("keydown", onKey);
+    window.removeEventListener("pagehide", onPageHide);
+    document.removeEventListener("visibilitychange", onVisibility);
+    hidePreview();
+    // A name typed but not yet committed (browser Back, deck switch) still saves.
+    if (deck && document.activeElement === view.name) commitName();
+    const flushed = flushNow();
+    closed = true;
+    clearTimeout(retryTimer);
+    await flushed;
+  }
+
+  return { state, load, close };
+}
+
+/**
+ * Open the editor for one deck in root.
+ *
+ * @param {HTMLElement} root Host element; the editor replaces its content.
+ * @param {string} deckId
+ * @param {{onClose: function(), isNew: boolean}} [options] onClose runs on "Back to decks".
+ * @returns {Object} The editor state (apply, undo, redo, save, render, and the deck data).
+ */
+export function openEditor(root, deckId, options = {}) {
+  if (session) closeEditor();
+  const current = createSession(root, deckId, options);
+  session = current;
+  current.load();
+  return current.state;
+}
+
+/**
+ * Close the open editor. It does not call onClose.
+ *
+ * @returns {Promise<void>} Resolves after the pending save is sent and answered.
+ */
+export function closeEditor() {
+  const current = session;
+  session = null;
+  return current ? current.close() : Promise.resolve();
+}
+
+window.grimoireEditor = { open: openEditor, close: closeEditor };

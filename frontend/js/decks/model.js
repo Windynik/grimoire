@@ -24,7 +24,7 @@ function cloneState(state) {
  * Apply one edit to a deck state. Returns a new state and never mutates the input.
  *
  * @param {{sections: Object, commander: (Object|null)}} state
- * @param {Object} op One of add, inc, dec, remove, move, replace.
+ * @param {Object} op One of add, inc, dec, remove, move, replace, setCommander, clearCommander.
  * @returns {{sections: Object, commander: (Object|null)}}
  */
 export function applyOp(state, op) {
@@ -35,6 +35,17 @@ export function applyOp(state, op) {
     return sections[name];
   };
   const find = (name, key) => lines(name).findIndex((e) => entryKey(e) === key);
+  // Put the commander back in main as one copy.
+  const returnCommander = () => {
+    const card = next.commander;
+    next.commander = null;
+    const at = find("main", entryKey(card));
+    if (at >= 0) {
+      lines("main")[at].count += 1;
+    } else {
+      lines("main").push({ basic: false, role: "", reason: "", ...card, count: 1 });
+    }
+  };
 
   switch (op.type) {
     case "add": {
@@ -87,6 +98,21 @@ export function applyOp(state, op) {
     }
     case "replace":
       next.sections = clone(op.sections);
+      break;
+    case "setCommander": {
+      const at = find("main", op.key);
+      if (at < 0) break;
+      const source = lines("main")[at];
+      const card = clone(source);
+      delete card.count;
+      source.count -= 1;
+      if (source.count <= 0) lines("main").splice(at, 1);
+      if (next.commander) returnCommander();
+      next.commander = card;
+      break;
+    }
+    case "clearCommander":
+      if (next.commander) returnCommander();
       break;
     default:
       break;

@@ -328,6 +328,49 @@
                         <div id="decks-grid" class="decks-grid"></div>
                     </div>
                     <div id="deck-editor" class="deck-editor" hidden></div>
+                    <template id="deck-editor-template">
+                        <div class="editor-loading" data-editor="loading">
+                            <button type="button" class="btn btn-secondary btn-compact editor-back" data-editor="back">Back to decks</button>
+                            <p data-editor="loading-text">Loading the deck…</p>
+                        </div>
+                        <div class="editor-shell" data-editor="shell" hidden>
+                            <header class="editor-head">
+                                <div class="editor-title">
+                                    <button type="button" class="btn btn-secondary btn-compact editor-back" data-editor="back">Back to decks</button>
+                                    <input type="text" class="editor-name" data-editor="name" maxlength="120" aria-label="Deck name" spellcheck="false" autocomplete="off">
+                                    <p class="editor-meta">
+                                        <span class="editor-format" data-editor="format"></span>
+                                        <label class="editor-collection">
+                                            <span>Collection</span>
+                                            <select data-editor="collection"></select>
+                                        </label>
+                                    </p>
+                                </div>
+                                <div class="editor-tools">
+                                    <span class="editor-status" data-editor="status" role="status" aria-live="polite"></span>
+                                    <button type="button" class="btn btn-secondary btn-compact" data-editor="undo" title="Undo (Ctrl+Z or Cmd+Z)">Undo</button>
+                                    <button type="button" class="btn btn-secondary btn-compact" data-editor="redo" title="Redo (Ctrl+Shift+Z or Cmd+Shift+Z)">Redo</button>
+                                </div>
+                            </header>
+                            <p class="editor-error" data-editor="error" role="alert" hidden></p>
+                            <div class="editor-body">
+                                <section class="editor-deck" aria-label="Deck">
+                                    <div class="deck-pane-tools">
+                                        <label class="editor-group">
+                                            <span>Group by</span>
+                                            <select data-editor="group">
+                                                <option value="type">Type</option>
+                                                <option value="role">Role</option>
+                                                <option value="cmc">Mana value</option>
+                                            </select>
+                                        </label>
+                                        <p class="deck-pane-hint">Drag a row onto a section to move every copy. Hold Shift as you drop to move one copy.</p>
+                                    </div>
+                                    <div class="deck-pane" data-editor="pane"></div>
+                                </section>
+                            </div>
+                        </div>
+                    </template>
                 </div>
 
                 <!-- Settings View -->

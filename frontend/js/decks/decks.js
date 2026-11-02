@@ -3,6 +3,8 @@
 // Deck names, card names and server text go in with textContent only.
 
 import * as api from "./api.js";
+// Defines window.grimoireEditor before the first hash route opens a deck.
+import "./editor.js";
 
 const HASH = /^#deck\/([A-Za-z0-9_-]+)$/;
 
