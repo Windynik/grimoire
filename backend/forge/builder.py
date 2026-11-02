@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from typing import Dict, FrozenSet, List, Optional, Set, Tuple
 
 from backend.forge.cards import COLORS, OwnedCard
-from backend.forge.graph import Backbone, SynergyGraph
+from backend.forge.graph import Backbone, SynergyGraph, card_weight
 from backend.forge.playbook import FormatRules, Playbook
 
 BASIC_FOR_COLOR = {"W": "Plains", "U": "Island", "B": "Swamp", "R": "Mountain", "G": "Forest"}
@@ -19,6 +19,7 @@ COLORLESS_BASIC = "Wastes"
 COLOR_NAMES = {"W": "white", "U": "blue", "B": "black", "R": "red", "G": "green"}
 CREATURES = "creatures"  # quota key that counts creature cards, not a tagged role
 CORE_SHARE = 0.4  # backbone members fill at most this share of the nonland slots
+CORE_SHARE_PLAYSETS = 0.6  # the same in formats with copies: a 60-card plan is 4-ofs
 WINDOW = 15  # size of borderline_in and of bench
 SPLASH_PIPS = 3  # pips of one splash color that make a card hard to cast
 SOURCE_RANKS = ("primary", "secondary")  # the third color and after are "splash"
@@ -29,6 +30,9 @@ NO_ROOM = "Couldn't fit {name}: no room left in the deck."
 _FETCH = re.compile(r"search your library for ([^.]*)", re.IGNORECASE)
 _BASIC_LAND = re.compile(r"\bbasic lands?\b", re.IGNORECASE)
 _BASIC_TYPE = re.compile(r"\b(Plains|Island|Swamp|Mountain|Forest)s?\b", re.IGNORECASE)
+# A land that sacrifices other lands (Lotus Field) costs a land drop.
+_SACRIFICES_LANDS = re.compile(r"\bsacrifices? (a|an|one|two|three) (untapped )?lands?\b",
+                               re.IGNORECASE)
 _TYPE_COLOR = {name.lower(): color for color, name in BASIC_FOR_COLOR.items()}
 # Nonbasic land tiers, best first.
 TIER_DUAL, TIER_ANY, TIER_UTILITY = 1, 2, 3
@@ -243,6 +247,18 @@ def _place(card: OwnedCard, role: str, reason: str, state: _State) -> None:
     state.picks.append(_Pick(card, count, role, reason))
 
 
+def _core_pull(card: OwnedCard, placed: Set[str], state: _State) -> float:
+    """Return a member's synergy into the placed cards, times its card_weight.
+
+    With no placed card, the synergy counts into the whole core. So each next
+    member is the one that works best with the cards already in the deck:
+    enablers and payoffs alternate, and a strong card beats a weak card with
+    the same edges.
+    """
+    synergy = state.graph.weight_into(card.id, placed) if placed else _synergy(card, state)
+    return synergy * card_weight(card, state.fmt)
+
+
 def _open(pool: List[OwnedCard], state: _State) -> List[OwnedCard]:
     return [card for card in pool if card.id not in state.counts]
 
@@ -258,15 +274,26 @@ def _fill_reason(card: OwnedCard, state: _State) -> Tuple[str, str]:
 
 def _place_nonland(pool: List[OwnedCard], members: List[OwnedCard],
                    required: List[OwnedCard], plan: BuildPlan, state: _State) -> None:
-    """Place nonland cards: required, core, role quotas, then the curve-aware fill."""
+    """Place nonland cards: required, core, role quotas, then the curve-aware fill.
+
+    Core members go in by _core_pull (ties by card score, quality, name) and
+    fill at most CORE_SHARE of the slots (CORE_SHARE_PLAYSETS in formats with
+    copies).
+    """
     for card in required:
         _place(card, "core", "Required card.", state)
-    core_cap = state.slots * CORE_SHARE
+    fmt = state.fmt
+    share = CORE_SHARE if fmt.singleton or fmt.max_copies <= 1 else CORE_SHARE_PLAYSETS
+    core_cap = state.slots * share
     left = [card for card in members if card.id not in state.counts]
+    # The commander and the required cards count as placed.
+    placed = (state.core - {card.id for card in members}) | {p.card.id for p in state.picks}
     while state.filled < core_cap and left:
-        card = _best(left, state)
+        card = min(left, key=lambda c: (-_core_pull(c, placed, state), -_card_score(c, state),
+                                        -c.quality, c.name))
         left.remove(card)
         _place(card, "core", f"Core card of the {plan.backbone.name} plan.", state)
+        placed.add(card.id)
     for key, quota in state.quotas.items():
         while state.have.get(key, 0) < quota and state.filled < state.slots:
             candidates = [c for c in _open(pool, state) if key in quota_keys(c)]
@@ -356,6 +383,11 @@ def land_colors(card: OwnedCard, colors: FrozenSet[str]) -> FrozenSet[str]:
     return (frozenset(card.produced_mana) & colors) | fetch_colors(card, colors)
 
 
+def sacrifices_lands(card: OwnedCard) -> bool:
+    """Return True when a land's text sacrifices other lands (for example Lotus Field)."""
+    return bool(_SACRIFICES_LANDS.search(card.oracle_text or ""))
+
+
 def land_tier(card: OwnedCard, colors: FrozenSet[str]) -> Optional[int]:
     """Return the priority tier of a nonbasic land for the deck colors.
 
@@ -403,10 +435,11 @@ def _mana_base(lands: List[OwnedCard], colors: FrozenSet[str], demand: Dict[str,
 
     Returns:
         (land entries, warnings, notes). Lands rank by tier (see land_tier),
-        then deck colors covered, then quality. Any-color lands stop at 3
-        copies in 100-card decks and at 2 in 60-card decks with 3+ colors
-        (0 otherwise); other single-color and colorless lands stop at
-        fmt.utility_land_limit. Basic lands fill the rest.
+        then lands that sacrifice other lands last, then deck colors covered,
+        then quality. Any-color lands stop at 3 copies in 100-card decks and
+        at 2 in 60-card decks with 3+ colors (0 otherwise); other single-color
+        and colorless lands stop at fmt.utility_land_limit. Basic lands fill
+        the rest.
     """
     floor = len(colors) * (4 if fmt.deck_size >= 80 else 3)
     cap = max(0, min(target, land_slots) - floor)
@@ -418,7 +451,7 @@ def _mana_base(lands: List[OwnedCard], colors: FrozenSet[str], demand: Dict[str,
         if tiers.get(card.id) is None:
             warnings.append(f"Couldn't fit {card.name}: it makes no mana of the deck colors.")
     ranked = sorted((l for l in lands if tiers[l.id] is not None),
-                    key=lambda l: (l.id not in required_ids, tiers[l.id],
+                    key=lambda l: (l.id not in required_ids, tiers[l.id], sacrifices_lands(l),
                                    -len(land_colors(l, colors)), -l.quality, l.name))
     entries = []  # type: List[DeckEntry]
     taken = 0

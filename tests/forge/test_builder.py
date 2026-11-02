@@ -1,8 +1,9 @@
 from dataclasses import replace
 
 from backend.forge.builder import (
-    TIER_ANY, TIER_DUAL, TIER_UTILITY, BuildPlan, BuiltDeck, DeckEntry, build_deck, copies_for,
-    curve_bucket, fetch_colors, land_colors, land_target, land_tier,
+    CORE_SHARE, CORE_SHARE_PLAYSETS, TIER_ANY, TIER_DUAL, TIER_UTILITY, BuildPlan, BuiltDeck,
+    DeckEntry, build_deck, copies_for, curve_bucket, fetch_colors, land_colors, land_target,
+    land_tier, sacrifices_lands,
 )
 from backend.forge.cards import hydrate
 from backend.forge.graph import Backbone, build_graph
@@ -500,3 +501,42 @@ def test_true_lands_rank_before_any_color_lands(playbook):
     assert sum(e.count for e in deck.entries if e.name.startswith("Tri Land")) == 13
     assert any_color_count(deck) == 0
     assert sum(basics(deck).values()) == 9
+
+
+def test_sixty_card_core_alternates_enablers_and_payoffs(playbook):
+    # By synergy into the whole core, outlets (10 payoffs * 1.5) beat payoffs
+    # (6 outlets * 1.5) and would fill the core alone. Each next member counts
+    # its synergy into the placed cards, so outlets and payoffs alternate.
+    recs = [creature(f"Sac Outlet {i}", i, SAC) for i in range(6)]
+    recs += [creature(f"Death Payoff {i:02d}", 10 + i, DEATH_PAYOFF) for i in range(10)]
+    recs += [creature(f"Bear {i}", 100 + i, cmc=1 + i % 4) for i in range(10)]
+    recs += [spell(f"Removal {i}", REMOVAL) for i in range(4)]
+    recs += [spell(f"Insight {i}", DRAW, type_line="Sorcery", cmc=3) for i in range(2)]
+    cards = tagged(playbook, "modern", recs, [4] * len(recs))
+    names = {f"Sac Outlet {i}" for i in range(6)} | {f"Death Payoff {i:02d}" for i in range(10)}
+    deck = build(playbook, "modern", cards, backbone(cards, names, "G"))
+    core = [e for e in deck.entries if e.role == "core"]
+    outlets = sum(e.count for e in core if e.name.startswith("Sac Outlet"))
+    payoffs = sum(e.count for e in core if e.name.startswith("Death Payoff"))
+    assert abs(outlets - payoffs) <= 4
+    # Formats with copies give the core CORE_SHARE_PLAYSETS (0.6) of the nonland slots.
+    nonland = sum(e.count for e in deck.nonland_entries())
+    assert outlets + payoffs > CORE_SHARE * nonland
+    assert outlets + payoffs <= CORE_SHARE_PLAYSETS * nonland + 4
+
+
+def test_land_that_sacrifices_lands_ranks_last_in_its_tier(playbook, oracle):
+    field = oracle["Lotus Field"]
+    assert sacrifices_lands(by_name(tagged(playbook, "commander", [field]))["Lotus Field"])
+    captain = creature("Selesnya Captain", 999, colors=("G", "W"), cmc=4,
+                       type_line="Legendary Creature — Kind999")
+    recs = [captain] + gw_records(bears=60) + any_color_lands(2)  # 3 any-color lands
+    recs.append(land("Lotus Bloom Field", ("W", "U", "B", "R", "G"), colors=(), rank=1,
+                     text="Hexproof\nThis land enters tapped.\nWhen this land enters, sacrifice "
+                          "two untapped lands.\n{T}: Add three mana of any one color."))
+    cards = tagged(playbook, "commander", recs)
+    commander = by_name(cards)["Selesnya Captain"]
+    deck = build(playbook, "commander", cards, backbone(cards, CORE_NAMES, "GW", commander),
+                 commander=commander)
+    assert any_color_count(deck) == 3
+    assert "lotus bloom field" not in deck.names()
