@@ -353,8 +353,14 @@
                                 </div>
                             </header>
                             <p class="editor-error" data-editor="error" role="alert" hidden></p>
-                            <div class="editor-body">
-                                <section class="editor-deck" aria-label="Deck">
+                            <div class="editor-tabs" role="tablist" aria-label="Editor panels">
+                                <button type="button" role="tab" class="editor-tab editor-tab-deck" data-editor="tab" data-tab="deck" aria-selected="false">Deck</button>
+                                <button type="button" role="tab" class="editor-tab" data-editor="tab" data-tab="search" aria-selected="true">Add cards</button>
+                                <button type="button" role="tab" class="editor-tab" data-editor="tab" data-tab="stats" aria-selected="false">Stats</button>
+                            </div>
+                            <div class="editor-body" data-editor="body" data-tab="search">
+                                <section class="editor-search" data-panel="search" data-editor="search" aria-label="Add cards"></section>
+                                <section class="editor-deck" data-panel="deck" aria-label="Deck">
                                     <div class="deck-pane-tools">
                                         <label class="editor-group">
                                             <span>Group by</span>
@@ -368,6 +374,7 @@
                                     </div>
                                     <div class="deck-pane" data-editor="pane"></div>
                                 </section>
+                                <aside class="editor-stats" data-panel="stats" data-editor="stats" aria-label="Deck stats"></aside>
                             </div>
                         </div>
                     </template>

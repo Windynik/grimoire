@@ -8,6 +8,8 @@ import * as api from "./api.js";
 import { applyOp, History, SaveQueue, SECTIONS } from "./model.js";
 import { safeManaCost } from "../shared/dom.js";
 import { hidePreview, renderPane } from "./pane.js";
+import { renderSearch } from "./search.js";
+import { renderStats } from "./stats.js";
 
 const GROUP_KEY = "grimoire.groupMode";
 const GROUP_MODES = ["type", "role", "cmc"];
@@ -91,6 +93,10 @@ function mount(host) {
     redo: pick("redo"),
     group: pick("group"),
     pane: pick("pane"),
+    search: pick("search"),
+    stats: pick("stats"),
+    body: pick("body"),
+    tabs: host.querySelectorAll('[data-editor="tab"]'),
   };
 }
 
@@ -246,6 +252,8 @@ function createSession(host, deckId, options) {
       else newest.textContent = view.collection.options.length > 1 ? "Newest collection" : "No collection";
     }
     renderPane(view.pane, state, handlers);
+    renderStats(view.stats, state.analysis);
+    renderSearch(view.search, state);
   }
 
   function fillCollections(collections) {
@@ -298,6 +306,10 @@ function createSession(host, deckId, options) {
     writeGroupMode(state.groupMode);
     render();
   });
+  view.tabs.forEach((tab) => tab.addEventListener("click", () => {
+    view.body.dataset.tab = tab.dataset.tab;
+    view.tabs.forEach((other) => other.setAttribute("aria-selected", String(other === tab)));
+  }));
   view.undo.addEventListener("click", () => state.undo());
   view.redo.addEventListener("click", () => state.redo());
   view.back.forEach((button) => button.addEventListener("click", () => {

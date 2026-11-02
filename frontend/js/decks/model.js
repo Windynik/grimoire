@@ -213,6 +213,60 @@ export function groupEntries(entries, mode, analysisCards) {
 }
 
 /**
+ * Count the entry issues of an analysis by code.
+ *
+ * @param {Object} [analysisCards] Map of entry key to {issues: [code, ...]}.
+ * @returns {Object} Map of issue code to the number of entries that have it.
+ */
+export function issueSummary(analysisCards) {
+  const counts = {};
+  Object.values(analysisCards || {}).forEach((info) => {
+    ((info && info.issues) || []).forEach((code) => {
+      counts[code] = (counts[code] || 0) + 1;
+    });
+  });
+  return counts;
+}
+
+/** Mana value of a cost such as "{2}{W}{W}". X counts 0; a two-faced cost counts its front face. */
+export function manaValue(cost) {
+  const front = String(cost || "").split("//")[0];
+  let total = 0;
+  (front.match(/\{[^}]*\}/g) || []).forEach((symbol) => {
+    const body = symbol.slice(1, -1);
+    const first = body.split("/")[0];
+    if (/^\d+$/.test(first)) total += Number(first);
+    else if (first !== "X" && first !== "Y" && first !== "Z") total += 1;
+  });
+  return total;
+}
+
+/**
+ * Map a search result to the card of an "add" op. Collection rows name the id
+ * scryfall_id and carry a quantity; archive records may name it id. Neither
+ * route returns cmc, so it comes from the mana cost.
+ *
+ * @param {Object} result One card of a search response.
+ * @returns {Object}
+ */
+export function toEntryCard(result) {
+  const typeLine = result.type_line || "";
+  const price = Number(result.price);
+  return {
+    scryfall_id: result.scryfall_id || result.id || null,
+    name: result.name,
+    image_url: result.image_url || "",
+    back_image_url: result.back_image_url || "",
+    mana_cost: result.mana_cost || "",
+    type_line: typeLine,
+    cmc: manaValue(result.mana_cost),
+    price: Number.isFinite(price) ? price : 0,
+    set: result.set || "",
+    basic: typeLine.includes("Basic Land"),
+  };
+}
+
+/**
  * Debounced save queue. At most one request is in flight. A snapshot that
  * arrives during a request waits, and only the newest one goes out afterward.
  * Errors from send go to onError (if set) and do not stop the queue.

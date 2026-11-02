@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  applyOp, entryKey, groupEntries, History, SaveQueue, SECTIONS,
+  applyOp, entryKey, groupEntries, History, issueSummary, manaValue, SaveQueue, SECTIONS,
+  toEntryCard,
 } from "../../frontend/js/decks/model.js";
 
 const bolt = { scryfall_id: "bolt", name: "Lightning Bolt", cmc: 1, type_line: "Instant" };
@@ -319,4 +320,41 @@ test("saveQueue sends a body scheduled during a closing flush after that request
   gates[1]();
   await wait(5);
   assert.equal(q.inflight, null);
+});
+
+test("issueSummary counts entry issues by code", () => {
+  const cards = {
+    a: { owned: 0, issues: ["not_owned", "banned"], roles: [] },
+    b: { owned: 1, issues: ["not_owned"], roles: [] },
+    c: { owned: 1, issues: [], roles: [] },
+    d: {},
+  };
+  assert.deepEqual(issueSummary(cards), { not_owned: 2, banned: 1 });
+  assert.deepEqual(issueSummary(undefined), {});
+});
+
+test("manaValue sums a cost and reads the front face only", () => {
+  assert.equal(manaValue("{2}{W}{W}"), 4);
+  assert.equal(manaValue("{X}{R}"), 1);
+  assert.equal(manaValue("{2/W}{G/U}"), 3);
+  assert.equal(manaValue("{1}{U} // {3}{B}"), 2);
+  assert.equal(manaValue(""), 0);
+});
+
+test("toEntryCard maps owned and archive results to the add shape", () => {
+  const owned = {
+    scryfall_id: "x", name: "Forest", mana_cost: "", type_line: "Basic Land — Forest",
+    image_url: "i", quantity: "4", price: "0.10", oracle_text: "long", owned: true,
+  };
+  const card = toEntryCard(owned);
+  assert.equal(card.scryfall_id, "x");
+  assert.equal(card.basic, true);
+  assert.equal(card.cmc, 0);
+  assert.equal(card.price, 0.1);
+  assert.equal("oracle_text" in card, false);
+  assert.equal("quantity" in card, false);
+  const bolt = toEntryCard({ id: "b", name: "Bolt", mana_cost: "{R}", type_line: "Instant" });
+  assert.equal(bolt.scryfall_id, "b");
+  assert.equal(bolt.basic, false);
+  assert.equal(bolt.cmc, 1);
 });
