@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, List, Optional, Tuple
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -9,6 +9,7 @@ from backend.api.dependencies import (
 )
 from backend.core.bulk_data import BulkDataManager
 from backend.core.collection_store import CollectionStore
+from backend.decks.analysis import analyze
 from backend.decks.records import (
     CreateDeck,
     DeckIn,
@@ -23,7 +24,19 @@ from backend.forge.playbook import load_playbook
 
 router = APIRouter(prefix="/api")
 
-_FORMATS = load_playbook().formats
+_PLAYBOOK = load_playbook()
+_FORMATS = _PLAYBOOK.formats
+
+
+def _collection_for(record: dict, collections: CollectionStore) -> Tuple[Optional[List[dict]],
+                                                                         Optional[dict]]:
+    """Return (rows, metadata) of the deck's collection, else of the newest one, else (None, None)."""
+    listed = collections.list_collections()
+    chosen = next((m for m in listed if m["job_id"] == record.get("collection_job_id")), None)
+    chosen = chosen or (listed[0] if listed else None)
+    if chosen is None:
+        return None, None
+    return collections.get_collection(chosen["job_id"]), chosen
 
 
 def deck_response(record: dict, index: Dict[str, dict], collections: CollectionStore) -> dict:
@@ -35,10 +48,11 @@ def deck_response(record: dict, index: Dict[str, dict], collections: CollectionS
         collections: Collection store (the analysis uses it)
 
     Returns:
-        The hydrated record plus the key "analysis" (empty for now)
+        The hydrated record plus the key "analysis" (see backend.decks.analysis.analyze)
     """
     deck = hydrate_record(record, index)
-    deck["analysis"] = {}
+    rows, meta = _collection_for(record, collections)
+    deck["analysis"] = analyze(record, index, rows, meta, _PLAYBOOK)
     return deck
 
 

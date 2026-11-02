@@ -107,3 +107,25 @@ def test_stored_file_has_no_display_fields(overrides):
         text = path.read_text(encoding="utf-8")
         assert "mana_cost" not in text and "type_line" not in text
         assert "analysis" not in json.loads(text)
+
+
+def test_deck_response_has_analysis(overrides):
+    with TestClient(app) as client:
+        deck_id = client.post("/api/decks", json={"format": "modern",
+                                                  "collection_job_id": "aaa1"}).json()["id"]
+        body = client.put("/api/decks/%s" % deck_id, json=_body(
+            collection_job_id="aaa1")).json()
+        analysis = body["analysis"]
+        assert analysis["count"]["main"] == sum(
+            e["count"] for e in body["sections"]["main"]) == 3
+        assert analysis["collection"]["job_id"] == "aaa1"
+        assert analysis["cards"][_sac()["id"]]["issues"] == []
+
+
+def test_analysis_falls_back_to_newest_collection(overrides):
+    with TestClient(app) as client:
+        deck_id = client.post("/api/decks", json={"format": "modern"}).json()["id"]
+        body = client.put("/api/decks/%s" % deck_id, json=_body(
+            collection_job_id="dead")).json()
+        assert body["analysis"]["collection"]["job_id"] == "aaa1"
+        assert body["analysis"]["cards"][_sac()["id"]]["owned"] == 4

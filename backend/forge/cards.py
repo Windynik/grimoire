@@ -172,7 +172,7 @@ def _mdfc_land_back(record: dict) -> bool:
     return not _LAND_WORD.search(faces[0]) and bool(_LAND_WORD.search(faces[1]))
 
 
-def _build(record: dict, legality: str, owned: int) -> OwnedCard:
+def build_card(record: dict, legality: str, owned: int) -> OwnedCard:
     types, subtypes = front_types(record.get("type_line", ""))
     return OwnedCard(
         id=record["id"],
@@ -232,5 +232,5 @@ def hydrate(collection: List[dict], index: Dict[str, dict], fmt: FormatRules) ->
         if key in merged:
             merged[key].owned += qty
         else:
-            merged[key] = _build(record, legality, qty)
+            merged[key] = build_card(record, legality, qty)
     return [card for card in merged.values() if card.owned > 0]

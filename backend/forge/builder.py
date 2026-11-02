@@ -326,14 +326,14 @@ def _pip_demand(cards: List[Tuple[OwnedCard, int]], colors: FrozenSet[str]) -> D
     return demand
 
 
-def _color_ranks(demand: Dict[str, int]) -> List[str]:
+def color_ranks(demand: Dict[str, int]) -> List[str]:
     """Deck colors with pip demand, most demanded first (ties in WUBRG order)."""
     return sorted((c for c, n in demand.items() if n > 0),
                   key=lambda c: (-demand[c], COLORS.index(c)))
 
 
 def _splash_colors(demand: Dict[str, int]) -> FrozenSet[str]:
-    return frozenset(_color_ranks(demand)[len(SOURCE_RANKS):])
+    return frozenset(color_ranks(demand)[len(SOURCE_RANKS):])
 
 
 def _split_basics(total: int, colors: FrozenSet[str], demand: Dict[str, int]) -> Dict[str, int]:
@@ -495,6 +495,28 @@ def _mana_base(lands: List[OwnedCard], colors: FrozenSet[str], demand: Dict[str,
     return entries, warnings + _source_warnings(entries, demand, fmt, colors), notes
 
 
+def color_sources(entries: List[DeckEntry], colors: FrozenSet[str]) -> Dict[str, int]:
+    """Return the land sources per deck color.
+
+    Args:
+        entries: Deck entries. A nonbasic land is a source for each deck color
+            in land_colors (fetch lands included); a basic land for its own color.
+        colors: Deck colors.
+
+    Returns:
+        Mapping of color to the number of land copies that make it.
+    """
+    sources = {}  # type: Dict[str, int]
+    for entry in entries:
+        if entry.card is not None and not entry.card.is_land:
+            continue
+        made = land_colors(entry.card, colors) if entry.card is not None else {
+            c for c, n in BASIC_FOR_COLOR.items() if n == entry.name}
+        for color in made:
+            sources[color] = sources.get(color, 0) + entry.count
+    return sources
+
+
 def source_shortfalls(entries: List[DeckEntry], demand: Dict[str, int], fmt: FormatRules,
                       colors: FrozenSet[str]) -> List[Tuple[str, int, int]]:
     """Return the demanded colors with fewer land sources than fmt.color_sources.
@@ -511,16 +533,9 @@ def source_shortfalls(entries: List[DeckEntry], demand: Dict[str, int], fmt: For
         color needs the primary count, the second the secondary count, and the
         rest the splash count (ties in WUBRG order).
     """
-    sources = {}  # type: Dict[str, int]
-    for entry in entries:
-        if entry.card is not None and not entry.card.is_land:
-            continue
-        made = land_colors(entry.card, colors) if entry.card is not None else {
-            c for c, n in BASIC_FOR_COLOR.items() if n == entry.name}
-        for color in made:
-            sources[color] = sources.get(color, 0) + entry.count
+    sources = color_sources(entries, colors)
     short = []
-    for rank, color in enumerate(_color_ranks(demand)):
+    for rank, color in enumerate(color_ranks(demand)):
         need = fmt.color_sources[SOURCE_RANKS[rank] if rank < len(SOURCE_RANKS) else "splash"]
         have = sources.get(color, 0)
         if have < need:

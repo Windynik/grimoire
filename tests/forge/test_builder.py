@@ -566,3 +566,17 @@ def test_commander_colors_follow_the_color_identity(playbook, oracle):
                  commander=commander, required={"Slippery Bogle"})
     assert "slippery bogle" not in deck.names()
     assert any(w.startswith("Slippery Bogle is not") for w in deck.warnings)
+
+
+def test_color_sources_matches_source_shortfalls(playbook, rules):
+    from backend.forge.builder import DeckEntry, color_sources, source_shortfalls
+    fmt = rules["modern"]
+    colors = frozenset({"G", "U"})
+    entries = [DeckEntry(card=None, name="Forest", count=9, role="basic", reason="", basic=True),
+               DeckEntry(card=None, name="Island", count=4, role="basic", reason="", basic=True)]
+    sources = color_sources(entries, colors)
+    assert sources == {"G": 9, "U": 4}
+    demand = {"G": 10, "U": 5}
+    assert source_shortfalls(entries, demand, fmt, colors) == [
+        ("G", sources["G"], fmt.color_sources["primary"]),
+        ("U", sources["U"], fmt.color_sources["secondary"])]
