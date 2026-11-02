@@ -17,6 +17,8 @@ from backend.core.bulk_data import NON_GAME_LAYOUTS, BulkDataManager
 from backend.core.collection_store import CollectionStore
 from backend.core.csv_processor import CSVProcessor, enrich_rows, write_enriched_csv
 from backend.core.ollama_client import OllamaClient
+from backend.forge.cards import is_game_card
+from backend.forge.playbook import load_playbook
 from backend.models.schemas import CacheStatus, ProcessResult
 
 
@@ -368,6 +370,29 @@ async def get_collection(
     }
 
 
+_FORMATS = load_playbook().formats
+
+
+def legal_in(record: dict, fmt_key: str) -> bool:
+    """Return True when an index record is a game card playable in a format.
+
+    A format with a legality key keeps `legal` and `restricted` cards.
+    A format without one (casual) keeps every game card.
+    """
+    if not is_game_card(record):
+        return False
+    legality_key = _FORMATS[fmt_key].legality_key
+    if legality_key is None:
+        return True
+    return (record.get("legalities") or {}).get(legality_key) in ("legal", "restricted")
+
+
+def check_format(fmt_key: str) -> None:
+    """Raise 400 when a non-empty format key is not in the playbook."""
+    if fmt_key and fmt_key not in _FORMATS:
+        raise HTTPException(status_code=400, detail="Unknown format: " + fmt_key)
+
+
 @router.get("/collection/{job_id}/search")
 async def search_collection(
     job_id: str,
@@ -379,6 +404,7 @@ async def search_collection(
     color: str = "",
     rarity: str = "",
     foil: str = "",
+    format: str = "",
     store: CollectionStore = Depends(get_collection_store),
     bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager),
 ):
@@ -386,6 +412,14 @@ async def search_collection(
     results = store.get_collection(job_id)
     if results is None:
         raise HTTPException(status_code=404, detail="Collection not found")
+    check_format(format)
+    if format:
+        index = await bulk_data_manager.load_bulk_data()
+        results = [
+            c for c in results
+            if c.get("scryfall_id") in index
+            and legal_in(index[c["scryfall_id"]], format)
+        ]
     if q:
         query_lower = q.lower()
         results = [c for c in results if query_lower in (c.get("name") or "").lower()]
@@ -434,6 +468,7 @@ async def search_all_cards(
     card_type: str = "",
     color: str = "",
     rarity: str = "",
+    format: str = "",
     bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager)
 ):
     """Search/browse the full bulk data archive with pagination and filters.
@@ -449,6 +484,7 @@ async def search_all_cards(
             detail="Bulk data not available. Please download cache first."
         )
 
+    check_format(format)
     query_lower = q.lower()
     matches = [
         (card_id, card_info)
@@ -456,6 +492,7 @@ async def search_all_cards(
         if card_info.get("layout") not in NON_GAME_LAYOUTS
         and (not query_lower or query_lower in card_info.get("name", "").lower())
         and matches_filters(card_info, card_type, color, rarity, "")
+        and (not format or legal_in(card_info, format))
     ]
 
     limit = max(1, min(limit, 200))

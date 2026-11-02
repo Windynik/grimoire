@@ -12,6 +12,7 @@ from backend.api.dependencies import (
 from backend.core.collection_store import CollectionStore
 from backend.core.csv_processor import CSVProcessor
 from main import app
+from tests.forge.conftest import make_record
 
 
 client = TestClient(app)
@@ -100,6 +101,37 @@ def test_collection_search_hydrates_missing_face_images(overrides):
     assert card["image_url"] == "https://img/front.jpg"
     assert card["back_image_url"] == "https://img/back.jpg"
     assert card["owned"] is True
+
+
+def test_search_format_filter(overrides):
+    store, bulk = overrides
+    legal = make_record("Legal Card")
+    banned = make_record("Banned Card")
+    banned["legalities"]["modern"] = "banned"
+    bulk.cards.clear()
+    bulk.cards.update({"id-legal": legal, "id-banned": banned})
+    store.store_collection("job1", [], {})
+    payload = {"meta": {"job_id": "job1", "name": "F"}, "cards": [
+        {"name": "Legal Card", "scryfall_id": "id-legal", "quantity": 1},
+        {"name": "Banned Card", "scryfall_id": "id-banned", "quantity": 1},
+        {"name": "Gone Card", "scryfall_id": "id-gone", "quantity": 1},
+    ]}
+    (store.storage_dir / "job1.json").write_text(json.dumps(payload))
+
+    names = [c["name"] for c in
+             client.get("/api/cards/search?format=modern").json()["cards"]]
+    assert names == ["Legal Card"]
+    names = [c["name"] for c in
+             client.get("/api/collection/job1/search?format=modern").json()["cards"]]
+    assert names == ["Legal Card"]
+
+    # casual keeps every game card
+    assert client.get("/api/cards/search?format=casual").json()["total"] == 2
+
+    for url in ("/api/cards/search", "/api/collection/job1/search"):
+        response = client.get(url + "?format=historic")
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Unknown format: historic"
 
 
 MANABOX_CSV = (
