@@ -562,7 +562,7 @@ class ForgeRun {
     }
     const total = main.reduce((n, c) => n + (Number(c.count) || 0), 0) + (commander ? 1 : 0);
     this.feed.reveal(deck.name, `${total} cards. Every card has a reason you can read.`);
-    this.later(this.rushing() ? 0 : REVEAL_MS, () => showResult(d.deck_id));
+    this.later(this.rushing() ? 0 : REVEAL_MS, () => showResult(d.deck_id, deck.name));
   }
 
   onEnd(text, kind) {
@@ -596,28 +596,38 @@ const HANDOFF_MS = 380; // the forge view fades out this long before the editor 
  * the stage fades out. Under reduced motion the editor opens at once. The forge
  * then resets to its setup for the next run.
  */
-async function showResult(deckId) {
+async function showResult(deckId, deckName) {
   const forgeId = state.forgeId;
   if (state.forgeId !== forgeId) return;
   const stage = $("forge-stage");
   let fades = [];
-  const reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (!reduced && !stage.hidden && stage.animate) {
-    const core = stage.querySelector(".forge-core");
-    const timing = { duration: HANDOFF_MS, easing: "ease-in", fill: "forwards" };
-    fades = [stage.animate([{ opacity: 1 }, { opacity: 0 }], timing)];
-    if (core) {
-      fades.push(core.animate([
-        { transform: "scale(1) translateY(0)" },
-        { transform: "scale(0.55) translateY(-40px)" },
-      ], timing));
+  try {
+    const reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!reduced && !stage.hidden && stage.animate) {
+      const core = stage.querySelector(".forge-core");
+      const timing = { duration: HANDOFF_MS, easing: "ease-in", fill: "forwards" };
+      fades = [stage.animate([{ opacity: 1 }, { opacity: 0 }], timing)];
+      if (core) {
+        fades.push(core.animate([
+          { transform: "scale(1) translateY(0)" },
+          { transform: "scale(0.55) translateY(-40px)" },
+        ], timing));
+      }
+      await Promise.all(fades.map((a) => a.finished.catch(() => null)));
+      if (state.forgeId !== forgeId) return; // the owner left this run meanwhile
     }
-    await Promise.all(fades.map((a) => a.finished.catch(() => null)));
-    if (state.forgeId !== forgeId) return; // the owner left this run meanwhile
+    try {
+      if (!window.grimoireDecks) throw new Error("The decks screen is not loaded.");
+      window.grimoireDecks.openEditor(deckId, { from: "forge" });
+    } catch (e) {
+      console.error("Could not open the editor:", e);
+      toast(`${deckName ? `"${deckName}"` : "The deck"} is saved. Open it in the Decks tab.`, "info");
+    }
+    showSetup();
+  } finally {
+    // The next run shows the stage at full opacity, on every path.
+    fades.forEach((a) => a.cancel());
   }
-  if (window.grimoireDecks) window.grimoireDecks.openEditor(deckId, { from: "forge" });
-  showSetup();
-  fades.forEach((a) => a.cancel()); // the next run shows the stage at full opacity
 }
 
 function destroyRun() {
@@ -665,7 +675,7 @@ async function showSavedDeck(forgeId, deckId) {
     return;
   }
   endButtons(false);
-  showResult(deckId);
+  showResult(deckId, deck.name);
 }
 
 function attach(forgeId, opts = {}) {

@@ -387,6 +387,7 @@ async function loadDashboardCollections() {
       };
       row.addEventListener("click", openIt);
       row.addEventListener("keydown", (e) => {
+        if (e.target !== row) return; // keys on the Export and Delete controls stay theirs
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
           openIt();
