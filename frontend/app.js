@@ -1134,6 +1134,9 @@ function parseManaSymbols(manaCost) {
   return manaCost.replace(/\{([^}]+)\}/g, (_match, symbol) => manaSymbol(symbol));
 }
 
+// The forge result view (an ES module) reuses the mana parser.
+window.grimoireMana = { parseManaSymbols };
+
 // Escape oracle text for safety, then turn its "{...}" tokens into icons.
 // Escaping first is safe: it never introduces braces, so the token regex still
 // only matches the original Scryfall symbols.

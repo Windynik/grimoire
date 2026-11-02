@@ -287,15 +287,24 @@
                             </div>
                         </form>
                     </div>
-                    <!-- Task 14 renders the stage, feed, timeline, and result here -->
                     <div id="forge-stage" class="forge-stage" hidden>
-                        <div class="forge-actions">
-                            <button type="button" id="forge-cancel" class="btn btn-secondary">Cancel</button>
-                            <button type="button" id="forge-new" class="btn btn-secondary" hidden>New forge</button>
+                        <div id="forge-run" class="forge-run">
+                            <div class="forge-scene">
+                                <div id="forge-orbit" class="forge-orbit">
+                                    <div class="forge-top">
+                                        <p id="forge-status" class="forge-status" aria-live="polite"></p>
+                                        <p id="forge-eta" class="forge-eta"></p>
+                                    </div>
+                                    <ol id="forge-timeline" class="forge-timeline" aria-label="Forge stages"></ol>
+                                </div>
+                                <aside id="forge-feed" class="forge-feed" aria-label="Thinking"></aside>
+                            </div>
+                            <div class="forge-actions forge-run-actions">
+                                <button type="button" id="forge-cancel" class="btn btn-secondary">Cancel</button>
+                                <button type="button" id="forge-new" class="btn btn-secondary" hidden>New forge</button>
+                            </div>
                         </div>
-                        <p id="forge-status" class="forge-hint" aria-live="polite"></p>
-                        <!-- Temporary plain-text event log. Task 14 replaces it. -->
-                        <pre id="forge-log" class="forge-log" aria-label="Forge events"></pre>
+                        <section id="forge-result" class="forge-result" aria-label="Forged deck" hidden></section>
                     </div>
                 </div>
 

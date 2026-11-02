@@ -1,15 +1,31 @@
-// Forge controller: setup form, event client wiring, and hooks for the stage.
+// Forge controller: setup form, event client wiring, and the run view.
 //
-// Task 14 extends this controller. It listens with onEvent(type, handler),
-// swaps the temporary log for the stage, and reads the forge id with
-// forge.forgeId.
+// A ForgeRun listens with onEvent("*", handler) and plays the events on the
+// stage, the feed and the timeline. Other code can listen with onEvent too.
 
 import * as api from "./api.js";
+import { ForgeStage } from "./stage.js";
+import { ThoughtFeed } from "./feed.js";
+import { Timeline, STAGE_NAMES } from "./timeline.js";
+import { renderResult } from "./result.js";
 
 const AI_OFF_MESSAGE = "Local AI is off. The engine still builds the deck. "
   + "Install Ollama and run `ollama pull gpt-oss:20b` for deeper decks.";
 const ENGINE_ONLY = "none";
 const STORAGE_KEY = "forgeId";
+const COMMANDER_KEY = "forgeCommander";
+// Each stage stays on screen at least this long (ms), so a fast engine-only run
+// still shows every stage. Events that come in slower than this play at once.
+const STAGE_DWELL = [1600, 2400, 1200, 1600, 1400];
+// Least time (ms) between an event of this type and the event before it.
+const EVENT_GAP = {
+  status: 250, thought: 450, cards: 350, graph: 200, placed: 140, review: 300, explanation: 120,
+};
+const REPLAY_RUSH_MS = 400; // a reattach plays the stored events this fast
+const REVEAL_MS = 2200; // the deck name shows this long before the result opens
+const STUDY_SWEEP_MS = 65;
+const CLOSED_GRACE_MS = 400;
+const CLUSTER_COLORS = ["gold", "violet", "teal"];
 
 const $ = (id) => document.getElementById(id);
 
@@ -20,6 +36,8 @@ const state = {
   forgeId: null,
   source: null,
   running: false,
+  unloading: false,
+  run: null,
   ai: { available: false, models: [], default_model: null, recommended: null },
   handlers: {},
 };
@@ -245,55 +263,400 @@ function dispatch(type, data, id) {
   });
 }
 
-function logLine(text) {
-  const log = $("forge-log");
-  log.textContent += `${text}\n`;
-  log.scrollTop = log.scrollHeight;
-}
-
 function setStatus(text) {
   $("forge-status").textContent = text;
 }
 
-function finish(type, data) {
-  state.running = false;
-  state.source = null;
-  $("forge-cancel").hidden = true;
-  $("forge-new").hidden = false;
-  if (type === "error") setStatus(data.message || data.text || "The forge failed.");
-  else if (type === "cancelled") setStatus("Forge cancelled.");
-  else setStatus("Forge finished.");
-  if (type !== "done") store(sessionStorage, STORAGE_KEY, null);
+function sameName(name, wanted) {
+  const key = String(name || "").toLowerCase();
+  return Boolean(wanted) && (key === wanted || key.split(" // ")[0] === wanted);
 }
 
-function attach(forgeId) {
+/** Plays the events of one forge run on the stage, the feed and the timeline. */
+class ForgeRun {
+  /**
+   * @param {Object} opts
+   * @param {boolean} opts.replay True on a reattach: the stored events play fast.
+   * @param {Object|null} opts.commander {name, image_url} of the commander the
+   *   owner asked for, or null.
+   */
+  constructor(opts) {
+    const asked = opts.commander || {};
+    this.replay = Boolean(opts.replay);
+    this.commanderHint = String(asked.name || "").trim().toLowerCase();
+    this.stage = new ForgeStage($("forge-orbit"));
+    this.feed = new ThoughtFeed($("forge-feed"));
+    this.timeline = new Timeline($("forge-timeline"), $("forge-eta"));
+    this.queue = [];
+    this.busy = false;
+    this.stageIndex = -1;
+    this.stageAt = 0;
+    this.lastAt = 0;
+    this.rushUntil = 0;
+    this.timers = new Set();
+    this.destroyed = false;
+    this.cards = new Map(); // id -> card from the cards events
+    this.cardsEvents = 0;
+    this.shown = [];
+    this.clusters = [];
+    this.leads = new Set(); // shown cards in no cluster: the commanders
+    this.commanderFormat = false;
+    this.centerSet = false;
+    this.chosen = false;
+    this.options = new Map(); // question id -> options with their cluster
+    this.statusText = "";
+    this.timeline.setStage(0, 0);
+    this.stage.setProgress(0);
+    // Show the asked commander at once; its real card replaces it when it comes in.
+    if (asked.name && asked.image_url) {
+      this.commanderFormat = true;
+      this.stage.setCenter({ id: "forge-asked-commander", name: String(asked.name), image_url: String(asked.image_url) });
+    }
+    this.unsubscribe = onEvent("*", (data, _id, type) => this.push(type, data));
+  }
+
+  later(ms, fn) {
+    const id = setTimeout(() => {
+      this.timers.delete(id);
+      if (!this.destroyed) fn();
+    }, ms);
+    this.timers.add(id);
+  }
+
+  push(type, data) {
+    if (this.destroyed) return;
+    const now = performance.now();
+    if (this.replay && !this.rushUntil) this.rushUntil = now + REPLAY_RUSH_MS;
+    this.queue.push({ type, data: data || {}, at: now });
+    this.pump();
+  }
+
+  rushing() {
+    return performance.now() < this.rushUntil;
+  }
+
+  /** Return the ms the next event must wait: the stage dwell, then the event gap. */
+  wait(evt) {
+    if (this.rushing()) return 0;
+    const now = performance.now();
+    let index = -1;
+    if (evt.type === "stage") index = Number(evt.data.index);
+    else if (api.TERMINAL.includes(evt.type)) index = STAGE_NAMES.length;
+    let ms = Math.max(0, (EVENT_GAP[evt.type] || 0) - (now - this.lastAt));
+    if (index > this.stageIndex && this.stageIndex >= 0) {
+      ms = Math.max(ms, (STAGE_DWELL[this.stageIndex] || 0) - (now - this.stageAt));
+    }
+    return ms;
+  }
+
+  async pump() {
+    if (this.busy) return;
+    this.busy = true;
+    while (this.queue.length && !this.destroyed) {
+      const ms = this.wait(this.queue[0]);
+      if (ms > 0) {
+        await new Promise((resolve) => this.later(ms, resolve));
+        continue;
+      }
+      const evt = this.queue.shift();
+      try {
+        await this.apply(evt);
+      } catch (e) {
+        console.error(`Forge view failed on ${evt.type}:`, e);
+      }
+      this.lastAt = performance.now();
+    }
+    this.busy = false;
+  }
+
+  apply(evt) {
+    const d = evt.data;
+    switch (evt.type) {
+      case "stage": return this.onStage(d);
+      case "status": return this.onStatus(d);
+      case "thought": return this.onThought(d);
+      case "cards": return this.onCards(d);
+      case "graph": return this.onGraph(d);
+      case "question": return this.onQuestion(d, evt.at);
+      case "answered": return this.onAnswered(d);
+      case "placed": return this.onPlaced(d);
+      case "review": return this.onReview(d);
+      case "explanation": return this.feed.streamExplanation(d.text);
+      case "done": return this.onDone(d);
+      case "error": return this.onEnd(d.message || d.text || "The forge failed.", "error");
+      case "cancelled": return this.onEnd("Forge cancelled.", "status");
+      default: return undefined;
+    }
+  }
+
+  onStage(d) {
+    const index = Math.max(0, Math.min(STAGE_NAMES.length - 1, Number(d.index) || 0));
+    const progress = Number(d.progress) || 0;
+    if (index !== this.stageIndex) {
+      this.stageIndex = index;
+      this.stageAt = performance.now();
+    }
+    this.timeline.setStage(index, progress);
+    this.stage.setProgress((index + progress) / STAGE_NAMES.length);
+    if (index === STAGE_NAMES.length - 1 && progress >= 1) this.timeline.done();
+    else if (typeof d.eta_seconds === "number") this.timeline.setEta(d.eta_seconds);
+    else if (index === 2) this.timeline.setEta(null);
+  }
+
+  onStatus(d) {
+    this.statusText = String(d.text || "");
+    setStatus(this.statusText);
+    this.feed.note(this.statusText, "status");
+  }
+
+  setCenter(card) {
+    if (!card) return;
+    this.centerSet = true;
+    this.stage.setCenter(card);
+  }
+
+  onThought(d) {
+    const ids = Array.isArray(d.cards) ? d.cards.filter((id) => typeof id === "string") : [];
+    const names = ids.map((id) => this.cards.get(id)?.name).filter(Boolean);
+    this.feed.thought(d.text, names);
+    ids.forEach((id) => {
+      this.stage.flashRead(id);
+      this.stage.setReason(id, d.text);
+    });
+    // "Building ..." names the commander of the chosen plan.
+    if (this.commanderFormat && ids.length === 1 && this.leads.has(ids[0])) {
+      this.setCenter(this.cards.get(ids[0]));
+    }
+  }
+
+  onCards(d) {
+    const cards = (d.cards || []).filter((c) => c && typeof c.id === "string");
+    cards.forEach((c) => this.cards.set(c.id, c));
+    this.cardsEvents += 1;
+    const asked = this.commanderHint && cards.find((c) => sameName(c.name, this.commanderHint));
+    if (asked && !this.centerSet) {
+      this.commanderFormat = true;
+      this.setCenter(asked);
+    }
+    if (this.cardsEvents === 1) {
+      this.stage.setCards(cards);
+      if (!this.rushing()) {
+        cards.forEach((c, i) => this.later(250 + i * STUDY_SWEEP_MS, () => this.stage.flashRead(c.id)));
+      }
+    } else {
+      this.shown = cards;
+      this.stage.setCards(cards);
+    }
+  }
+
+  onGraph(d) {
+    const clusters = (d.clusters || []).filter((c) => c && Array.isArray(c.members));
+    this.clusters = clusters;
+    const members = new Set(clusters.flatMap((c) => c.members));
+    this.leads = new Set(this.shown.filter((c) => !members.has(c.id)).map((c) => c.id));
+    if (this.leads.size) this.commanderFormat = true;
+    if (!this.centerSet) {
+      const lead = this.shown.find((c) => this.leads.has(c.id));
+      const top = clusters[0] && this.cards.get(clusters[0].members[0]);
+      this.setCenter(lead || top);
+    }
+    this.stage.showGraph(clusters, d.edges || []);
+    if (clusters.length) {
+      const plans = clusters.map((c) => `${c.name} (${c.size} cards)`).join(", ");
+      const count = clusters.length === 1 ? "one deck plan" : `${clusters.length} deck plans`;
+      this.feed.thought(`I found ${count}: ${plans}.`, []);
+    }
+  }
+
+  /** Return the cluster that holds the most of these cards, or null. */
+  clusterFor(ids) {
+    let best = null;
+    let most = 0;
+    this.clusters.forEach((cluster) => {
+      const n = (ids || []).filter((id) => cluster.members.includes(id)).length;
+      if (n > most) {
+        best = cluster;
+        most = n;
+      }
+    });
+    return best;
+  }
+
+  onQuestion(d, at) {
+    const options = (d.options || []).map((o) => {
+      const cluster = this.clusterFor(o.card_ids);
+      const color = cluster && CLUSTER_COLORS.includes(cluster.color) ? cluster.color : "";
+      return { label: o.label, description: o.description, color, cluster };
+    });
+    this.options.set(d.question_id, options);
+    this.stage.pulse(options.map((o) => o.cluster && o.cluster.backbone_id).filter(Boolean));
+    setStatus("Waiting for your choice.");
+    this.feed.question({ ...d, options }, (index) => this.answer(d.question_id, index), { startedAt: at });
+  }
+
+  async answer(questionId, index) {
+    const reply = await api.answer(state.forgeId, questionId, index);
+    if (reply && reply.accepted === false) toast("The forge already moved on from that question.", "info");
+  }
+
+  onAnswered(d) {
+    this.feed.answered(d);
+    this.stage.pulse([]);
+    const options = this.options.get(d.question_id) || [];
+    const picked = options[d.option];
+    if (picked && picked.cluster) this.choose(picked.cluster.backbone_id);
+  }
+
+  choose(backboneId) {
+    if (this.chosen) return;
+    this.chosen = true;
+    this.stage.choose(backboneId);
+    const cluster = this.clusters.find((c) => c.backbone_id === backboneId);
+    if (!this.commanderFormat && cluster) this.setCenter(this.cards.get(cluster.members[0]));
+  }
+
+  onPlaced(d) {
+    if (!this.chosen) {
+      const cluster = this.clusterFor(d.card_ids);
+      this.choose(cluster ? cluster.backbone_id : null);
+    }
+    this.stage.place(d.card_ids, d.count, d.size);
+  }
+
+  onReview(d) {
+    this.feed.curve(d.curve || {});
+    (d.warnings || []).forEach((w) => this.feed.note(w, "warning"));
+  }
+
+  async onDone(d) {
+    endButtons(false);
+    this.stage.setProgress(1);
+    this.timeline.done();
+    setStatus("Deck ready.");
+    let deck;
+    try {
+      deck = await api.getDeck(d.deck_id);
+    } catch (e) {
+      this.feed.note(`Could not load the deck: ${e.message}`, "error");
+      endButtons(true);
+      return;
+    }
+    if (this.destroyed) return;
+    const main = (deck.sections && deck.sections.main) || [];
+    main.forEach((c) => this.stage.setReason(c.scryfall_id, c.reason));
+    const commander = deck.commander;
+    if (commander && commander.scryfall_id) {
+      this.stage.setReason(commander.scryfall_id, "The commander of the deck.");
+      if (this.stage.centerId !== commander.scryfall_id) {
+        this.setCenter({ id: commander.scryfall_id, name: commander.name, image_url: commander.image_url });
+      }
+    }
+    const total = main.reduce((n, c) => n + (Number(c.count) || 0), 0) + (commander ? 1 : 0);
+    this.feed.reveal(deck.name, `${total} cards. Every card has a reason you can read.`);
+    this.later(this.rushing() ? 0 : REVEAL_MS, () => showResult(deck));
+  }
+
+  onEnd(text, kind) {
+    this.timeline.clear();
+    setStatus(text);
+    this.feed.note(text, kind);
+    endButtons(true);
+  }
+
+  destroy() {
+    this.destroyed = true;
+    this.queue = [];
+    this.unsubscribe();
+    this.timers.forEach((id) => clearTimeout(id));
+    this.timers.clear();
+    this.stage.destroy();
+    this.feed.destroy();
+    this.timeline.destroy();
+  }
+}
+
+function endButtons(showNew) {
+  $("forge-cancel").hidden = true;
+  $("forge-new").hidden = !showNew;
+}
+
+function showResult(deck) {
+  const root = $("forge-result");
+  renderResult(root, deck, {
+    onAgain: () => {
+      showSetup();
+      open();
+    },
+    toast,
+  });
+  $("forge-run").hidden = true;
+  root.hidden = false;
+  const title = root.querySelector("h2");
+  if (title) {
+    title.tabIndex = -1;
+    title.focus({ preventScroll: true });
+  }
+}
+
+function destroyRun() {
+  if (state.run) state.run.destroy();
+  state.run = null;
+}
+
+function finish(type) {
+  state.running = false;
+  state.source = null;
+  if (type !== "done") {
+    store(sessionStorage, STORAGE_KEY, null);
+    store(sessionStorage, COMMANDER_KEY, null);
+  }
+}
+
+function attach(forgeId, opts = {}) {
   closeStream();
+  destroyRun();
   state.forgeId = forgeId;
   state.running = true;
   store(sessionStorage, STORAGE_KEY, forgeId);
   $("forge-setup").hidden = true;
   $("forge-stage").hidden = false;
-  $("forge-log").textContent = "";
+  $("forge-run").hidden = false;
+  $("forge-result").hidden = true;
+  $("forge-result").textContent = "";
   $("forge-cancel").hidden = false;
+  $("forge-cancel").disabled = false;
   $("forge-new").hidden = true;
-  setStatus("Forging...");
+  setStatus("Starting the forge.");
+  let commander = opts.commander;
+  if (commander === undefined) {
+    try {
+      commander = JSON.parse(store(sessionStorage, COMMANDER_KEY) || "null");
+    } catch (e) {
+      commander = null;
+    }
+  }
+  state.run = new ForgeRun({ replay: opts.replay, commander });
 
   const handlers = {
     closed: () => {
-      if (!state.running) return;
-      showSetup();
-      toast("That forge is no longer running.", "error");
-      open();
+      // A reload aborts the stream too, before pagehide fires. Wait a moment:
+      // an unloading page never runs the timer, so the next page reattaches.
+      setTimeout(() => {
+        if (!state.running || state.unloading || state.forgeId !== forgeId) return;
+        showSetup();
+        toast("That forge is no longer running.", "error");
+        open();
+      }, CLOSED_GRACE_MS);
     },
     connection: (up) => {
-      if (state.running) setStatus(up ? "Forging..." : "Connection lost. Retrying...");
+      if (!state.running) return;
+      setStatus(up ? (state.run && state.run.statusText) || "Forging." : "Connection lost. Retrying.");
     },
   };
   api.EVENT_TYPES.forEach((type) => {
     handlers[type] = (data, id) => {
-      logLine(`${id}  ${type}  ${JSON.stringify(data).slice(0, 300)}`);
       dispatch(type, data, id);
-      if (api.TERMINAL.includes(type)) finish(type, data);
+      if (api.TERMINAL.includes(type)) finish(type);
     };
   });
   state.source = api.openEvents(forgeId, handlers);
@@ -305,8 +668,15 @@ function closeStream() {
 }
 
 async function startForge(body) {
-  const { forge_id: forgeId } = await api.startForge(body || params());
-  attach(forgeId);
+  const request = body || params();
+  const { forge_id: forgeId } = await api.startForge(request);
+  const tile = [...document.querySelectorAll("#forge-commander-grid .forge-tile")]
+    .find((t) => request.commander && t.dataset.name === request.commander);
+  const image = tile && tile.querySelector("img");
+  const commander = request.commander
+    ? { name: request.commander, image_url: image ? image.src : "" } : null;
+  store(sessionStorage, COMMANDER_KEY, commander ? JSON.stringify(commander) : null);
+  attach(forgeId, { commander });
   return forgeId;
 }
 
@@ -324,21 +694,31 @@ async function submit(event) {
   }
 }
 
+/** Cancel the running forge, then return to setup. */
 async function cancelForge() {
-  if (!state.forgeId || !state.running) return;
-  try {
-    await api.cancel(state.forgeId);
-  } catch (e) {
-    toast(e.message, "error");
+  const button = $("forge-cancel");
+  button.disabled = true;
+  if (state.forgeId && state.running) {
+    try {
+      await api.cancel(state.forgeId);
+    } catch (e) {
+      if (e.status !== 404) toast(e.message, "error");
+    }
   }
+  showSetup();
+  open();
 }
 
 function showSetup() {
   closeStream();
+  destroyRun();
   state.running = false;
   state.forgeId = null;
   store(sessionStorage, STORAGE_KEY, null);
+  store(sessionStorage, COMMANDER_KEY, null);
   $("forge-stage").hidden = true;
+  $("forge-result").hidden = true;
+  $("forge-result").textContent = "";
   $("forge-setup").hidden = false;
 }
 
@@ -360,7 +740,7 @@ function onEvent(type, handler) {
 async function open() {
   const saved = store(sessionStorage, STORAGE_KEY);
   if (saved && saved !== state.forgeId) {
-    attach(saved);
+    attach(saved, { replay: true });
     return;
   }
   if (state.running || state.forgeId) return;
@@ -376,6 +756,12 @@ async function open() {
 
 function init() {
   if (!$("forge-view")) return;
+  window.addEventListener("pagehide", () => {
+    state.unloading = true;
+  });
+  window.addEventListener("pageshow", () => {
+    state.unloading = false;
+  });
   renderBanner();
   $("forge-form").addEventListener("submit", submit);
   $("forge-format").addEventListener("change", applyFormat);
@@ -408,6 +794,10 @@ window.grimoireForge = {
   onEvent,
   get forgeId() {
     return state.forgeId;
+  },
+  /** The current run view (stage, feed, timeline), or null. */
+  get run() {
+    return state.run;
   },
 };
 
