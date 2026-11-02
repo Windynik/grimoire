@@ -213,7 +213,8 @@ def hydrate(collection: List[dict], index: Dict[str, dict], fmt: FormatRules) ->
 
     Returns:
         One OwnedCard per oracle id, in first-seen order. Missing ids,
-        non-game cards and cards that are not legal or restricted are dropped.
+        non-game cards, cards that are not legal or restricted, and cards
+        with no owned copies (after all printings merge) are dropped.
     """
     merged = {}  # type: Dict[str, OwnedCard]
     for row in collection:
@@ -232,4 +233,4 @@ def hydrate(collection: List[dict], index: Dict[str, dict], fmt: FormatRules) ->
             merged[key].owned += qty
         else:
             merged[key] = _build(record, legality, qty)
-    return list(merged.values())
+    return [card for card in merged.values() if card.owned > 0]

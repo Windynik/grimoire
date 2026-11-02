@@ -382,6 +382,12 @@ def test_commander_candidates(oracle, playbook):
     assert [c.name for c in commander_candidates(cards)] == ["Teysa Karlov", "Odd Walker"]
 
 
+def test_unowned_cards_are_never_commanders(playbook, rules):
+    cards = tagged_pool(playbook, [teysa_record()])
+    cards[0].owned = 0
+    assert commander_candidates(cards) == []
+
+
 TEMPLATES = [  # (type line, oracle text, keywords)
     ("Creature — {sub}", SAC, ()),
     ("Creature — {sub}", DEATH_PAYOFF, ()),

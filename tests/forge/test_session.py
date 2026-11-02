@@ -406,6 +406,46 @@ async def test_commander_session_uses_named_commander(tmp_path):
     assert of_type(events, "placed")[0]["card_ids"][0] == card_id("Teysa Karlov")
 
 
+def unowned_commander_pool():
+    """Teysa and one death payoff are rows with quantity 0. Other cards have one copy."""
+    teysa = make_record("Teysa Karlov", type_line="Legendary Creature — Human Advisor",
+                        mana_cost="{2}{W}{B}", cmc=4, color_identity=("W", "B"), rank=1,
+                        oracle_text="Whenever another creature you control dies, create a "
+                                    "1/1 white and black Spirit creature token with flying.")
+    leader = make_record("Owned Leader", type_line="Legendary Creature — Kind99",
+                         mana_cost="{1}{B}", color_identity=("B",), oracle_text=DEATH, rank=900)
+    ghost = make_record("Ghost Payoff", type_line="Creature — Kind98", mana_cost="{B}",
+                        color_identity=("B",), oracle_text=DEATH, cmc=1, rank=1)
+    recs = [teysa, ghost, leader]
+    recs += [creature(f"Sac Outlet {i}", i, SAC, "B") for i in range(6)]
+    recs += [creature(f"Death Payoff {i}", 10 + i, DEATH, "B") for i in range(6)]
+    return make_pool(recs, [0, 0] + [1] * (len(recs) - 2))
+
+
+@pytest.mark.asyncio
+async def test_unowned_cards_never_reach_the_deck(tmp_path):
+    unowned = {card_id("Teysa Karlov"), card_id("Ghost Payoff")}
+    session, store = await start(tmp_path, pool=unowned_commander_pool(), format="commander",
+                                 ask_mode="never")
+    events = await collect(session)
+    assert events[-1]["type"] == "done"
+    shown = {c["id"] for e in of_type(events, "cards") for c in e["cards"]}
+    members = {m for e in of_type(events, "graph") for c in e["clusters"] for m in c["members"]}
+    placed = {i for e in of_type(events, "placed") for i in e["card_ids"]}
+    assert shown and members and placed
+    assert not (shown | members | placed) & unowned
+    record = saved(store, events)
+    assert record["commander"]["name"] == "Owned Leader"
+    names = {line["name"] for line in record["sections"]["main"]}
+    assert not names & {"Teysa Karlov", "Ghost Payoff"}
+
+    session, _ = await start(tmp_path, pool=unowned_commander_pool(), format="commander",
+                             commander="Teysa Karlov", ask_mode="never")
+    events = await collect(session)
+    assert events[-1] == {"type": "error",
+                          "message": "'Teysa Karlov' is not a commander you own."}
+
+
 @pytest.mark.asyncio
 async def test_wish_names_become_required(tmp_path):
     session, store = await start(tmp_path, pool=two_plan_pool(extra_death=4),

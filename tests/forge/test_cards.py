@@ -114,3 +114,16 @@ def test_castable_in_needs_one_castable_face(rules):
     adventure = hydrate_one(make_record("Off Adventure", mana_cost="{1}{B} // {B}{B}",
                                         color_identity=("B",), layout="adventure"), modern)
     assert not castable_in(adventure, frozenset("GW"))
+
+
+def test_unowned_cards_are_dropped_after_merge(rules):
+    zero = make_record("Zero Copies")
+    merged = make_record("Two Prints")
+    other = dict(merged, id="other-print")
+    collection = [{"scryfall_id": zero["id"], "quantity": 0},
+                  {"scryfall_id": merged["id"], "quantity": "0"},
+                  {"scryfall_id": other["id"], "quantity": 1},
+                  {"scryfall_id": "bad", "quantity": "x"}]
+    index = {zero["id"]: zero, merged["id"]: merged, other["id"]: other}
+    cards = hydrate(collection, index, rules["modern"])
+    assert [(c.name, c.owned) for c in cards] == [("Two Prints", 1)]

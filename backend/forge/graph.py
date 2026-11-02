@@ -164,12 +164,13 @@ def commander_candidates(cards: List[OwnedCard]) -> List[OwnedCard]:
         cards: Owned cards.
 
     Returns:
-        Legendary creatures and cards whose text says they can be your
-        commander, in input order.
+        Cards with at least one owned copy that are legendary creatures or
+        whose text says they can be your commander, in input order.
     """
     return [card for card in cards
-            if {"Legendary", "Creature"} <= card.types
-            or COMMANDER_PHRASE in (card.oracle_text or "").lower()]
+            if card.owned > 0
+            and ({"Legendary", "Creature"} <= card.types
+                 or COMMANDER_PHRASE in (card.oracle_text or "").lower())]
 
 
 def hook_label(hook: str, playbook: Playbook) -> str:
