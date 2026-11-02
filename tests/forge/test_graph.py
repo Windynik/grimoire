@@ -386,6 +386,17 @@ def test_unowned_cards_are_never_commanders(playbook, rules):
     cards = tagged_pool(playbook, [teysa_record()])
     cards[0].owned = 0
     assert commander_candidates(cards) == []
+    assert commander_candidates(cards, rules["brawl"]) == []
+
+
+def test_brawl_formats_accept_legendary_planeswalkers(playbook, rules):
+    walker = make_record("Plain Walker", type_line="Legendary Planeswalker — Plain")
+    cards = tagged_pool(playbook, [walker, teysa_record()], fmt="casual")  # no legality filter
+    assert [c.name for c in commander_candidates(cards)] == ["Teysa Karlov"]
+    assert [c.name for c in commander_candidates(cards, rules["commander"])] == ["Teysa Karlov"]
+    for key in ("brawl", "standardbrawl"):
+        assert [c.name for c in commander_candidates(cards, rules[key])] == [
+            "Plain Walker", "Teysa Karlov"]
 
 
 TEMPLATES = [  # (type line, oracle text, keywords)

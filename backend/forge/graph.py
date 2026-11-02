@@ -20,6 +20,8 @@ MERGE_OVERLAP = 0.4
 COMMANDER_BONUS = 2.0  # the commander wants a group hook: the plan is built around it
 COMMANDER_GIVES_BONUS = 1.25  # the commander only gives a group hook: one more enabler
 COMMANDER_PHRASE = "can be your commander"
+# Formats where any legendary planeswalker can be the commander.
+PLANESWALKER_COMMANDER_FORMATS = frozenset({"brawl", "standardbrawl"})
 MAX_MEMBERS = 20  # a backbone is 8-20 core cards
 MIN_WANTERS = 3  # cards that want a hook; type-based piles of givers are no plan
 GROUPS_PER_SCOPE = 3
@@ -157,19 +159,25 @@ def build_graph(cards: List[OwnedCard], playbook: Playbook) -> SynergyGraph:
     return graph
 
 
-def commander_candidates(cards: List[OwnedCard]) -> List[OwnedCard]:
+def commander_candidates(cards: List[OwnedCard],
+                         fmt: Optional[FormatRules] = None) -> List[OwnedCard]:
     """Return the cards that can lead a commander deck.
 
     Args:
         cards: Owned cards.
+        fmt: Format rules. In Brawl and Standard Brawl, legendary
+            planeswalkers can also lead. None uses the Commander rule.
 
     Returns:
-        Cards with at least one owned copy that are legendary creatures or
-        whose text says they can be your commander, in input order.
+        Cards with at least one owned copy that are legendary creatures (or
+        legendary planeswalkers in Brawl formats) or whose text says they
+        can be your commander, in input order.
     """
+    walkers = fmt is not None and fmt.key in PLANESWALKER_COMMANDER_FORMATS
     return [card for card in cards
             if card.owned > 0
             and ({"Legendary", "Creature"} <= card.types
+                 or (walkers and {"Legendary", "Planeswalker"} <= card.types)
                  or COMMANDER_PHRASE in (card.oracle_text or "").lower())]
 
 
@@ -356,7 +364,7 @@ def _scopes(cards: List[OwnedCard], fmt: FormatRules, commander_id: Optional[str
     if commander_id is not None:
         leaders = [card for card in cards if card.id == commander_id]
     else:
-        leaders = commander_candidates(cards)
+        leaders = commander_candidates(cards, fmt)
         if colors is not None:
             leaders = [card for card in leaders if card.color_identity <= colors]
     return [(card.color_identity, card) for card in leaders]

@@ -95,7 +95,7 @@ async def forge_commanders(
     def find() -> list:
         cards = hydrate(collection, index, fmt)
         tag_cards(cards, playbook)
-        return [c for c in commander_candidates(cards) if c.owned > 0]
+        return commander_candidates(cards, fmt)
 
     found = await asyncio.to_thread(find)
     commanders = [{"id": c.id, "name": c.name, "image_url": c.image_url,

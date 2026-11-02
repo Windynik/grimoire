@@ -256,7 +256,7 @@ def legality_problems(deck: BuiltDeck, index: Dict[str, dict],
     cards = [(e.card, e.name, e.count) for e in deck.entries if not e.basic]
     if deck.commander is not None:
         cards.append((deck.commander, deck.commander.name, 1))
-        if deck.commander not in commander_candidates([deck.commander]):
+        if deck.commander not in commander_candidates([deck.commander], fmt):
             problems.append("%s cannot be a commander" % deck.commander.name)
     for entry in deck.entries:
         if entry.basic and entry.name not in BASICS:

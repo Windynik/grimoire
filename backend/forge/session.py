@@ -308,7 +308,7 @@ class ForgeSession:
         wanted = self.params.commander.strip()
         if not fmt.commander or not wanted:
             return None
-        for card in commander_candidates(self._cards):
+        for card in commander_candidates(self._cards, fmt):
             if wanted.lower() in (card.name.lower(), card.name.split(" // ")[0].lower()):
                 return card.id
         raise ForgeError("'%s' is not a commander you own." % wanted)
