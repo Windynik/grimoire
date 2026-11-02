@@ -86,7 +86,8 @@ async def test_think_value_by_model():
     await client.chat_structured("p", SCHEMA, model="qwen3.8", think="medium")
     await client.chat_structured("p", SCHEMA, model="qwen3.8", think="high")
     await client.chat_structured("p", SCHEMA, model="qwen3.8", think="low")
-    assert seen == ["medium", True, True, False]
+    # On/off models have no thinking budget, so only "high" turns thinking on
+    assert seen == ["medium", False, True, False]
 
 
 @pytest.mark.asyncio
@@ -123,9 +124,30 @@ async def test_chat_structured_rejects_non_object():
         calls.append(1)
         return _reply("[1, 2]")
 
-    with pytest.raises(ModelError):
+    with pytest.raises(ModelError) as caught:
         await _client(handler).chat_structured("hi", SCHEMA, model="m")
     assert len(calls) == 2
+    assert "reply starts '[1, 2]'" in str(caught.value)
+
+
+LIST_SCHEMA = {"type": "object", "required": ["swaps"],
+               "properties": {"swaps": {"type": "array", "maxItems": 8, "items": {}}}}
+
+
+@pytest.mark.asyncio
+async def test_chat_structured_wraps_bare_list_for_single_list_schema():
+    # Small models sometimes send only the list that the schema puts in an object
+    data, _ = await _client(lambda r: _reply('[{"out": "a"}]')).chat_structured(
+        "hi", LIST_SCHEMA, model="m")
+    assert data == {"swaps": [{"out": "a"}]}
+
+
+@pytest.mark.asyncio
+async def test_chat_structured_error_shows_short_reply_start():
+    with pytest.raises(ModelError) as caught:
+        await _client(lambda r: _reply("x" * 500)).chat_structured("hi", SCHEMA, model="m")
+    assert "reply starts '%s'" % ("x" * 160) in str(caught.value)
+    assert "x" * 161 not in str(caught.value)
 
 
 @pytest.mark.asyncio

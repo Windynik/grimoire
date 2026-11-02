@@ -13,6 +13,9 @@ from typing import AsyncIterator, Callable, List, Optional, Tuple
 import httpx
 
 
+# Characters of a bad reply to show in an error message
+REPLY_PREVIEW_CHARS = 160
+
 THINK_BLOCK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
 
 
@@ -70,6 +73,18 @@ def stats_from(data: dict) -> CallStats:
     )
 
 
+def single_list_key(schema: dict) -> Optional[str]:
+    """Return the key when a schema requires exactly one field and it is a list.
+
+    Small models sometimes send only that list instead of the object around it.
+    """
+    required = schema.get("required") or []
+    if len(required) != 1:
+        return None
+    field = (schema.get("properties") or {}).get(required[0]) or {}
+    return required[0] if field.get("type") == "array" else None
+
+
 def think_value(model: str, think: str):
     """Return the ``think`` request value a model accepts.
 
@@ -77,12 +92,16 @@ def think_value(model: str, think: str):
         model: Model name.
         think: Effort level: "low", "medium" or "high".
 
+    gpt-oss takes an effort level, which limits how long it thinks. Other models
+    only turn thinking on or off, with no limit, and a small model can then think
+    until it reaches the token cap. So they think only at "high".
+
     Returns:
-        The level string for gpt-oss models, else a boolean (False for "low").
+        The level string for gpt-oss models, else a boolean (True only for "high").
     """
     if model.lower().startswith("gpt-oss"):
         return think
-    return think != "low"
+    return think == "high"
 
 
 class OllamaClient:
@@ -175,8 +194,9 @@ class OllamaClient:
             "think": think_value(model, think),
             "options": {"temperature": 0.6, "num_ctx": num_ctx, "num_predict": num_predict},
         }
-        last = None  # type: Optional[Exception]
+        last = ""
         for _ in range(2):
+            content = None  # type: Optional[str]
             try:
                 async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=3.0),
                                              transport=self.transport) as client:
@@ -185,13 +205,19 @@ class OllamaClient:
                     body = response.json()
                 content = strip_thinking(body["message"]["content"])
                 data = parse_json_loose(content)
+                list_key = single_list_key(schema)
+                if isinstance(data, list) and list_key is not None:
+                    data = {list_key: data}
                 if not isinstance(data, dict):
                     raise ValueError("Reply is not a JSON object")
                 return data, stats_from(body)
             except httpx.TimeoutException as exc:
                 raise ModelError("Model call timed out: %s" % (exc,))
             except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
-                last = exc
+                last = str(exc)
+                if content is not None:
+                    # Show how the reply starts, so a log shows what went wrong
+                    last += "; reply starts %r" % (content[:REPLY_PREVIEW_CHARS],)
         raise ModelError("Model call failed: %s" % (last,))
 
     async def stream_text(

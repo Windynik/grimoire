@@ -125,6 +125,25 @@ def test_schemas_shape():
     assert "reasons" in REASONS_SCHEMA["properties"]
 
 
+def _arrays(schema, path="$"):
+    """Yield (path, node) for every array node in a JSON schema."""
+    if isinstance(schema, dict):
+        if schema.get("type") == "array":
+            yield path, schema
+        for key, value in schema.items():
+            yield from _arrays(value, "%s.%s" % (path, key))
+    elif isinstance(schema, list):
+        for i, value in enumerate(schema):
+            yield from _arrays(value, "%s[%d]" % (path, i))
+
+
+def test_every_schema_list_has_a_limit():
+    # Small models can repeat list items until they run out of tokens.
+    for schema in (BACKBONE_SCHEMA, SWAP_SCHEMA, REASONS_SCHEMA):
+        for path, node in _arrays(schema):
+            assert isinstance(node.get("maxItems"), int), path
+
+
 def _deck(rules, playbook=None):
     fmt = rules["commander"]
     cards = _cards(rules, 6)

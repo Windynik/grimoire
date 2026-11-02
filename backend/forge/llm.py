@@ -19,16 +19,30 @@ from backend.forge.tagging import strip_reminder
 DEFAULT_MAX_CHARS = 32000
 MEMBERS_PER_BACKBONE = 25
 MAX_SWAPS = 8
+# Every list in a reply schema has a limit, so a small model cannot repeat items
+# until it runs out of tokens.
+MAX_RANKED = 5  # find_backbones returns at most 5 candidates
+MAX_PLANS = 3
+MAX_INTERACTIONS = 4
+MAX_EDGES = 4
+MAX_GROUP_CARDS = 4
+MAX_PREFER_CARDS = 6
 
 _STRING = {"type": "string"}
-_STRINGS = {"type": "array", "items": _STRING}
+
+
+def _strings(limit: int) -> dict:
+    """Schema for a list of at most `limit` strings."""
+    return {"type": "array", "maxItems": limit, "items": _STRING}
+
 
 BACKBONE_SCHEMA = {
     "type": "object",
     "properties": {
-        "ranking": {"type": "array", "items": _STRING},
+        "ranking": _strings(MAX_RANKED),
         "plans": {
             "type": "array",
+            "maxItems": MAX_PLANS,
             "items": {
                 "type": "object",
                 "properties": {
@@ -38,14 +52,16 @@ BACKBONE_SCHEMA = {
                     "playstyle": {"type": "string", "enum": list(PLAYSTYLES)},
                     "key_interactions": {
                         "type": "array",
+                        "maxItems": MAX_INTERACTIONS,
                         "items": {
                             "type": "object",
-                            "properties": {"cards": _STRINGS, "why": _STRING},
+                            "properties": {"cards": _strings(MAX_GROUP_CARDS), "why": _STRING},
                             "required": ["cards", "why"],
                         },
                     },
                     "extra_edges": {
                         "type": "array",
+                        "maxItems": MAX_EDGES,
                         "items": {
                             "type": "object",
                             "properties": {"from": _STRING, "to": _STRING, "why": _STRING},
@@ -75,7 +91,7 @@ BACKBONE_SCHEMA = {
                                     "label": _STRING,
                                     "description": _STRING,
                                     "candidate_id": _STRING,
-                                    "prefer_cards": _STRINGS,
+                                    "prefer_cards": _strings(MAX_PREFER_CARDS),
                                 },
                                 "required": ["label", "description"],
                             },
@@ -110,6 +126,7 @@ REASONS_SCHEMA = {
     "properties": {
         "reasons": {
             "type": "array",
+            "maxItems": MEMBERS_PER_BACKBONE,
             "items": {
                 "type": "object",
                 "properties": {"name": _STRING, "reason": _STRING},
@@ -127,20 +144,22 @@ BACKBONE_INSTRUCTION = (
     "Build the strongest plan these specific cards support. Do not reproduce a known "
     "decklist. Prefer a fresh angle when it is at least as strong.")
 
-BACKBONE_CONTRACT = (
+BACKBONE_CONTRACT = ((
     "Reply with JSON only, no other text, in this shape.\n"
     "- ranking: candidate ids from the list above, best first.\n"
-    "- plans: one plan per strong candidate. candidate_id must be an id from the list. "
-    "playstyle must be one of: " + ", ".join(PLAYSTYLES) + ".\n"
-    "- key_interactions: groups of cards that work well together, with a short why. "
-    "Every name in cards must be an exact card name from the lists above.\n"
-    "- extra_edges: a synergy between two cards that the hook patterns missed. from and to "
-    "must be exact card names from the lists above. why says what the synergy is.\n"
+    "- plans: one plan per strong candidate, at most %d plans. candidate_id must be an id "
+    "from the list. playstyle must be one of: " + ", ".join(PLAYSTYLES) + ".\n"
+    "- key_interactions: at most %d groups of 2 to %d cards that work well together, with a "
+    "short why. Every name in cards must be an exact card name from the lists above.\n"
+    "- extra_edges: at most %d synergies between two cards that the hook patterns missed. "
+    "from and to must be exact card names from the lists above. why says what the synergy "
+    "is. Use an empty list when there is none.\n"
     "- close_call: true only when the top two candidates are near equal.\n"
     "- question: null, unless close_call is true or the wish is unclear. Then ask one "
     "question with 2 or 3 options. Each option has a label and a description. Set "
     "candidate_id (an id from the list) when the option picks a candidate. Set prefer_cards "
     "(exact card names from the lists) when the option favors certain cards.")
+    % (MAX_PLANS, MAX_INTERACTIONS, MAX_GROUP_CARDS, MAX_EDGES))
 
 SWAP_CONTRACT = (
     "Reply with JSON only, no other text: swaps, a list of at most %d swaps. Each swap has "
