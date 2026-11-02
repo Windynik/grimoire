@@ -1900,5 +1900,398 @@
    "eur": "1.34",
    "tix": "0.08"
   }
+ },
+ "Cruel Celebrant": {
+  "id": "87ead6ac-b1c5-4852-8413-7fa43c6cfc57",
+  "oracle_id": "3ee78cfc-0e9e-4737-a7e2-b42f94228040",
+  "name": "Cruel Celebrant",
+  "mana_cost": "{W}{B}",
+  "oracle_text": "Whenever this creature or another creature or planeswalker you control dies, each opponent loses 1 life and you gain 1 life.",
+  "type_line": "Creature — Vampire",
+  "image_url": "https://cards.scryfall.io/normal/front/8/7/87ead6ac-b1c5-4852-8413-7fa43c6cfc57.jpg?1557577084",
+  "back_image_url": "",
+  "rarity": "uncommon",
+  "set": "war",
+  "layout": "normal",
+  "cmc": 2.0,
+  "color_identity": [
+   "B",
+   "W"
+  ],
+  "keywords": [],
+  "produced_mana": [],
+  "edhrec_rank": 895,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "not_legal",
+   "pauper": "not_legal",
+   "standard": "not_legal",
+   "pioneer": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "0.97",
+   "usd_foil": "13.67",
+   "eur": "0.74",
+   "tix": "0.03"
+  }
+ },
+ "Teysa Karlov": {
+  "id": "247de9ae-802f-4f3d-a33e-7bc9af24b8c8",
+  "oracle_id": "644eeefd-e684-4ca8-8aef-a892ca130c07",
+  "name": "Teysa Karlov",
+  "mana_cost": "{2}{W}{B}",
+  "oracle_text": "If a creature dying causes a triggered ability of a permanent you control to trigger, that ability triggers an additional time.\nCreature tokens you control have vigilance and lifelink.",
+  "type_line": "Legendary Creature — Human Advisor",
+  "image_url": "https://cards.scryfall.io/normal/front/2/4/247de9ae-802f-4f3d-a33e-7bc9af24b8c8.jpg?1570827714",
+  "back_image_url": "",
+  "rarity": "rare",
+  "set": "prna",
+  "layout": "normal",
+  "cmc": 4.0,
+  "color_identity": [
+   "B",
+   "W"
+  ],
+  "keywords": [],
+  "produced_mana": [],
+  "edhrec_rank": 1254,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "not_legal",
+   "pauper": "not_legal",
+   "standard": "not_legal",
+   "pioneer": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "4.09",
+   "usd_foil": "7.20",
+   "eur": "1.21",
+   "tix": null
+  }
+ },
+ "Winding Constrictor": {
+  "id": "107c8aa8-c8f8-4cbf-821b-bd2cb33354f0",
+  "oracle_id": "c9404d7d-a026-4082-9fcb-1ab571a136b5",
+  "name": "Winding Constrictor",
+  "mana_cost": "{B}{G}",
+  "oracle_text": "If one or more counters would be put on an artifact or creature you control, that many plus one of each of those kinds of counters are put on that permanent instead.\nIf you would get one or more counters, you get that many plus one of each of those kinds of counters instead.",
+  "type_line": "Creature — Snake",
+  "image_url": "https://cards.scryfall.io/normal/front/1/0/107c8aa8-c8f8-4cbf-821b-bd2cb33354f0.jpg?1576382180",
+  "back_image_url": "",
+  "rarity": "uncommon",
+  "set": "aer",
+  "layout": "normal",
+  "cmc": 2.0,
+  "color_identity": [
+   "B",
+   "G"
+  ],
+  "keywords": [],
+  "produced_mana": [],
+  "edhrec_rank": 2039,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "not_legal",
+   "pauper": "not_legal",
+   "standard": "not_legal",
+   "pioneer": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "0.50",
+   "usd_foil": "1.65",
+   "eur": "0.30",
+   "tix": "0.03"
+  }
+ },
+ "Ozolith, the Shattered Spire": {
+  "id": "1d5bab94-362e-45e6-8988-69e2b2c681b1",
+  "oracle_id": "41fed659-237c-4d8e-ad31-d17fa0d3f764",
+  "name": "Ozolith, the Shattered Spire",
+  "mana_cost": "{1}{G}",
+  "oracle_text": "If one or more +1/+1 counters would be put on an artifact or creature you control, that many plus one +1/+1 counters are put on it instead.\n{1}{G}, {T}: Put a +1/+1 counter on target artifact or creature you control. Activate only as a sorcery.\nCycling {2} ({2}, Discard this card: Draw a card.)",
+  "type_line": "Legendary Artifact",
+  "image_url": "https://cards.scryfall.io/normal/front/1/d/1d5bab94-362e-45e6-8988-69e2b2c681b1.jpg?1775941561",
+  "back_image_url": "",
+  "rarity": "rare",
+  "set": "soc",
+  "layout": "normal",
+  "cmc": 2.0,
+  "color_identity": [
+   "G"
+  ],
+  "keywords": [
+   "Cycling"
+  ],
+  "produced_mana": [],
+  "edhrec_rank": 654,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "not_legal",
+   "pauper": "not_legal",
+   "standard": "not_legal",
+   "pioneer": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "4.74",
+   "usd_foil": null,
+   "eur": "3.25",
+   "tix": "0.05"
+  }
+ },
+ "Walking Ballista": {
+  "id": "0db963e2-38df-4036-a312-35854dc3521c",
+  "oracle_id": "4b515bb0-f275-4400-8032-3173b799ab40",
+  "name": "Walking Ballista",
+  "mana_cost": "{X}{X}",
+  "oracle_text": "This creature enters with X +1/+1 counters on it.\n{4}: Put a +1/+1 counter on this creature.\nRemove a +1/+1 counter from this creature: It deals 1 damage to any target.",
+  "type_line": "Artifact Creature — Construct",
+  "image_url": "https://cards.scryfall.io/normal/front/0/d/0db963e2-38df-4036-a312-35854dc3521c.jpg?1723224848",
+  "back_image_url": "",
+  "rarity": "rare",
+  "set": "mb2",
+  "layout": "normal",
+  "cmc": 0.0,
+  "color_identity": [],
+  "keywords": [],
+  "produced_mana": [],
+  "edhrec_rank": 456,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "not_legal",
+   "standardbrawl": "not_legal",
+   "pauper": "not_legal",
+   "standard": "not_legal",
+   "pioneer": "banned",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "9.53",
+   "usd_foil": "46.84",
+   "eur": "7.06",
+   "tix": "3.39"
+  }
+ },
+ "Arcbound Worker": {
+  "id": "4e165505-7908-479f-9567-6fb2a06f9508",
+  "oracle_id": "6d9af084-cd5d-4242-b0f0-24a36d0a75d4",
+  "name": "Arcbound Worker",
+  "mana_cost": "{1}",
+  "oracle_text": "Modular 1 (This creature enters with a +1/+1 counter on it. When it dies, you may put its +1/+1 counters on target artifact creature.)",
+  "type_line": "Artifact Creature — Construct",
+  "image_url": "https://cards.scryfall.io/normal/front/4/e/4e165505-7908-479f-9567-6fb2a06f9508.jpg?1562270219",
+  "back_image_url": "",
+  "rarity": "common",
+  "set": "ddf",
+  "layout": "normal",
+  "cmc": 1.0,
+  "color_identity": [],
+  "keywords": [
+   "Modular"
+  ],
+  "produced_mana": [],
+  "edhrec_rank": 7732,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "not_legal",
+   "standardbrawl": "not_legal",
+   "pauper": "legal",
+   "standard": "not_legal",
+   "pioneer": "not_legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "0.30",
+   "usd_foil": null,
+   "eur": "0.26",
+   "tix": "0.04"
+  }
+ },
+ "Scourge of Skola Vale": {
+  "id": "baef76dc-7cef-449b-b8a7-e038887129d9",
+  "oracle_id": "725d7374-4ea8-4aef-ac09-8dcb5d8dcad1",
+  "name": "Scourge of Skola Vale",
+  "mana_cost": "{2}{G}",
+  "oracle_text": "Trample\nThis creature enters with two +1/+1 counters on it.\n{T}, Sacrifice another creature: Put a number of +1/+1 counters on this creature equal to the sacrificed creature's toughness.",
+  "type_line": "Creature — Hydra",
+  "image_url": "https://cards.scryfall.io/normal/front/b/a/baef76dc-7cef-449b-b8a7-e038887129d9.jpg?1593092636",
+  "back_image_url": "",
+  "rarity": "rare",
+  "set": "bng",
+  "layout": "normal",
+  "cmc": 3.0,
+  "color_identity": [
+   "G"
+  ],
+  "keywords": [
+   "Trample"
+  ],
+  "produced_mana": [],
+  "edhrec_rank": 14662,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "not_legal",
+   "standardbrawl": "not_legal",
+   "pauper": "not_legal",
+   "standard": "not_legal",
+   "pioneer": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "0.32",
+   "usd_foil": "0.94",
+   "eur": "0.33",
+   "tix": "0.02"
+  }
+ },
+ "Heliod's Pilgrim": {
+  "id": "1a1e5ad3-00fa-4b6b-a0a3-d52fcbe897ac",
+  "oracle_id": "0fe01c7d-f435-44c1-82f1-0ec2c47d4704",
+  "name": "Heliod's Pilgrim",
+  "mana_cost": "{2}{W}",
+  "oracle_text": "When this creature enters, you may search your library for an Aura card, reveal it, put it into your hand, then shuffle.",
+  "type_line": "Creature — Human Cleric",
+  "image_url": "https://cards.scryfall.io/normal/front/1/a/1a1e5ad3-00fa-4b6b-a0a3-d52fcbe897ac.jpg?1733252645",
+  "back_image_url": "",
+  "rarity": "rare",
+  "set": "pmei",
+  "layout": "normal",
+  "cmc": 3.0,
+  "color_identity": [
+   "W"
+  ],
+  "keywords": [],
+  "produced_mana": [],
+  "edhrec_rank": 3656,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "not_legal",
+   "pauper": "legal",
+   "standard": "not_legal",
+   "pioneer": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": null,
+   "usd_foil": "12.99",
+   "eur": null,
+   "tix": null
+  }
+ },
+ "Ancestral Mask": {
+  "id": "09f97283-3325-424a-9f31-65fe9a0bff97",
+  "oracle_id": "db5380ed-ba28-4ea2-abc3-4998e2022903",
+  "name": "Ancestral Mask",
+  "mana_cost": "{2}{G}",
+  "oracle_text": "Enchant creature\nEnchanted creature gets +2/+2 for each other enchantment on the battlefield.",
+  "type_line": "Enchantment — Aura",
+  "image_url": "https://cards.scryfall.io/normal/front/0/9/09f97283-3325-424a-9f31-65fe9a0bff97.jpg?1762258056",
+  "back_image_url": "",
+  "rarity": "common",
+  "set": "plst",
+  "layout": "normal",
+  "cmc": 3.0,
+  "color_identity": [
+   "G"
+  ],
+  "keywords": [
+   "Enchant"
+  ],
+  "produced_mana": [],
+  "edhrec_rank": 2156,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "not_legal",
+   "pauper": "legal",
+   "standard": "not_legal",
+   "pioneer": "not_legal",
+   "modern": "not_legal",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": "1.35",
+   "usd_foil": null,
+   "eur": "1.54",
+   "tix": null
+  }
+ },
+ "Lotus Field": {
+  "id": "0a2f4890-350b-4ddf-8888-8dab8cfc4328",
+  "oracle_id": "134d5b82-7940-4b33-a922-7f9d1f403e50",
+  "name": "Lotus Field",
+  "mana_cost": "",
+  "oracle_text": "Hexproof\nThis land enters tapped.\nWhen this land enters, sacrifice two lands.\n{T}: Add three mana of any one color.",
+  "type_line": "Land",
+  "image_url": "https://cards.scryfall.io/normal/front/0/a/0a2f4890-350b-4ddf-8888-8dab8cfc4328.jpg?1564188866",
+  "back_image_url": "",
+  "rarity": "rare",
+  "set": "pm20",
+  "layout": "normal",
+  "cmc": 0.0,
+  "color_identity": [],
+  "keywords": [
+   "Hexproof"
+  ],
+  "produced_mana": [
+   "B",
+   "G",
+   "R",
+   "U",
+   "W"
+  ],
+  "edhrec_rank": 930,
+  "game_changer": false,
+  "legalities": {
+   "commander": "legal",
+   "brawl": "legal",
+   "standardbrawl": "not_legal",
+   "pauper": "not_legal",
+   "standard": "not_legal",
+   "pioneer": "legal",
+   "modern": "banned",
+   "legacy": "legal",
+   "vintage": "legal"
+  },
+  "prices": {
+   "usd": null,
+   "usd_foil": "15.29",
+   "eur": null,
+   "tix": null
+  }
  }
 }

@@ -63,6 +63,16 @@ NAMES = [
     "Blackbloom Rogue // Blackbloom Bog",
     "Forest",
     "Relentless Rats",
+    "Cruel Celebrant",
+    "Teysa Karlov",
+    "Winding Constrictor",
+    "Ozolith, the Shattered Spire",
+    "Walking Ballista",
+    "Arcbound Worker",
+    "Scourge of Skola Vale",
+    "Heliod's Pilgrim",
+    "Ancestral Mask",
+    "Lotus Field",
 ]
 
 

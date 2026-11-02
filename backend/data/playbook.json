@@ -443,15 +443,16 @@
         "\\bsacrifice (a|another|an|two|three|x|any number of) (other )?(nontoken )?creatures?\\b"
       ],
       "wants": [
-        "whenever [^.]*\\b(another|a|one or more|other)\\b[^.]*\\bcreatures?( you control| an opponent controls| your opponents control)? (dies|die)\\b",
+        "whenever [^.]*\\b(another|a|one or more|other)\\b[^.]*\\bcreatures?( or planeswalkers?)?( you control| an opponent controls| your opponents control)? (dies|die)\\b",
         "whenever (equipped|enchanted) creature dies",
         "\\bwhen(ever)? this creature dies\\b",
         "\\bwhenever you sacrifice\\b",
-        "\\bfor each creature that died"
+        "\\bfor each creature that died",
+        "\\bcreatures? dying\\b"
       ],
       "wants_scaling": [
         "for each creature that died",
-        "whenever [^.]*\\b(another|a|one or more|other)\\b[^.]*\\bcreatures?( you control| an opponent controls| your opponents control)? (dies|die)\\b",
+        "whenever [^.]*\\b(another|a|one or more|other)\\b[^.]*\\bcreatures?( or planeswalkers?)?( you control| an opponent controls| your opponents control)? (dies|die)\\b",
         "\\bwhenever you sacrifice (a|another) (creature|permanent)"
       ],
       "gives_types": [],
@@ -492,19 +493,22 @@
       "label": "+1/+1 counters",
       "gives": [
         "\\bput (a|an|one|two|three|x|that many|\\w+) \\+1/\\+1 counters? on",
-        "\\benters( the battlefield)? with (a|an|one|two|three|x|\\w+) (additional )?\\+1/\\+1 counters?",
+        "\\benters?( the battlefield)? with (a|an|one|two|three|x|\\w+) (additional )?\\+1/\\+1 counters?",
         "\\bproliferate\\b",
-        "\\bevolve\\b|\\bsupport \\d+|\\bbolster \\d+|\\bmentor\\b|\\badapt \\d+"
+        "\\bevolve\\b|\\bsupport \\d+|\\bbolster \\d+|\\bmentor\\b|\\badapt \\d+|\\bmodular\\b"
       ],
       "wants": [
         "\\+1/\\+1 counters? (would be|is|are) put",
         "\\bcreatures?( you control)? with (a|one or more) \\+1/\\+1 counters? on (it|them)",
-        "\\b(for each|number of) \\+1/\\+1 counters?"
+        "\\b(for each|the number of) \\+1/\\+1 counters?",
+        "\\bcounters? would be put on",
+        "\\bremove (a|an|one|two|three|x|\\w+) \\+1/\\+1 counters? from"
       ],
       "wants_scaling": [
         "for each \\+1/\\+1 counter",
         "equal to the number of \\+1/\\+1 counters",
-        "whenever (one or more )?\\+1/\\+1 counters? (is|are) put"
+        "whenever (one or more )?\\+1/\\+1 counters? (is|are) put",
+        "\\bcounters? would be put on"
       ],
       "gives_types": [],
       "gives_subtypes": [],
@@ -523,10 +527,11 @@
         "whenever you cast an enchantment spell",
         "whenever (an|another|this creature or another) enchantment( you control)? enters",
         "\\benchantment spells you cast\\b",
-        "\\b(for each|number of) enchantments? you control"
+        "\\b(for each|number of) enchantments? you control",
+        "\\bfor each other enchantment"
       ],
       "wants_scaling": [
-        "for each enchantment you control",
+        "for each (other )?enchantments? (you control|on the battlefield)",
         "number of enchantments you control",
         "whenever you cast an enchantment spell",
         "whenever (an|another|this creature or another) enchantment( you control)? enters"
@@ -613,7 +618,8 @@
         "\\bartifacts you control\\b",
         "\\bsacrifice an artifact",
         "\\baffinity for (artifacts|equipment|vehicles)\\b",
-        "\\b(for each|number of) artifacts? you control"
+        "\\b(for each|number of) artifacts? you control",
+        "\\bartifact creatures? you control\\b"
       ],
       "wants_scaling": [
         "for each artifact you control",
@@ -686,11 +692,13 @@
         "\\b(equipped|enchanted) creatures you control\\b",
         "whenever you cast an aura spell",
         "(?m)^([\\w{}]+( [\\w{}]+){0,2}, )*hexproof(, [\\w{}]+( [\\w{}]+){0,2})*$",
-        "\\bfor each (aura|equipment)"
+        "\\bfor each (aura|equipment)",
+        "search your library for an? aura"
       ],
       "wants_scaling": [
         "for each (aura|equipment)",
-        "whenever you cast an aura spell"
+        "whenever you cast an aura spell",
+        "(?m)^([\\w{}]+( [\\w{}]+){0,2}, )*hexproof(, [\\w{}]+( [\\w{}]+){0,2})*$"
       ],
       "gives_types": [],
       "gives_subtypes": [

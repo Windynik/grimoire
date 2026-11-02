@@ -40,7 +40,7 @@ EXPECT = {  # name: (must have, must not have)
     "Impact Tremors": ({"wants:tokens"}, set()),
     "Soul Warden": ({"gives:lifegain"}, set()),
     "Ajani's Pridemate": ({"wants:lifegain"}, set()),
-    "Steel Overseer": ({"gives:counters"}, set()),
+    "Steel Overseer": ({"gives:counters", "wants:artifacts"}, set()),
     "Hardened Scales": ({"wants:counters"}, set()),
     "Eidolon of Blossoms": ({"gives:enchantments", "wants:enchantments", "role:draw"}, set()),
     "Enchantress's Presence": ({"wants:enchantments"}, set()),
@@ -54,6 +54,15 @@ EXPECT = {  # name: (must have, must not have)
     "Rancor": ({"gives:voltron"}, set()),
     "Slippery Bogle": ({"wants:voltron"}, set()),
     "Kor Spiritdancer": ({"wants:voltron"}, set()),
+    # Cards of the evaluation samples (scripts/eval_samples.json).
+    "Cruel Celebrant": ({"wants:death"}, set()),
+    "Teysa Karlov": ({"wants:death"}, set()),
+    "Winding Constrictor": ({"wants:counters"}, set()),
+    "Ozolith, the Shattered Spire": ({"gives:counters", "wants:counters"}, set()),
+    "Walking Ballista": ({"gives:counters", "wants:counters"}, set()),
+    "Arcbound Worker": ({"gives:counters"}, set()),
+    "Heliod's Pilgrim": ({"wants:voltron"}, set()),
+    "Ancestral Mask": ({"gives:voltron", "wants:enchantments"}, set()),
 }
 
 # Precision guards beyond the table: tags that would be absurd on these cards.
@@ -68,6 +77,8 @@ NEVER = {
     "Rancor": {"wants:voltron"},
     "Soul Warden": {"wants:blink"},
     "Relentless Rats": {"role:draw", "role:removal", "role:ramp"},
+    # "Put a number of +1/+1 counters on this creature" gives counters; it is no payoff.
+    "Scourge of Skola Vale": {"wants:counters"},
 }
 
 
@@ -279,8 +290,11 @@ SCALING_EXAMPLES = {
                  "Whenever you gain life, scry 1."],
     "counters": ["This creature gets +1/+1 for each +1/+1 counter on creatures you control.",
                  "It deals damage equal to the number of +1/+1 counters on it.",
-                 "Whenever one or more +1/+1 counters are put on a creature you control, draw a card."],
+                 "Whenever one or more +1/+1 counters are put on a creature you control, draw a card.",
+                 "If one or more counters would be put on a creature you control, that many "
+                 "plus one of each of those kinds of counters are put on it instead."],
     "enchantments": ["This creature gets +1/+1 for each enchantment you control.",
+                     "This creature gets +2/+2 for each other enchantment on the battlefield.",
                      "X is the number of enchantments you control.",
                      "Whenever you cast an enchantment spell, draw a card.",
                      "Whenever another enchantment you control enters, scry 1."],
@@ -297,7 +311,8 @@ SCALING_EXAMPLES = {
                  "Whenever a land you control enters, scry 1."],
     "blink": [],
     "voltron": ["This creature gets +1/+1 for each Aura attached to it.",
-                "Whenever you cast an Aura spell, draw a card."],
+                "Whenever you cast an Aura spell, draw a card.",
+                "Trample, hexproof"],
 }
 
 
@@ -320,6 +335,9 @@ def test_scaling_other_hooks(oracle, playbook):
     assert is_scaling(tagged(oracle["Lotus Cobra"], playbook), "landfall", playbook)
     assert is_scaling(tagged(oracle["Enchantress's Presence"], playbook), "enchantments", playbook)
     assert not is_scaling(tagged(oracle["Evolving Wilds"], playbook), "landfall", playbook)
+    assert is_scaling(tagged(oracle["Hardened Scales"], playbook), "counters", playbook)
+    assert is_scaling(tagged(oracle["Ancestral Mask"], playbook), "enchantments", playbook)
+    assert is_scaling(tagged(oracle["Slippery Bogle"], playbook), "voltron", playbook)
 
 
 def test_rules_text_drops_mdfc_land_face(oracle, playbook):
