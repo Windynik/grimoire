@@ -6,7 +6,6 @@ from pathlib import Path
 
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
 from fastapi.responses import StreamingResponse, FileResponse
-from pydantic import BaseModel
 
 from backend.api.dependencies import (
     get_bulk_data_manager,
