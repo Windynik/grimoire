@@ -5,7 +5,8 @@ import pytest
 
 from backend.forge.cards import hydrate
 from backend.forge.graph import (
-    Backbone, Edge, SynergyGraph, build_graph, commander_candidates, find_backbones,
+    COMMANDER_BONUS, COMMANDER_GIVES_BONUS, Backbone, Edge, SynergyGraph, _core, _select,
+    build_graph, card_weight, commander_bonus, commander_candidates, find_backbones,
 )
 from backend.forge.tagging import tag_cards
 from tests.forge.conftest import make_pool, make_record
@@ -208,6 +209,66 @@ def test_cap_keeps_twenty_best_connected_members(playbook, rules):
     assert names[:5] == sorted(names[:5]) and all(n.startswith("Sac Outlet") for n in names[:5])
     assert not any(n.startswith("Plain Payoff") for n in names)
     assert teysa.id not in top.members
+
+
+def test_commander_that_wants_a_hook_beats_one_that_only_gives_it(playbook):
+    cards = by_name(tagged_pool(playbook, [
+        teysa_record(), creature("Outlet Boss", 902, SAC, legendary=True)]))
+    payoff, outlet = cards["Teysa Karlov"], cards["Outlet Boss"]
+    assert "death" in payoff.wants and "death" in outlet.gives - outlet.wants
+    assert commander_bonus(payoff, ("death",)) == COMMANDER_BONUS
+    assert commander_bonus(outlet, ("death", "tokens")) == COMMANDER_GIVES_BONUS
+    assert commander_bonus(outlet, ("tokens",)) == 1.0
+    assert commander_bonus(None, ("death",)) == 1.0
+    assert 1.0 < COMMANDER_GIVES_BONUS < COMMANDER_BONUS
+
+
+def test_core_balances_enablers_and_payoffs(playbook, rules):
+    # 12 outlets and 25 scaling payoffs. By degree alone (outlets 25 * 1.5 = 37.5,
+    # payoffs 12 * 1.5 = 18) the cap of 20 keeps all 12 outlets and 8 payoffs.
+    # Each next member adds the most weight into the members before it, so
+    # outlets and payoffs alternate: 10 of each.
+    recs = [creature(f"Sac Outlet {i:02d}", i, SAC) for i in range(12)]
+    recs += [creature(f"Death Payoff {i:02d}", 100 + i, DEATH_PAYOFF) for i in range(25)]
+    cards = tagged_pool(playbook, [creature("Plain Boss", 901, legendary=True)] + recs)
+    graph = build_graph(cards, playbook)
+    group = {c.id for c in cards if c.name != "Plain Boss"}
+    assert sum(graph.cards[i].name.startswith("Sac") for i in _core(group, graph)) == 12
+    top = find_backbones(cards, graph, rules["commander"], playbook)[0]
+    names = [graph.cards[m].name for m in top.members]
+    assert len(names) == 20
+    assert sum(n.startswith("Sac Outlet") for n in names) == 10
+
+
+def test_core_prefers_strong_cards_with_the_same_edges(playbook, rules):
+    # Weak outlets have one extra edge each, so by degree alone they push out
+    # the strong outlets. Each card's weight counts times its card_weight, so
+    # the strong outlets stay in.
+    recs = [creature(f"Strong Outlet {i}", i, SAC, rank=100) for i in range(5)]
+    recs += [creature(f"Weak Outlet {i:02d}", 10 + i, SAC, rank=39000) for i in range(15)]
+    recs += [creature(f"Death Payoff {i}", 50 + i, DEATH_PAYOFF, rank=None) for i in range(10)]
+    recs += [creature("Helper", 99, rank=None)]
+    cards = tagged_pool(playbook, recs)
+    graph = build_graph(cards, playbook)
+    names = by_name(cards)
+    for i in range(15):
+        graph.add_edge(Edge(src=names["Helper"].id, dst=names[f"Weak Outlet {i:02d}"].id,
+                            hook="model", weight=1.0, source="model"))
+    group = {c.id for c in cards}
+    strong = {names[f"Strong Outlet {i}"].id for i in range(5)}
+    assert not strong & set(_core(group, graph))
+    assert strong <= _select(group, graph, rules["commander"])
+
+
+def test_card_weight_counts_playsets_in_sixty_card_formats(playbook, rules):
+    recs = [creature("One Copy", 1, rank=None), creature("Playset", 2, rank=None)]
+    sixty = by_name(tagged_pool(playbook, recs, fmt="modern", quantities=[1, 4]))
+    modern = rules["modern"]
+    full = 0.5 + 0.5 * modern.quality_weight
+    assert card_weight(sixty["Playset"], modern) == pytest.approx(full)
+    assert card_weight(sixty["One Copy"], modern) == pytest.approx(full / 4)
+    singleton = by_name(tagged_pool(playbook, recs, quantities=[1, 1]))
+    assert card_weight(singleton["One Copy"], rules["commander"]) == pytest.approx(1.0)
 
 
 def test_group_needs_three_wanters(playbook, rules):

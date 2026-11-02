@@ -17,7 +17,8 @@ from backend.forge.tagging import TRIBAL_PREFIX, is_scaling
 
 SCALING_FACTOR = 1.5
 MERGE_OVERLAP = 0.4
-COMMANDER_BONUS = 2.0
+COMMANDER_BONUS = 2.0  # the commander wants a group hook: the plan is built around it
+COMMANDER_GIVES_BONUS = 1.25  # the commander only gives a group hook: one more enabler
 COMMANDER_PHRASE = "can be your commander"
 MAX_MEMBERS = 20  # a backbone is 8-20 core cards
 MIN_WANTERS = 3  # cards that want a hook; type-based piles of givers are no plan
@@ -186,6 +187,27 @@ def hook_label(hook: str, playbook: Playbook) -> str:
     return playbook.hooks.get(hook, {}).get("label", hook)
 
 
+def commander_bonus(commander: Optional[OwnedCard], hooks: Tuple[str, ...]) -> float:
+    """Return the score factor that a commander gives a hook group.
+
+    Args:
+        commander: The scope's commander, or None.
+        hooks: The group's hooks.
+
+    Returns:
+        COMMANDER_BONUS when the commander wants one of the hooks (its
+        ability pays off the plan), COMMANDER_GIVES_BONUS when it only gives
+        one (it is one more enabler), else 1.0.
+    """
+    if commander is None:
+        return 1.0
+    if commander.wants & set(hooks):
+        return COMMANDER_BONUS
+    if commander.gives & set(hooks):
+        return COMMANDER_GIVES_BONUS
+    return 1.0
+
+
 def _color_code(colors: FrozenSet[str]) -> str:
     return "".join(c for c in COLORS if c in colors) or "C"
 
@@ -200,6 +222,24 @@ def _big_enough(members: List[OwnedCard], fmt: FormatRules) -> bool:
     # Formats with copies count playsets: four copies of a card fill four slots.
     copies = sum(min(card.owned, fmt.max_copies) for card in members)
     return copies / fmt.max_copies >= fmt.min_core / 2
+
+
+def card_weight(card: OwnedCard, fmt: FormatRules) -> float:
+    """Return a card's weight in a backbone score: quality, and playsets in 60-card formats.
+
+    Args:
+        card: Owned card.
+        fmt: Format rules (quality_weight, copies).
+
+    Returns:
+        (0.5 + quality * quality_weight), times the share of a full playset
+        the owner has in formats with copies. A deck plays four copies of its
+        key cards, so a plan of single copies is weaker than a plan of playsets.
+    """
+    weight = 0.5 + card.quality * fmt.quality_weight
+    if fmt.singleton or fmt.max_copies <= 1:
+        return weight
+    return weight * min(card.owned, fmt.copies_allowed(card.legality)) / fmt.max_copies
 
 
 def _enough_wanters(hooks: Tuple[str, ...], ids: Collection[str], graph: SynergyGraph) -> bool:
@@ -248,14 +288,45 @@ def _core(ids: Set[str], graph: SynergyGraph) -> List[str]:
     return sorted(ids, key=rank)[:MAX_MEMBERS]
 
 
+def _select(ids: Set[str], graph: SynergyGraph, fmt: FormatRules) -> Set[str]:
+    """Return at most MAX_MEMBERS cards of a group that work well together.
+
+    The first card has the most weight into the whole group. Each next card
+    adds the most edge weight into the cards chosen before it. Both weights
+    count times the card's card_weight, as in the backbone score. Ties go to
+    the weight into the whole group, then quality, then name. So enablers and
+    payoffs stay in balance (a sixth sac outlet adds no weight while no payoff
+    is in), and a weak card loses to a strong card with the same edges.
+    """
+    if len(ids) <= MAX_MEMBERS:
+        return set(ids)
+    cards = graph.cards
+    factor = {i: card_weight(cards[i], fmt) for i in ids}
+    degree = {i: graph.weight_into(i, ids) for i in ids}
+    gain = dict.fromkeys(ids, 0.0)
+    chosen = set()  # type: Set[str]
+    while len(chosen) < MAX_MEMBERS:
+        pull = degree if not chosen else gain
+        best = min(gain, key=lambda i: (-pull[i] * factor[i], -degree[i], -cards[i].quality,
+                                        cards[i].name))
+        chosen.add(best)
+        del gain[best]
+        for weights in (graph._out_weight.get(best, {}), graph._in_weight.get(best, {})):
+            for other, weight in weights.items():
+                if other in gain:
+                    gain[other] += weight
+    return chosen
+
+
 def _scored_groups(by_hook: Dict[str, List[OwnedCard]], scope: FrozenSet[str],
                    commander: Optional[OwnedCard], graph: SynergyGraph,
                    fmt: FormatRules) -> List[ScoredGroup]:
     """Return (hooks, member ids, score) for the hook groups of one scope.
 
     The commander is never a member. Each group needs MIN_WANTERS cards that
-    want one of its hooks, before and after the merge and the cap. Scores use
-    the capped members and do not include the commander bonus.
+    want one of its hooks, before and after the merge and the cap (see
+    _select). Scores use the capped members and card_weight, and do not
+    include the commander bonus.
     """
     skip = commander.id if commander is not None else None
     groups = []
@@ -267,11 +338,11 @@ def _scored_groups(by_hook: Dict[str, List[OwnedCard]], scope: FrozenSet[str],
             groups.append(((hook,), ids))
     scored = []
     for hooks, ids in _merge(groups):
-        core = _core(ids, graph)
+        core = _core(_select(ids, graph, fmt), graph)
         if not _enough_wanters(hooks, core, graph):
             continue
         density = graph.inner_weight(core) / len(core)
-        quality = sum(0.5 + graph.cards[i].quality * fmt.quality_weight for i in core)
+        quality = sum(card_weight(graph.cards[i], fmt) for i in core)
         fill = min(1.0, len(core) / fmt.min_core)
         scored.append((hooks, core, density * quality * fill))
     return scored
@@ -309,7 +380,8 @@ def find_backbones(cards: List[OwnedCard], graph: SynergyGraph, fmt: FormatRules
         The best GROUPS_PER_SCOPE groups of each scope, then the best `limit`
         overall, best score first (ties by id), with no two backbones that
         have the same hooks and commander. Each backbone has at most
-        MAX_MEMBERS members, most connected first, and never the commander.
+        MAX_MEMBERS members (chosen by _select), most connected first, and
+        never the commander. The score includes commander_bonus.
         Groups with no synergy edges (score 0) are no plan and are left out.
     """
     by_hook = {}  # type: Dict[str, List[OwnedCard]]
@@ -331,8 +403,7 @@ def find_backbones(cards: List[OwnedCard], graph: SynergyGraph, fmt: FormatRules
                                         graph, fmt)
         options = []
         for hooks, core, score in cache[key]:
-            if commander is not None and (commander.gives | commander.wants) & set(hooks):
-                score *= COMMANDER_BONUS
+            score *= commander_bonus(commander, hooks)
             if score > 0:
                 options.append((-score, _backbone_id(hooks, scope, commander), hooks, core, score))
         options.sort(key=lambda option: option[:2])
