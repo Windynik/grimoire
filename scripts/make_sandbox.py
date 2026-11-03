@@ -2,7 +2,7 @@
 
 Usage: python scripts/make_sandbox.py DEST [--source DIR]
 
-The sandbox links the card index and copies the small JSON stores.
+The sandbox links the card index and copies the small JSON files.
 The real cache is never written.
 """
 import argparse
@@ -12,7 +12,8 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_SOURCE = REPO_ROOT / ".scryfall_cache"
-LINKED_FILES = ("cards.jsonl", "metadata.json")
+LINKED_FILES = ("cards.jsonl",)
+COPIED_FILES = ("metadata.json",)
 COPIED_DIRS = ("collections", "decks")
 
 
@@ -21,13 +22,21 @@ def make_sandbox(dest: Path, source: Path) -> Path:
     source = Path(source).resolve()
     if dest == source or source in dest.parents:
         raise SystemExit("Refusing to build the sandbox inside the real cache: %s" % dest)
+    if dest.exists() and not dest.is_dir():
+        raise SystemExit("Refusing a destination that is a file: %s" % dest)
     if dest.exists() and any(dest.iterdir()):
         raise SystemExit("Refusing a destination that is not empty: %s" % dest)
+    if not (source / "cards.jsonl").exists():
+        raise SystemExit("The source has no cards.jsonl: %s" % source)
     dest.mkdir(parents=True, exist_ok=True)
     for name in LINKED_FILES:
         src = source / name
         if src.exists():
             (dest / name).symlink_to(src)
+    for name in COPIED_FILES:
+        src = source / name
+        if src.exists():
+            shutil.copy2(src, dest / name)
     for name in COPIED_DIRS:
         src = source / name
         if src.is_dir():

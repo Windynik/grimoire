@@ -133,7 +133,7 @@ python main.py          # run the server
 
 The app keeps all data in one cache directory. The default is `.scryfall_cache/`. Set `GRIMOIRE_CACHE_DIR` to use another directory.
 
-Never test against your real collections. Build a sandbox instead. The script links the card index and copies your collections and decks into the new directory.
+Never test against your real collections. Build a sandbox instead. The script links the card index. It copies the metadata file, your collections, and your decks into the new directory.
 
 ```bash
 python scripts/make_sandbox.py /tmp/grimoire-sandbox

@@ -63,8 +63,26 @@ def test_make_sandbox_links_the_index(tmp_path, capsys):
     dest = tmp_path / "sandbox"
     assert make_sandbox_main([str(dest), "--source", str(real)]) == 0
     assert (dest / "cards.jsonl").is_symlink()
-    assert (dest / "metadata.json").resolve() == (real / "metadata.json").resolve()
+    meta = dest / "metadata.json"
+    assert meta.is_file() and not meta.is_symlink()
+    assert meta.read_text(encoding="utf-8") == (real / "metadata.json").read_text(encoding="utf-8")
     assert (dest / "collections" / "a.json").exists()
     assert not (dest / "collections" / "a.json").is_symlink()
     assert list((dest / "progress").iterdir()) == []
     assert "GRIMOIRE_CACHE_DIR=" in capsys.readouterr().out
+
+
+def test_make_sandbox_refuses_a_source_without_the_index(tmp_path):
+    real = _fake_cache(tmp_path / "real")
+    (real / "cards.jsonl").unlink()
+    with pytest.raises(SystemExit):
+        make_sandbox_main([str(tmp_path / "sandbox"), "--source", str(real)])
+    assert not (tmp_path / "sandbox").exists()
+
+
+def test_make_sandbox_refuses_a_file_destination(tmp_path):
+    real = _fake_cache(tmp_path / "real")
+    target = tmp_path / "afile"
+    target.write_text("x", encoding="utf-8")
+    with pytest.raises(SystemExit):
+        make_sandbox_main([str(target), "--source", str(real)])
