@@ -53,8 +53,9 @@
     --shadow-2: 0 18px 50px rgba(0, 0, 0, 0.6);
 
     /* Type */
-    --font-display: "Cinzel", Georgia, serif;
-    --font-ui: "Inter", "Segoe UI", sans-serif;
+    --font-display: "Cinzel Decorative", Georgia, serif;
+    --font-serif: "Spectral", Georgia, serif;
+    --font-ui: "Geist", system-ui, sans-serif;
     --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
 
     /* Motion. Movement uses transform and opacity only. */

@@ -18,15 +18,17 @@
 #decks-view .decks-title {
     font-family: var(--font-display);
     font-size: 1.9rem;
-    font-weight: 600;
+    font-weight: 700;
     letter-spacing: 0.06em;
     color: var(--gold);
     margin-bottom: 0.3rem;
 }
 
 #decks-view .decks-lede {
+    font-family: var(--font-serif);
+    font-style: italic;
     color: var(--text-dim);
-    font-size: 0.92rem;
+    font-size: 1rem;
 }
 
 #decks-view .decks-actions {
@@ -86,7 +88,7 @@
     width: 100%;
     padding: 0.15rem 0.35rem;
     margin-left: -0.35rem;
-    font-family: var(--font-display);
+    font-family: var(--font-serif);
     font-size: 1.7rem;
     font-weight: 600;
     letter-spacing: 0.05em;
@@ -245,7 +247,8 @@
     max-width: 100%;
     white-space: normal;
     overflow-wrap: anywhere;
-    font-family: var(--font-display);
+    font-family: var(--font-serif);
+    font-weight: 600;
     font-size: 1.1rem;
     color: var(--gold);
 }
@@ -269,7 +272,8 @@
 
 #decks-view .deck-section-title {
     margin: 0;
-    font-family: var(--font-display);
+    font-family: var(--font-serif);
+    font-weight: 600;
     font-size: 1.05rem;
     letter-spacing: 0.06em;
     color: var(--gold);
@@ -725,7 +729,8 @@
 
 #decks-view .stat-title {
     margin: 0 0 0.4rem;
-    font-family: var(--font-display);
+    font-family: var(--font-serif);
+    font-weight: 600;
     font-size: 0.82rem;
     letter-spacing: 0.06em;
     text-transform: uppercase;
@@ -1112,7 +1117,8 @@
 }
 
 #decks-view .explain-title {
-    font-family: var(--font-display);
+    font-family: var(--font-serif);
+    font-weight: 600;
     font-size: 1.3rem;
     color: var(--gold);
     margin-bottom: 0.4rem;

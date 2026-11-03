@@ -79,14 +79,25 @@ function keyframeBodies(css) {
 const LAYOUT = /^(width|height|min-width|max-width|min-height|max-height|top|left|right|bottom|inset|margin(-[a-z]+)?|padding(-[a-z]+)?)$/;
 
 test("retired fonts are gone", () => {
-  const retired = /Marcellus|Figtree|IBM[ +]Plex[ +]Mono/;
+  const retired = /Marcellus|Figtree|IBM[ +]Plex[ +]Mono|\bInter\b|Cormorant|Cinzel(?![ +]Decorative)/;
   for (const file of cssFiles()) assert.doesNotMatch(file.text, retired, file.name);
   const html = indexHtml();
   assert.doesNotMatch(html, retired, "index.html");
   const link = html.match(/href="(https:\/\/fonts\.googleapis\.com\/css2\?[^"]+)"/);
   assert.ok(link, "index.html loads the fonts");
   const families = new URL(link[1].replace(/&amp;/g, "&")).searchParams.getAll("family");
-  assert.deepEqual(families, ["Cinzel:wght@500;600;700", "Inter:wght@400;500;600;700"]);
+  assert.deepEqual(families, [
+    "Cinzel Decorative:wght@700",
+    "Spectral:ital,wght@0,500;0,600;1,500",
+    "Geist:wght@400;500;600;700;800",
+  ]);
+});
+
+test("tokens.css defines the three font families", () => {
+  const tokens = cssFiles().find((f) => f.name.endsWith("tokens.css")).text;
+  assert.match(tokens, /--font-display:\s*"Cinzel Decorative", Georgia, serif;/);
+  assert.match(tokens, /--font-serif:\s*"Spectral", Georgia, serif;/);
+  assert.match(tokens, /--font-ui:\s*"Geist", system-ui, sans-serif;/);
 });
 
 test("index.html loads the stylesheets in token order", () => {
@@ -118,8 +129,9 @@ test("tokens.css declares the global token set", () => {
     "--space-1": "4px", "--space-2": "8px", "--space-3": "12px",
     "--space-4": "16px", "--space-5": "24px", "--space-6": "32px",
     "--radius-sm": "10px", "--radius-md": "14px", "--radius-lg": "22px",
-    "--font-display": '"Cinzel", Georgia, serif',
-    "--font-ui": '"Inter", "Segoe UI", sans-serif',
+    "--font-display": '"Cinzel Decorative", Georgia, serif',
+    "--font-serif": '"Spectral", Georgia, serif',
+    "--font-ui": '"Geist", system-ui, sans-serif',
     "--font-mono": 'ui-monospace, "SF Mono", Menlo, monospace',
     "--dur-fast": "150ms", "--dur-base": "250ms", "--dur-slow": "600ms",
     "--ease-out": "cubic-bezier(0.2, 0.8, 0.2, 1)",

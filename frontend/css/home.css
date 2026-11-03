@@ -7,15 +7,17 @@
 #home-view .home-title {
     font-family: var(--font-display);
     font-size: 1.9rem;
-    font-weight: 600;
+    font-weight: 700;
     letter-spacing: 0.06em;
     color: var(--gold);
     margin-bottom: 0.3rem;
 }
 
 #home-view .home-lede {
+    font-family: var(--font-serif);
+    font-style: italic;
     color: var(--text-dim);
-    font-size: 0.92rem;
+    font-size: 1rem;
 }
 
 /* Each section enters with a short stagger. The reduced-motion rule in tokens.css turns it off. */
@@ -46,7 +48,7 @@
 }
 
 #home-view .home-section-title {
-    font-family: var(--font-display);
+    font-family: var(--font-serif);
     font-size: 1.2rem;
     font-weight: 600;
     letter-spacing: 0.04em;

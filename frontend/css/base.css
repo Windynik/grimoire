@@ -537,6 +537,7 @@ body {
 
 .dialog-title {
     font-family: var(--font-display);
+    font-weight: 700;
     font-size: 1.4rem;
     letter-spacing: 0.05em;
     color: var(--gold);
@@ -688,7 +689,7 @@ body {
 }
 
 .card-detail-name {
-    font-family: var(--font-display);
+    font-family: var(--font-serif);
     font-size: 1.6rem;
     font-weight: 600;
     letter-spacing: 0.02em;
@@ -801,7 +802,7 @@ body {
 
 /* Stat values, action rows and mana symbols */
 .stat-value {
-    font-family: var(--font-mono);
+    font-family: var(--font-serif);
     font-size: 1.45rem;
     font-weight: 500;
     color: var(--gold-bright);
