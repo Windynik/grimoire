@@ -104,3 +104,10 @@
     font-size: 1rem;
     overflow-wrap: anywhere;
 }
+
+@media (prefers-reduced-motion: reduce) {
+    .deck-tile:hover,
+    .deck-tile:focus-within {
+        transform: none;
+    }
+}
