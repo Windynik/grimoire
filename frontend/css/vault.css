@@ -12,8 +12,13 @@
     position: relative;
     min-width: 0;
     outline: 0;
-    perspective: 1000px;
     cursor: pointer;
+}
+
+/* The frame does not turn. The tilt measures it, and it holds the perspective. */
+.vault-frame {
+    position: relative;
+    perspective: 1000px;
 }
 
 .vault-face {
@@ -24,9 +29,11 @@
     transition: transform var(--dur-slow) var(--ease-out);
 }
 
-/* No transform transition while the face tracks the pointer. */
+/* While the face tracks the pointer, a short linear transition smooths the
+   first pose and the steps between frames. The slow ease-out above brings the
+   face back flat when the pointer leaves. */
 .vault-tile.is-tilting .vault-face {
-    transition: none;
+    transition: transform calc(var(--dur-fast) / 2) linear;
     will-change: transform;
 }
 
@@ -214,7 +221,7 @@
    tokens.css makes it end at once under reduced motion. */
 .vault-tile.is-rising {
     animation: vault-rise var(--dur-slow) var(--ease-out)
-        calc(min(var(--tile-i, 0), 20) * var(--dur-fast) / 5) both;
+        calc(min(var(--tile-i, 0), 20) * var(--dur-fast) / 5) backwards;
 }
 
 @keyframes vault-rise {

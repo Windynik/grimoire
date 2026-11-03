@@ -278,3 +278,16 @@ test("only motion.js animates", () => {
     assert.ok(!text.includes("prefers-reduced-motion"), `${relative(FRONTEND, path)} queries reduced motion`);
   }
 });
+
+test("the tracking tilt transitions only transform, with a token duration", () => {
+  const vault = cssFiles().find((f) => f.name === join("css", "vault.css")).text;
+  const rule = vault.match(/\.vault-tile\.is-tilting\s+\.vault-face\s*\{([^}]*)\}/);
+  assert.ok(rule, "vault.css has the tracking rule");
+  const transitions = declarations(rule[1]).filter((d) => d.prop.startsWith("transition"));
+  assert.equal(transitions.length, 1);
+  const items = splitTop(transitions[0].value);
+  assert.equal(items.length, 1);
+  assert.equal(items[0].split(/\s+/)[0], "transform");
+  assert.match(items[0], /var\(--dur-[a-z]+\)/);
+  assert.doesNotMatch(stripTokenGroups(items[0]), RAW_TIME);
+});

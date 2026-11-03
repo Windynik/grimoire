@@ -13,6 +13,9 @@ const MAX_TILT = 9; // degrees at the edge of the face
 const LIFT = 14; // px toward the viewer while the face tilts
 const TILE = ".vault-tile";
 const FACE = ".vault-face";
+const FRAME = ".vault-frame";
+// Below the face (over the caption), the tilt fades to flat over this part of the face height.
+const FALLOFF = 0.3;
 const POINTER_PROPS = ["--mx", "--my", "--hx", "--hy"];
 
 /**
@@ -61,10 +64,10 @@ export function vaultTile(card, { index, onOpen } = {}) {
   const face = h("div", { class: "vault-face" });
   if (copies > 1) face.append(h("span", { class: "vault-stack s1", "aria-hidden": "true" }));
   if (copies > 2) face.append(h("span", { class: "vault-stack s2", "aria-hidden": "true" }));
-  face.append(cardImg(card, { className: "vault-img" }), h("span", { class: "vault-glare" }));
+  face.append(cardImg(card, { className: "vault-img" }), h("span", { class: "vault-glare", "aria-hidden": "true" }));
   if (foil) {
     face.append(
-      h("span", { class: "vault-holo" }),
+      h("span", { class: "vault-holo", "aria-hidden": "true" }),
       h("span", { class: "vault-foil-tag", "aria-hidden": "true", text: "FOIL" }),
     );
   }
@@ -80,7 +83,7 @@ export function vaultTile(card, { index, onOpen } = {}) {
     class: "vault-tile", tabindex: "0", role: "button", "aria-label": label(card, copies, price),
   },
   copies > 1 ? h("span", { class: "vault-qty", "aria-hidden": "true", text: `×${copies}` }) : null,
-  face, caption, cost);
+  h("div", { class: "vault-frame" }, face), caption, cost);
   if (foil) tile.classList.add("is-foil");
   if (card.new) tile.classList.add("is-new");
   if (Number.isInteger(index) && index >= 0) {
@@ -162,15 +165,23 @@ export function attachTilt(root) {
       // The preference can change after attach.
       if (reducedMotion()) return;
       active = tile;
-      // The class stops the transform transition while the face tracks the pointer.
+      // The class swaps the slow return for a short linear transition that
+      // smooths the first pose and the steps between frames.
       tile.classList.add("is-tilting");
     }
-    const box = face.getBoundingClientRect();
+    // The frame does not turn, so its box stays true while the face tilts.
+    const frameEl = tile.querySelector(FRAME);
+    const box = (frameEl || tile).getBoundingClientRect();
     if (!box.width || !box.height) return;
-    const px = clamp((x - box.left) / box.width);
-    const py = clamp((y - box.top) / box.height);
-    const rx = round((0.5 - py) * 2 * MAX_TILT);
-    const ry = round((px - 0.5) * 2 * MAX_TILT);
+    const rawX = (x - box.left) / box.width;
+    const rawY = (y - box.top) / box.height;
+    const px = clamp(rawX);
+    const py = clamp(rawY);
+    // Outside the face (the caption, the badge), the tilt fades out with the distance.
+    const outside = Math.max(Math.abs(rawX - px), Math.abs(rawY - py));
+    const fade = Math.max(0, 1 - outside / FALLOFF);
+    const rx = round((0.5 - py) * 2 * MAX_TILT * fade);
+    const ry = round((px - 0.5) * 2 * MAX_TILT * fade);
     face.style.transform = `rotateX(${rx}deg) rotateY(${ry}deg) translateZ(${LIFT}px)`;
     face.style.setProperty("--mx", percent(px));
     face.style.setProperty("--my", percent(py));
