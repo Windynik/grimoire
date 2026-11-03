@@ -30,17 +30,21 @@ before(async () => {
   sync = await import("../../../frontend/js/shared/imagesync.js");
 });
 
-const posts = () => app.fetchLog.filter((r) => r.method === "POST" && r.path === "/api/images/prefetch").length;
-
 function setup({ auto, images, code = 200 }) {
-  window_storage(auto);
+  saveAuto(auto);
   status = images;
   prefetchStatus = code;
   app.fetchLog.length = 0;
 }
-function window_storage(auto) {
+function saveAuto(auto) {
   app.window.localStorage.setItem("grimoire.settings", JSON.stringify({ model: "", askMode: "countdown", autoImages: auto }));
 }
+
+function clearToasts() {
+  app.document.getElementById("toast-container").textContent = "";
+}
+
+const posts = () => app.fetchLog.filter((r) => r.method === "POST" && r.path === "/api/images/prefetch").length;
 
 test("main does not start a download when autoImages is off", async () => {
   // The boot ran with autoImages off and missing images. No request went out.
@@ -68,7 +72,7 @@ test("the start-up sync does not start when no card is owned", async () => {
 
 test("the start-up sync starts a quiet run when images are missing", async () => {
   setup({ auto: true, images: MISSING });
-  document_toasts_clear();
+  clearToasts();
   await sync.autoStartImageSync();
   assert.equal(posts(), 1);
   assert.deepEqual(sync.imageSyncState(), {
@@ -79,7 +83,7 @@ test("the start-up sync starts a quiet run when images are missing", async () =>
 
 test("the start-up sync ignores a 409 without a toast", async () => {
   setup({ auto: true, images: MISSING, code: 409 });
-  document_toasts_clear();
+  clearToasts();
   await sync.autoStartImageSync();
   assert.equal(sync.imageSyncState().error, "busy");
   assert.equal(app.document.querySelectorAll("#toast-container .toast").length, 0);
@@ -98,6 +102,19 @@ test("subscribers hear each change and can unsubscribe", async () => {
   assert.equal(seen.length, count);
 });
 
-function document_toasts_clear() {
-  app.document.getElementById("toast-container").textContent = "";
-}
+test("a done event with busy ends with error busy", async () => {
+  setup({ auto: true, images: MISSING });
+  const busy = { type: "done", phase: "normal", done: 0, total: 0, failed: 0, skipped: 0, busy: true };
+  app.route("POST /api/images/prefetch", () => ({ status: 200, body: stream([busy]), headers: { "content-type": "text/event-stream" } }));
+  await sync.startImageSync();
+  assert.equal(sync.imageSyncState().error, "busy");
+});
+
+test("a stream that ends without a done event sets error ended", async () => {
+  setup({ auto: true, images: MISSING });
+  const progress = { type: "progress", phase: "small", done: 1, total: 4, failed: 0 };
+  app.route("POST /api/images/prefetch", () => ({ status: 200, body: stream([progress]), headers: { "content-type": "text/event-stream" } }));
+  await sync.startImageSync();
+  assert.equal(sync.imageSyncState().error, "ended");
+  assert.equal(sync.imageSyncState().running, false);
+});

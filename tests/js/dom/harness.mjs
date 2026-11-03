@@ -114,7 +114,14 @@ export async function loadApp({ hash = "", routes = {}, storage = {}, reducedMot
   Object.defineProperty(window.navigator, "clipboard", { value: clipboard, configurable: true });
 
   // The route stub for fetch.
-  const table = { ...routes };
+  // main.js asks for the image status at boot. By default, no image is owned, so
+  // every owned image counts as stored and no test starts a download unless it says so.
+  const table = {
+    "GET /api/images/status": () => ({
+      json: { count: 0, bytes: 0, owned_total: 0, owned_small: 0, owned_normal: 0 },
+    }),
+    ...routes,
+  };
   const fetchLog = [];
   const stubFetch = async (input, init = {}) => {
     const url = new URL(typeof input === "string" ? input : input.url, "http://127.0.0.1:8133/");

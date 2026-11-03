@@ -35,10 +35,13 @@ function update(patch) {
   }
 }
 
+let sawDone = false;
+
 function onEvent(event) {
   if (event.type === "progress") {
     update({ phase: event.phase, done: event.done, total: event.total, failed: event.failed });
   } else if (event.type === "done") {
+    sawDone = true;
     update({
       phase: event.phase, done: event.done, total: event.total, failed: event.failed,
       skipped: event.skipped || 0, error: event.busy ? "busy" : null,
@@ -47,6 +50,7 @@ function onEvent(event) {
 }
 
 async function run() {
+  sawDone = false;
   update({ ...IDLE, running: true });
   try {
     const response = await fetch("/api/images/prefetch", { method: "POST" });
@@ -56,6 +60,8 @@ async function run() {
       throw new Error(`The image download failed (${response.status}).`);
     } else {
       await readSSE(response, onEvent);
+      // A stream that ends without a done event was cut off. It is not a success.
+      if (!sawDone) update({ error: "ended" });
     }
   } catch (error) {
     console.warn("The image download stopped:", error);

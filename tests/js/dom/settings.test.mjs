@@ -81,6 +81,7 @@ const choose = (id, value) => {
 };
 const toasts = () => [...document.querySelectorAll("#toast-container .toast")].map((t) => t.textContent);
 
+// This test must stay first in the file. Every later test ends the held boot run.
 test("main starts one download at boot and Settings shows its live progress", async () => {
   assert.equal(bootPosts, 1);
   await setup({ keepRun: true });
@@ -350,4 +351,16 @@ test("startImageSync returns the running run and never opens a second stream", a
   assert.equal(first, second);
   await app.until(() => imageSyncState().running);
   assert.equal(app.fetchLog.filter((r) => r.method === "POST").length, before + 1);
+});
+
+test("a stream cut off before done shows the stopped text", async () => {
+  await setup();
+  $("settings-images-now").click();
+  await app.until(() => imageSyncState().running);
+  held.send({ type: "progress", phase: "small", done: 2, total: 10, failed: 0 });
+  await app.until(() => $("settings-images-text").textContent === "Downloading thumbnails: 2 of 10");
+  held.end();
+  held = null;
+  await app.until(() => $("settings-images-text").textContent === "The image download stopped. Try again later.");
+  assert.equal($("settings-images-now").disabled, false);
 });
