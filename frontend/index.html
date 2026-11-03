@@ -158,7 +158,10 @@
                 <!-- Collection View -->
                 <div id="collection-view" class="view">
                     <section class="card">
-                        <h2>Collection Viewer</h2>
+                        <div class="viewer-head">
+                            <h2>Collection Viewer</h2>
+                            <a class="btn btn-secondary btn-compact" id="collection-import" href="#import">Import CSV</a>
+                        </div>
 
                         <div class="viewer-controls">
                             <select id="viewer-source" class="filter-select" aria-label="Card source">
@@ -189,14 +192,17 @@
                                 <option value="planeswalker">Planeswalker</option>
                                 <option value="land">Land</option>
                             </select>
-                            <select id="filter-color" class="filter-select" aria-label="Filter by color">
-                                <option value="">Color: Any</option>
+                            <select id="filter-color" class="filter-select" aria-label="Filter by color identity">
+                                <option value="">Color identity: Any</option>
                                 <option value="W">White</option>
                                 <option value="U">Blue</option>
                                 <option value="B">Black</option>
                                 <option value="R">Red</option>
                                 <option value="G">Green</option>
                                 <option value="C">Colorless</option>
+                            </select>
+                            <select id="filter-format" class="filter-select" aria-label="Filter by format legality">
+                                <option value="">Format: Any</option>
                             </select>
                             <select id="filter-rarity" class="filter-select" aria-label="Filter by rarity">
                                 <option value="">Rarity: Any</option>

@@ -21,6 +21,7 @@ const FILTERS = [
   ["filter-type", "cardType"],
   ["filter-color", "color"],
   ["filter-rarity", "rarity"],
+  ["filter-format", "format"],
   ["filter-foil", "foil"],
 ];
 
@@ -32,6 +33,7 @@ const viewer = {
   cardType: "",
   color: "",
   rarity: "",
+  format: "",
   foil: "",
   offset: 0,
   total: null,
@@ -45,9 +47,10 @@ const viewer = {
 };
 
 let cardCount = 0; // cards on view
+let formats = []; // [{ key, name }] from the Deck Forge format list
 
 function viewerHasFilters() {
-  return Boolean(viewer.cardType || viewer.color || viewer.rarity || viewer.foil);
+  return Boolean(viewer.cardType || viewer.color || viewer.rarity || viewer.format || viewer.foil);
 }
 
 function setViewerContext(message) {
@@ -104,6 +107,26 @@ async function loadCollectionSources(activeJobId) {
   }
 }
 
+// The format list is the same one Deck Forge uses. If it fails, the select keeps "Format: Any".
+async function loadFormats() {
+  let list = [];
+  try {
+    const response = await fetch(`${API_BASE}/forge/formats`);
+    if (response.ok) list = (await response.json()).formats || [];
+  } catch (error) {
+    console.error("Error loading formats:", error);
+  }
+  formats = list;
+  const select = $("filter-format");
+  select.replaceChildren(
+    h("option", { value: "", text: "Format: Any" }),
+    ...formats.map((f) => h("option", { value: f.key, text: f.name })),
+  );
+  select.value = viewer.format;
+  syncSelect(select);
+  updateViewerContext();
+}
+
 function resetViewer() {
   viewer.requestToken++;
   viewer.offset = 0;
@@ -134,6 +157,7 @@ async function loadMoreCards() {
     color: viewer.color,
     rarity: viewer.rarity,
   });
+  if (viewer.format) params.set("format", viewer.format);
   if (viewer.jobId && viewer.foil) {
     params.set("foil", viewer.foil);
   }
@@ -188,7 +212,13 @@ async function loadMoreCards() {
   }
 }
 
+function formatName() {
+  if (!viewer.format) return "";
+  return formats.find((f) => f.key === viewer.format)?.name || viewer.format;
+}
+
 function updateViewerContext() {
+  if (viewer.total === null) return;
   const scope = viewer.jobId ? "your collection" : "the Scryfall archive";
   const total = viewer.total ?? 0;
 
@@ -205,7 +235,8 @@ function updateViewerContext() {
   const matching = viewer.query ? ` matching “${viewer.query}”` : "";
   const filtered = viewerHasFilters() ? " (filtered)" : "";
   const more = viewer.done ? "" : " — scroll for more";
-  setViewerContext(`Showing ${shown.toLocaleString()} of ${total.toLocaleString()} cards${matching}${filtered} in ${scope}${more}.`);
+  const legal = formatName() ? `, legal in ${formatName()}` : "";
+  setViewerContext(`Showing ${shown.toLocaleString()} of ${total.toLocaleString()} cards${matching}${filtered} in ${scope}${more}${legal}.`);
 }
 
 async function shuffleCards() {
@@ -356,6 +387,7 @@ export function open() {
   const jobId = resolveViewerSource();
 
   loadCollectionSources(jobId);
+  loadFormats();
   syncFoilFilter(jobId);
 
   if (!viewer.initialized || viewer.jobId !== jobId) {
