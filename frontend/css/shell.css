@@ -1,0 +1,192 @@
+/* App shell: the atmosphere behind every screen, the slim top bar, and the
+   main nav. Every rule uses the tokens in tokens.css. */
+
+/* --------------------------------------------------------------------------
+   Atmosphere — fixed background glows, film grain, and drifting motes
+   -------------------------------------------------------------------------- */
+.atmosphere {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.glow {
+    position: absolute;
+    width: 55vmax;
+    height: 55vmax;
+    border-radius: 50%;
+    filter: blur(120px);
+    opacity: 0.10;
+}
+
+.glow-u { background: var(--mana-u); top: -25vmax; right: -15vmax; opacity: 0.13; }
+.glow-r { background: var(--mana-r); bottom: -30vmax; left: -20vmax; opacity: 0.08; }
+.glow-g { background: var(--mana-g); bottom: -25vmax; right: 20vmax; opacity: 0.07; }
+
+.grain {
+    position: absolute;
+    inset: 0;
+    opacity: 0.5;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.04 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* The motes come from js/app/shell.js. It makes none under reduced motion. */
+.mote {
+    position: absolute;
+    bottom: -12px;
+    width: var(--size, 3px);
+    height: var(--size, 3px);
+    border-radius: 50%;
+    background: var(--clr, var(--gold-bright));
+    box-shadow: 0 0 6px 1px var(--clr, var(--gold-bright));
+    opacity: 0;
+    animation: mote-rise var(--mote-dur, calc(var(--dur-slow) * 33)) linear var(--mote-delay, 0ms) infinite;
+}
+
+@keyframes mote-rise {
+    0%   { transform: translate(0, 0) scale(1); opacity: 0; }
+    8%   { opacity: 0.65; }
+    60%  { opacity: 0.4; }
+    100% { transform: translate(var(--drift, 0px), -105vh) scale(0.4); opacity: 0; }
+}
+
+/* --------------------------------------------------------------------------
+   Top bar
+   -------------------------------------------------------------------------- */
+.shell-bar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: color-mix(in srgb, var(--bg) 86%, transparent);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+}
+
+.shell-inner {
+    display: flex;
+    align-items: center;
+    gap: var(--space-5);
+    min-height: 56px;
+}
+
+.brand {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--gold);
+    text-decoration: none;
+    border-radius: var(--radius-sm);
+}
+
+.brand-sigil {
+    display: block;
+}
+
+.brand-name {
+    font-family: var(--font-display);
+    font-size: 1.3rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    line-height: 1;
+}
+
+.brand:focus-visible {
+    outline: 2px solid var(--violet);
+    outline-offset: 4px;
+}
+
+/* --------------------------------------------------------------------------
+   Main nav. The link of the open screen has aria-current="page" and a gold
+   underline. The underline grows with transform only.
+   -------------------------------------------------------------------------- */
+.nav {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    margin-left: auto;
+}
+
+.nav-item {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-ui);
+    font-size: 0.92rem;
+    font-weight: 500;
+    color: var(--text-dim);
+    text-decoration: none;
+    white-space: nowrap;
+    transition: color var(--dur-fast) var(--ease-out);
+}
+
+.nav-item::after {
+    content: "";
+    position: absolute;
+    left: var(--space-3);
+    right: var(--space-3);
+    bottom: 2px;
+    height: 2px;
+    border-radius: 999px;
+    background: var(--gold);
+    transform: scaleX(0);
+    transition: transform var(--dur-base) var(--ease-out);
+}
+
+.nav-item:hover {
+    color: var(--text);
+}
+
+.nav-item[aria-current="page"] {
+    color: var(--gold-bright);
+}
+
+.nav-item[aria-current="page"]::after {
+    transform: scaleX(1);
+}
+
+.nav-item:focus-visible {
+    outline: 2px solid var(--violet);
+    outline-offset: 2px;
+}
+
+/* Under 640 px the nav stays one row and scrolls sideways. */
+@media (max-width: 640px) {
+    .shell-inner {
+        gap: var(--space-3);
+        min-height: 52px;
+    }
+
+    .brand-name {
+        font-size: 1.1rem;
+    }
+
+    .nav {
+        flex: 1;
+        min-width: 0;
+        margin-left: 0;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        scrollbar-width: none;
+    }
+
+    .nav::-webkit-scrollbar {
+        display: none;
+    }
+
+    .nav-item {
+        flex: none;
+        padding: var(--space-2);
+        font-size: 0.88rem;
+    }
+
+    .nav-item::after {
+        left: var(--space-2);
+        right: var(--space-2);
+    }
+}

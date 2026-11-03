@@ -330,7 +330,7 @@ body {
     overflow: hidden;
 }
 
-/* The fill scales on x. app.js sets transform: scaleX(fraction). */
+/* The fill scales on x. js/home/home.js sets transform: scaleX(fraction). */
 .progress-fill {
     height: 100%;
     width: 100%;

@@ -91,7 +91,9 @@ test("retired fonts are gone", () => {
 
 test("index.html loads the stylesheets in token order", () => {
   const sheets = [...indexHtml().matchAll(/<link rel="stylesheet" href="([^"]+)"/g)].map((m) => m[1]);
-  assert.deepEqual(sheets, ["/css/tokens.css", "/css/base.css", "/styles.css", "/css/forge.css", "/css/decks.css"]);
+  assert.deepEqual(sheets, [
+    "/css/tokens.css", "/css/base.css", "/css/shell.css", "/styles.css", "/css/forge.css", "/css/decks.css",
+  ]);
 });
 
 test("accent hex values live in tokens.css only", () => {
@@ -103,7 +105,7 @@ test("accent hex values live in tokens.css only", () => {
   assert.doesNotMatch(indexHtml(), accents, "index.html");
   // The three accents of the constraint are also banned in every script.
   const scriptAccents = /#e8c26a|#9b8cff|#6fd39a/i;
-  for (const path of [join(FRONTEND, "app.js"), ...jsFiles(join(FRONTEND, "js"))]) {
+  for (const path of jsFiles(join(FRONTEND, "js"))) {
     assert.doesNotMatch(readFileSync(path, "utf8"), scriptAccents, relative(FRONTEND, path));
   }
 });
@@ -245,7 +247,7 @@ function jsFiles(dir) {
 }
 
 test("only motion.js animates", () => {
-  const files = [join(FRONTEND, "app.js"), ...jsFiles(join(FRONTEND, "js"))];
+  const files = jsFiles(join(FRONTEND, "js"));
   const motion = join(FRONTEND, "js", "shared", "motion.js");
   assert.ok(files.includes(motion), "motion.js exists");
   for (const path of files) {

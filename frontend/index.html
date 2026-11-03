@@ -11,6 +11,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/tokens.css">
     <link rel="stylesheet" href="/css/base.css">
+    <link rel="stylesheet" href="/css/shell.css">
     <link rel="stylesheet" href="/styles.css">
     <link rel="stylesheet" href="/css/forge.css">
     <link rel="stylesheet" href="/css/decks.css">
@@ -25,45 +26,28 @@
     </div>
 
     <div class="app">
-        <!-- Header -->
-        <header class="header">
-            <div class="container header-inner">
-                <div class="sigil">
-                    <button class="pip pip-w" data-color="W" title="Browse white cards" aria-label="Browse white cards"></button>
-                    <button class="pip pip-u" data-color="U" title="Browse blue cards" aria-label="Browse blue cards"></button>
-                    <button class="pip pip-b" data-color="B" title="Browse black cards" aria-label="Browse black cards"></button>
-                    <button class="pip pip-r" data-color="R" title="Browse red cards" aria-label="Browse red cards"></button>
-                    <button class="pip pip-g" data-color="G" title="Browse green cards" aria-label="Browse green cards"></button>
-                </div>
-                <button class="orb" id="header-orb" aria-label="Consult the orb of fortune" title="psst… give me a tap">
-                    <span class="orb-glass">
-                        <span class="orb-swirl"></span>
-                        <span class="orb-glint"></span>
-                    </span>
-                </button>
-                <h1 class="logo">Grimoire <em>Offline MTG Companion</em></h1>
-                <p class="tagline">Your collection, your decks, your spellbook — no internet required</p>
+        <!-- App shell: the top bar and the main nav -->
+        <header class="shell-bar">
+            <div class="container shell-inner">
+                <a class="brand" href="#home" aria-label="Grimoire home">
+                    <img class="brand-sigil" src="/favicon.svg" alt="" width="26" height="26">
+                    <span class="brand-name">Grimoire</span>
+                </a>
+                <nav class="nav" aria-label="Main">
+                    <a class="nav-item" href="#home" data-screen="home">Home</a>
+                    <a class="nav-item" href="#collection" data-screen="collection">Collection</a>
+                    <a class="nav-item" href="#forge" data-screen="forge">Forge</a>
+                    <a class="nav-item" href="#decks" data-screen="decks">Decks</a>
+                    <a class="nav-item" href="#settings" data-screen="settings">Settings</a>
+                </nav>
             </div>
-            <div class="mana-strip" aria-hidden="true"></div>
         </header>
-
-        <!-- Navigation -->
-        <nav class="nav" aria-label="Main">
-            <div class="container nav-inner" role="tablist">
-                <button class="nav-item active" data-view="dashboard" role="tab" aria-selected="true">Dashboard</button>
-                <button class="nav-item" data-view="process" role="tab" aria-selected="false">Process CSV</button>
-                <button class="nav-item" data-view="viewer" role="tab" aria-selected="false">Viewer</button>
-                <button class="nav-item" data-view="forge" role="tab" aria-selected="false">Deck Forge</button>
-                <button class="nav-item" data-view="decks" role="tab" aria-selected="false">Decks</button>
-                <button class="nav-item" data-view="settings" role="tab" aria-selected="false">Settings</button>
-            </div>
-        </nav>
 
         <!-- Main Content -->
         <main class="main">
             <div class="container">
-                <!-- Dashboard View -->
-                <div id="dashboard-view" class="view active">
+                <!-- Home View -->
+                <div id="home-view" class="view">
                     <section class="card">
                         <h2>The Archive</h2>
                         <div class="status-indicator" id="status-indicator">
@@ -105,8 +89,8 @@
                     </section>
                 </div>
 
-                <!-- Process CSV View -->
-                <div id="process-view" class="view">
+                <!-- Import View -->
+                <div id="import-view" class="view">
                     <section class="card">
                         <h2>Process Collection CSV</h2>
 
@@ -156,8 +140,8 @@
                     </section>
                 </div>
 
-                <!-- Collection Viewer View -->
-                <div id="viewer-view" class="view">
+                <!-- Collection View -->
+                <div id="collection-view" class="view">
                     <section class="card">
                         <h2>Collection Viewer</h2>
 
@@ -424,17 +408,10 @@
             </div>
         </footer>
 
-        <!-- Consult the Grimoire — draws a random card -->
-        <button id="consult-grimoire" class="consult-btn" title="Consult the Grimoire" aria-label="Draw a random card from the archive">
-            <img src="/favicon.svg" alt="" width="30" height="30">
-        </button>
-
         <!-- Toast Notifications -->
         <div id="toast-container" aria-live="polite"></div>
     </div>
 
-    <script type="module" src="/app.js"></script>
-    <script type="module" src="/js/forge/forge.js"></script>
-    <script type="module" src="/js/decks/decks.js"></script>
+    <script type="module" src="/js/app/main.js"></script>
 </body>
 </html>

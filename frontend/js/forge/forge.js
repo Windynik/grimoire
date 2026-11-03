@@ -1,7 +1,7 @@
 // Forge controller: setup form, event client wiring, and the run view.
 //
 // A ForgeRun listens with onEvent("*", handler) and plays the events on the
-// stage, the feed and the timeline. Other code can listen with onEvent too.
+// stage, the feed and the timeline. The router calls open() when the screen shows.
 
 import * as api from "./api.js";
 import { isRecommended as isRecommendedModel } from "../shared/models.js";
@@ -10,6 +10,8 @@ import { ThoughtFeed } from "./feed.js";
 import { Timeline, STAGE_NAMES } from "./timeline.js";
 import { animate } from "../shared/motion.js";
 import { showToast } from "../shared/toast.js";
+import { activeCollection } from "../shared/session.js";
+import { openEditor } from "../decks/decks.js";
 
 const AI_OFF_MESSAGE = "Local AI is off. The engine still builds the deck. "
   + "Install Ollama and run `ollama pull qwen3.5:9b` for deeper decks.";
@@ -101,7 +103,7 @@ async function loadCollections() {
   collections.forEach((c) => {
     select.appendChild(option(c.job_id, `${c.name} (${Number(c.card_count).toLocaleString()})`));
   });
-  const wanted = previous || store(localStorage, "lastJobId");
+  const wanted = previous || activeCollection();
   const valid = collections.some((c) => c.job_id === wanted);
   if (collections.length) select.value = valid ? wanted : collections[0].job_id;
   $("forge-empty").hidden = collections.length > 0;
@@ -614,11 +616,10 @@ async function showResult(deckId, deckName) {
       if (state.forgeId !== forgeId) return; // the owner left this run meanwhile
     }
     try {
-      if (!window.grimoireDecks) throw new Error("The decks screen is not loaded.");
-      window.grimoireDecks.openEditor(deckId, { from: "forge" });
+      openEditor(deckId, { from: "forge" });
     } catch (e) {
       console.error("Could not open the editor:", e);
-      showToast(`${deckName ? `"${deckName}"` : "The deck"} is saved. Open it in the Decks tab.`, "info");
+      showToast(`${deckName ? `"${deckName}"` : "The deck"} is saved. Open it in the Decks screen.`, "info");
     }
     showSetup();
   } finally {
@@ -804,7 +805,8 @@ function onEvent(type, handler) {
 // Entry point
 // ---------------------------------------------------------------------------
 
-async function open() {
+/** Show the screen: attach to a saved run, or load the setup. */
+export async function open() {
   const saved = store(sessionStorage, STORAGE_KEY);
   if (saved && saved !== state.forgeId) {
     attach(saved, { replay: true });
@@ -848,24 +850,6 @@ function init() {
       chip.setAttribute("aria-pressed", String(on));
     });
   });
-  // The forge tab can be active at load time only after a reload on that tab.
-  if ($("forge-view").classList.contains("active")) open();
 }
-
-window.grimoireForge = {
-  open,
-  showSetup,
-  startForge,
-  attach,
-  cancel: cancelForge,
-  onEvent,
-  get forgeId() {
-    return state.forgeId;
-  },
-  /** The current run view (stage, feed, timeline), or null. */
-  get run() {
-    return state.run;
-  },
-};
 
 init();

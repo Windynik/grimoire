@@ -6,17 +6,18 @@ import { h } from "../shared/dom.js";
 import { plural } from "../shared/format.js";
 import { confirmDialog, openDialog } from "../shared/modal.js";
 import { showToast } from "../shared/toast.js";
+import { navigate } from "../app/router.js";
 import * as api from "./api.js";
-// Defines window.grimoireEditor before the first hash route opens a deck.
-import "./editor.js";
-
-const HASH = /^#deck\/([A-Za-z0-9_-]+)$/;
+import { closeEditor as unmountEditor, openEditor as mountEditor } from "./editor.js";
 
 const $ = (id) => document.getElementById(id);
 
 const state = {
-  formats: [], collections: [], decks: [], loadRequest: 0, editing: null, pending: null,
+  formats: [], collections: [], decks: [], loadRequest: 0,
+  editing: null, // the id of the deck in the editor, or null
+  ticket: 0, // bumped by every route change, so a stale editor open stops
 };
+let closing = Promise.resolve(); // the close of the last editor, with its save
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -41,11 +42,6 @@ async function loadLookups() {
   state.formats = formats.formats || [];
   state.collections = (collections.collections || []).slice()
     .sort((a, b) => String(b.created || "").localeCompare(String(a.created || "")));
-}
-
-function deckIdFromHash() {
-  const match = HASH.exec(location.hash);
-  return match ? match[1] : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -225,92 +221,69 @@ function importDialog() {
 // ---------------------------------------------------------------------------
 
 function showList() {
-  state.editing = null;
   $("deck-editor").hidden = true;
   $("decks-list").hidden = false;
 }
 
-// Contract with the editor module (Task 8): window.grimoireEditor.open(host, deckId, options)
-// and window.grimoireEditor.close(). close() may return a promise; it flushes the pending save.
-// Every path that tears the editor down awaits close() first: Back, browser Back, deck switch.
-async function closeCurrent() {
-  if (!state.editing) return;
-  try {
-    if (window.grimoireEditor && window.grimoireEditor.close) await window.grimoireEditor.close();
-  } catch (e) {
+// Close the open editor. The editor flushes its pending save; every caller
+// waits for that same save, also a caller that comes after the editor closed.
+function closeCurrent() {
+  if (state.editing) {
+    state.editing = null;
     // The next screen still opens when a save fails; the editor showed the error.
+    closing = unmountEditor().catch(() => {});
   }
-}
-
-// Return to the list.
-async function closeEditor() {
-  await closeCurrent();
-  if (deckIdFromHash()) history.pushState(null, "", location.pathname + location.search);
-  showList();
-  loadList();
+  return closing;
 }
 
 async function showEditor(deckId, options) {
   const host = $("deck-editor");
-  // The tab switch, the open call and the hash change all land here: open once.
+  // A second route to the open deck (the same hash again) keeps the editor.
   if (state.editing === deckId && !host.hidden) return;
-  // A different deck: the old editor saves before the new one loads.
-  if (state.editing && state.editing !== deckId) {
-    await closeCurrent();
-    if (state.editing === deckId) return;
-  }
+  const ticket = ++state.ticket;
+  // The old editor saves before the new one loads.
+  await closeCurrent();
+  if (ticket !== state.ticket) return; // a newer route came meanwhile
   state.editing = deckId;
   $("decks-list").hidden = true;
   host.hidden = false;
-  host.textContent = "";
-  if (window.grimoireEditor && window.grimoireEditor.open) {
-    window.grimoireEditor.open(host, deckId, Object.assign({ onClose: closeEditor }, options));
-    return;
-  }
-  // The editor module is not loaded: show a plain placeholder.
-  host.append(
-    h("button", { type: "button", class: "btn btn-secondary btn-compact", onclick: closeEditor },
-      "Back to decks"),
-    h("p", { class: "decks-empty", text: "The deck editor is not available yet." }),
-  );
+  mountEditor(host, deckId, Object.assign({ onClose: () => navigate("#decks") }, options));
 }
 
-function openEditor(deckId, options) {
-  const wanted = `#deck/${deckId}`;
-  state.pending = options || {};
-  if (location.hash !== wanted) location.hash = wanted;
-  if (window.grimoireNav) window.grimoireNav.activateTab("decks");
-  showEditor(deckId, state.pending);
-  state.pending = null;
-}
-
-async function open() {
-  const deckId = deckIdFromHash();
-  if (deckId) {
-    showEditor(deckId, state.pending || {});
-    return;
-  }
+async function showDeckList() {
+  const ticket = ++state.ticket;
+  await closeCurrent();
+  if (ticket !== state.ticket) return; // a newer route came meanwhile
   showList();
   await loadList();
+}
+
+/**
+ * Open a deck in the editor. It goes through the router (#deck/<id>).
+ *
+ * @param {string} deckId
+ * @param {Object} [options] Editor options, for example {isNew: true} or {from: "forge"}.
+ */
+export function openEditor(deckId, options) {
+  navigate(`#deck/${deckId}`, options || {});
+}
+
+/** Show the screen: the editor for params.deckId, else the deck list. */
+export function open(params = {}) {
+  if (params.deckId) return showEditor(params.deckId, params.state || {});
+  return showDeckList();
+}
+
+/** Leave the screen. It resolves after the editor sent its pending save. */
+export async function leave() {
+  ++state.ticket;
+  await closeCurrent();
+  showList();
 }
 
 function init() {
   $("decks-new").addEventListener("click", newDeckDialog);
   $("decks-import").addEventListener("click", importDialog);
-  window.addEventListener("hashchange", async () => {
-    if (!$("decks-view").classList.contains("active")) return;
-    const deckId = deckIdFromHash();
-    if (deckId) showEditor(deckId, {});
-    else {
-      await closeCurrent();
-      showList();
-      loadList();
-    }
-  });
-  if (deckIdFromHash() && window.grimoireNav) window.grimoireNav.activateTab("decks");
 }
 
-window.grimoireDecks = { open, openEditor };
-
-if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
-else init();
+init();

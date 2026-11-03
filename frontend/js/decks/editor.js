@@ -491,5 +491,3 @@ export function closeEditor() {
   session = null;
   return current ? current.close() : Promise.resolve();
 }
-
-window.grimoireEditor = { open: openEditor, close: closeEditor };

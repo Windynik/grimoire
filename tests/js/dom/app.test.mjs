@@ -20,12 +20,22 @@ before(async () => {
   document = app.document;
 });
 
+test("the app starts on Home", () => {
+  assert.ok(document.getElementById("home-view").classList.contains("active"));
+  const current = document.querySelector('.nav-item[aria-current="page"]');
+  assert.equal(current && current.dataset.screen, "home");
+});
+
 test("the nav switches views", async () => {
-  document.querySelector('.nav-item[data-view="decks"]').click();
-  assert.ok(document.getElementById("decks-view").classList.contains("active"));
+  document.querySelector('.nav-item[data-screen="decks"]').click();
+  await app.until(() => document.getElementById("decks-view").classList.contains("active"));
+  assert.ok(!document.getElementById("home-view").classList.contains("active"));
+  assert.equal(document.querySelector('.nav-item[data-screen="decks"]').getAttribute("aria-current"), "page");
 });
 
 test("a failed collection export shows the server's reason", async () => {
+  document.querySelector('.nav-item[data-screen="home"]').click();
+  await app.until(() => document.getElementById("home-view").classList.contains("active"));
   const link = await app.until(() => document.querySelector(".collection-export"));
   link.click();
   await app.until(() => document.querySelector("#toast-container .toast.error"));
