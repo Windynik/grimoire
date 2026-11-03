@@ -5,6 +5,7 @@
 
 import * as api from "./api.js";
 import { isRecommended as isRecommendedModel } from "../shared/models.js";
+import { ENGINE_ONLY, chooseModel, readSettings } from "../shared/settings.js";
 import { ForgeStage } from "./stage.js";
 import { ThoughtFeed } from "./feed.js";
 import { Timeline, STAGE_NAMES } from "./timeline.js";
@@ -15,7 +16,6 @@ import { openEditor } from "../decks/decks.js";
 
 const AI_OFF_MESSAGE = "Local AI is off. The engine still builds the deck. "
   + "Install Ollama and run `ollama pull qwen3.5:9b` for deeper decks.";
-const ENGINE_ONLY = "none";
 const STORAGE_KEY = "forgeId";
 const COMMANDER_KEY = "forgeCommander";
 // {forge_id, deck_id} of the last finished forge. The server drops a finished
@@ -47,6 +47,9 @@ const state = {
   run: null,
   ai: { available: false, models: [], default_model: null, recommended: null },
   handlers: {},
+  // True when the owner changed the model or the ask mode during this visit.
+  modelTouched: false,
+  askTouched: false,
 };
 
 // ---------------------------------------------------------------------------
@@ -58,6 +61,11 @@ function option(value, label) {
   el.value = value;
   el.textContent = label;
   return el;
+}
+
+// Start the ask mode at the saved setting, unless the owner changed it this visit.
+function applyAskMode() {
+  if (!state.askTouched) $("forge-ask-mode").value = readSettings().askMode;
 }
 
 function currentFormat() {
@@ -135,10 +143,12 @@ async function loadAiStatus() {
   const isRecommended = (m) => isRecommendedModel(ai, m);
   models.forEach((m) => select.appendChild(option(m, isRecommended(m) ? `${m} (recommended)` : m)));
   select.appendChild(option(ENGINE_ONLY, "Engine only (no AI)"));
-  // Preselect the recommended model only when it is installed; else run engine-only.
-  if (!ai.available) select.value = ENGINE_ONLY;
-  else if (previous && [...select.options].some((o) => o.value === previous)) select.value = previous;
-  else select.value = models.find(isRecommended) || ENGINE_ONLY;
+  // The owner's own pick wins during this visit. Else the saved setting decides.
+  if (previous && state.modelTouched && [...select.options].some((o) => o.value === previous)) {
+    select.value = previous;
+  } else {
+    select.value = chooseModel(ai, readSettings().model);
+  }
   $("forge-ai-banner").hidden = ai.available;
 }
 
@@ -783,6 +793,8 @@ function showSetup() {
   destroyRun();
   state.running = false;
   state.forgeId = null;
+  state.modelTouched = false;
+  state.askTouched = false;
   store(sessionStorage, STORAGE_KEY, null);
   store(sessionStorage, COMMANDER_KEY, null);
   store(sessionStorage, DECK_KEY, null);
@@ -813,6 +825,7 @@ export async function open() {
     return;
   }
   if (state.running || state.forgeId) return;
+  applyAskMode();
   try {
     await Promise.all([loadFormats(), loadAiStatus()]);
     await loadCollections();
@@ -834,6 +847,12 @@ function init() {
   renderBanner();
   $("forge-form").addEventListener("submit", submit);
   $("forge-format").addEventListener("change", applyFormat);
+  $("forge-model").addEventListener("change", () => {
+    state.modelTouched = true;
+  });
+  $("forge-ask-mode").addEventListener("change", () => {
+    state.askTouched = true;
+  });
   $("forge-collection").addEventListener("change", () => {
     state.commander = "";
     loadCommanders();

@@ -18,6 +18,7 @@
     <link rel="stylesheet" href="/css/tile.css">
     <link rel="stylesheet" href="/css/home.css">
     <link rel="stylesheet" href="/css/collection.css">
+    <link rel="stylesheet" href="/css/settings.css">
 </head>
 <body>
     <!-- Atmospheric background layers -->
@@ -405,18 +406,9 @@
 
                 <!-- Settings View -->
                 <div id="settings-view" class="view">
-                    <section class="card">
+                    <section class="card settings-card">
                         <h2>Settings</h2>
-                        <div class="settings-section">
-                            <h3>About</h3>
-                            <p><strong>Version</strong> 1.0.0</p>
-                            <p><strong>Powered by</strong> <a href="https://scryfall.com" target="_blank" rel="noopener noreferrer">Scryfall</a></p>
-                        </div>
-                        <div class="settings-section">
-                            <h3>Data Management</h3>
-                            <p class="settings-note">Removes the downloaded bulk data cache and forgets your last processed collection.</p>
-                            <button id="clear-all-data" class="btn btn-danger">Clear All Data</button>
-                        </div>
+                        <div id="settings-body"></div>
                     </section>
                 </div>
             </div>
