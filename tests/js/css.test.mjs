@@ -101,6 +101,11 @@ test("accent hex values live in tokens.css only", () => {
     assert.doesNotMatch(file.text, accents, file.name);
   }
   assert.doesNotMatch(indexHtml(), accents, "index.html");
+  // The three accents of the constraint are also banned in every script.
+  const scriptAccents = /#e8c26a|#9b8cff|#6fd39a/i;
+  for (const path of [join(FRONTEND, "app.js"), ...jsFiles(join(FRONTEND, "js"))]) {
+    assert.doesNotMatch(readFileSync(path, "utf8"), scriptAccents, relative(FRONTEND, path));
+  }
 });
 
 test("tokens.css declares the global token set", () => {
@@ -128,14 +133,67 @@ test("tokens.css declares the global token set", () => {
   for (const file of cssFiles()) assert.doesNotMatch(file.text, /--parchment|--(forge|decks)-[\w-]+/, file.name);
 });
 
+// Remove every var(...) and calc(...) group, nested parens included.
+function stripTokenGroups(value) {
+  let out = "";
+  let i = 0;
+  while (i < value.length) {
+    const head = value.slice(i).match(/^(var|calc)\(/);
+    if (!head) {
+      out += value[i];
+      i += 1;
+      continue;
+    }
+    let depth = 0;
+    let j = i + head[1].length;
+    do {
+      if (value[j] === "(") depth += 1;
+      if (value[j] === ")") depth -= 1;
+      j += 1;
+    } while (depth > 0 && j < value.length);
+    out += " ";
+    i = j;
+  }
+  return out;
+}
+
+const RAW_TIME = /(^|[\s,])[-+]?(\d+(\.\d+)?|\.\d+)m?s(?=$|[\s,])/;
+const MOTION_PROPS = new Set([
+  "transition", "transition-duration", "transition-delay",
+  "animation", "animation-duration", "animation-delay",
+]);
+
+// A motion value is "none", or it holds no time outside var() and calc().
+function rawMotionDeclarations(text) {
+  return declarations(text)
+    .filter(({ prop, value }) => MOTION_PROPS.has(prop) && value !== "none")
+    .filter(({ value }) => RAW_TIME.test(stripTokenGroups(value)));
+}
+
+test("the motion lint catches raw times next to tokens", () => {
+  const bad = [
+    ".a { transition: opacity 0.3s var(--ease-out); }",
+    ".b { animation: x 2s var(--ease-out); }",
+    ".c { transition: opacity var(--dur-fast) var(--ease-out), visibility 0s linear 0.8s; }",
+    ".d { animation-delay: 0.18s; }",
+    ".e { transition-delay: 120ms; }",
+  ];
+  for (const css of bad) assert.equal(rawMotionDeclarations(css).length, 1, css);
+  const good = [
+    ".a { transition: opacity var(--dur-fast) var(--ease-out); }",
+    ".b { animation: x calc(var(--dur-slow) * 1.5) linear var(--deal-delay, 0ms) both; }",
+    ".c { animation-delay: calc(var(--dur-slow) * 0.3); }",
+    ".d { transition: none; }",
+  ];
+  for (const css of good) assert.equal(rawMotionDeclarations(css).length, 0, css);
+});
+
 // tokens.css defines the scale and the reduced-motion fallback, so it holds raw times.
 test("motion declarations use tokens", () => {
-  const motion = new Set(["transition", "transition-duration", "animation", "animation-duration"]);
   for (const file of cssFiles()) {
     if (file.name === join("css", "tokens.css")) continue;
-    for (const { prop, value } of declarations(file.text)) {
-      if (!motion.has(prop)) continue;
-      assert.ok(value === "none" || value.includes("var(--"), `${file.name}: ${prop}: ${value}`);
+    for (const { prop, value } of rawMotionDeclarations(file.text)) {
+      assert.fail(`${file.name}: ${prop}: ${value}`);
     }
   }
 });

@@ -129,8 +129,9 @@ export class ForgeStage {
     this.ring = svg("svg", { class: "forge-ring", viewBox: "0 0 200 200", "aria-hidden": "true" });
     const defs = svg("defs");
     const gradient = svg("linearGradient", { id: "forge-ring-gradient" });
-    gradient.append(svg("stop", { offset: "0", "stop-color": "#9b8cff" }),
-      svg("stop", { offset: "1", "stop-color": "#e8c26a" }));
+    // The stop colors come from the tokens in css/tokens.css.
+    gradient.append(svg("stop", { offset: "0", style: "stop-color: var(--violet)" }),
+      svg("stop", { offset: "1", style: "stop-color: var(--gold)" }));
     defs.appendChild(gradient);
     this.ringFill = svg("circle", {
       class: "forge-ring-fill", cx: "100", cy: "100", r: "92",

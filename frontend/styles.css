@@ -102,11 +102,11 @@
     outline-offset: 3px;
 }
 
-.pip-w { background: var(--mana-w); color: var(--mana-w); animation-delay: 0s; }
-.pip-u { background: var(--mana-u); color: var(--mana-u); animation-delay: 0.18s; }
-.pip-b { background: var(--mana-b); color: var(--mana-b); animation-delay: 0.36s; }
-.pip-r { background: var(--mana-r); color: var(--mana-r); animation-delay: 0.54s; }
-.pip-g { background: var(--mana-g); color: var(--mana-g); animation-delay: 0.72s; }
+.pip-w { background: var(--mana-w); color: var(--mana-w); }
+.pip-u { background: var(--mana-u); color: var(--mana-u); animation-delay: calc(var(--dur-slow) * 0.3); }
+.pip-b { background: var(--mana-b); color: var(--mana-b); animation-delay: calc(var(--dur-slow) * 0.6); }
+.pip-r { background: var(--mana-r); color: var(--mana-r); animation-delay: calc(var(--dur-slow) * 0.9); }
+.pip-g { background: var(--mana-g); color: var(--mana-g); animation-delay: calc(var(--dur-slow) * 1.2); }
 
 @keyframes pip-bob {
     0%, 100% { transform: translateY(0); }

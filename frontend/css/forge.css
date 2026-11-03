@@ -407,7 +407,10 @@
     background: #1b2033;
     color: var(--text);
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.55);
-    transition: opacity calc(var(--dur-slow) * 4 / 3) var(--ease-out), visibility 0s linear 0s; /* stage.js FADE_MS */
+    /* The fade matches stage.js FADE_MS. Visibility counts as "visible" for the
+       whole transition when one end is visible: a card shows at once and hides
+       only when its fade ends. */
+    transition: opacity calc(var(--dur-slow) * 4 / 3) var(--ease-out), visibility calc(var(--dur-slow) * 4 / 3) linear;
     will-change: transform;
     pointer-events: auto;
     cursor: default;
@@ -463,7 +466,7 @@
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
-    transition: opacity calc(var(--dur-slow) * 4 / 3) var(--ease-out), visibility 0s linear calc(var(--dur-slow) * 4 / 3);
+    transition: opacity calc(var(--dur-slow) * 4 / 3) var(--ease-out), visibility calc(var(--dur-slow) * 4 / 3) linear;
 }
 
 #forge-view .forge-card:focus-visible,
