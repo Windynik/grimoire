@@ -6,6 +6,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set, Tuple
 
+from backend.forge.cards import is_game_card
 from backend.forge.playbook import load_playbook
 
 RARITIES = ("common", "uncommon", "rare", "mythic")
@@ -474,3 +475,132 @@ def archive_matches(info: dict, query: Query) -> bool:
         return _query_passes(info, query, ())
     finally:
         query.foil, query.dupes, query.new = flags
+
+
+# --- shelves and sets ---
+
+SHELF_SIZE = 12
+
+
+def _unique_by_price(cards: list) -> list:
+    """Cards by unit price, highest first, one per (id, foil)."""
+    seen = set()
+    result = []
+    for card in sorted(cards, key=lambda c: (-c["price"], c["name"])):
+        key = (card["scryfall_id"], bool(card["foil"]))
+        if key not in seen:
+            seen.add(key)
+            result.append(card)
+    return result
+
+
+def spotlight(cards: list, day: int) -> Optional[dict]:
+    """The rare or mythic card of the day: day index modulo the sorted list."""
+    pool = sorted((c for c in cards if c.get("rarity") in ("rare", "mythic")),
+                  key=lambda c: (c["name"], c["scryfall_id"] or "", bool(c["foil"])))
+    return pool[day % len(pool)] if pool else None
+
+
+def shelves(cards: list, new_keys, day: int) -> dict:
+    """Spotlight plus the valuable, foil, and new shelves of a collection."""
+    new_keys = new_keys or set()
+    flagged = [dict(c, new=(c["scryfall_id"], bool(c["foil"])) in new_keys) for c in cards]
+    pick = spotlight(flagged, day)
+    return {
+        "spotlight": pick,
+        "valuable": _unique_by_price(flagged)[:SHELF_SIZE],
+        "foils": _unique_by_price([c for c in flagged if c["foil"]])[:SHELF_SIZE],
+        "new": _unique_by_price([c for c in flagged if c["new"]])[:SHELF_SIZE],
+    }
+
+
+def set_catalog(index: dict) -> Dict[str, dict]:
+    """Per set code: {"name", "cards": {lower name: first printing id}} for game cards."""
+    catalog = {}  # type: Dict[str, dict]
+    for sid, record in index.items():
+        if not is_game_card(record):
+            continue
+        code = (record.get("set") or "").lower()
+        if not code:
+            continue
+        entry = catalog.setdefault(code, {"name": "", "cards": {}})
+        if not entry["name"] and record.get("set_name"):
+            entry["name"] = record["set_name"]
+        entry["cards"].setdefault((record.get("name") or "").lower(), sid)
+    return catalog
+
+
+def _by_set(cards: list) -> Dict[str, List[dict]]:
+    grouped = {}  # type: Dict[str, List[dict]]
+    for card in cards:
+        code = (card.get("set") or "").lower()
+        if code:
+            grouped.setdefault(code, []).append(card)
+    return grouped
+
+
+def sets_summary(cards: list, catalog: Dict[str, dict]) -> List[dict]:
+    """One row per owned set: completion, value, and the most valuable card."""
+    rows = []
+    for code, owned in _by_set(cards).items():
+        best = max(owned, key=lambda c: c["price"])
+        total = len((catalog.get(code) or {}).get("cards") or {})
+        rows.append({
+            "code": code,
+            "name": (catalog.get(code) or {}).get("name") or owned[0]["set_name"] or code.upper(),
+            "owned": len({(c["name"] or "").lower() for c in owned}),
+            "total": total,
+            "value": sum(c["value"] for c in owned),
+            "art_id": best["scryfall_id"],
+        })
+    rows.sort(key=lambda r: (-(r["owned"] / r["total"] if r["total"] else 0), -r["owned"], r["name"]))
+    return rows
+
+
+def _number_key(number: str):
+    match = re.match(r"\d+", number or "")
+    return (0, int(match.group()), number) if match else (1, 0, number or "")
+
+
+def set_checklist(cards: list, index: dict, catalog: Dict[str, dict], code: str) -> Optional[dict]:
+    """Every game card of one set, owned printing first, in collector order."""
+    code = code.lower()
+    owned = _by_set(cards).get(code, [])
+    names = (catalog.get(code) or {}).get("cards")
+    if not names and not owned:
+        return None
+    best = {}  # type: Dict[str, dict]
+    for card in owned:
+        key = (card["name"] or "").lower()
+        if key not in best or card["price"] > best[key]["price"]:
+            best[key] = card
+    entries = {}
+    for key, sid in (names or {}).items():
+        card = best.get(key)
+        if card:
+            entries[key] = {"scryfall_id": card["scryfall_id"], "name": card["name"],
+                            "mana_cost": card["mana_cost"], "type_line": card["type_line"],
+                            "rarity": card["rarity"], "collector_number": card["collector_number"],
+                            "image_url": card["image_url"], "price": card["price"],
+                            "quantity": card["quantity"], "foil": card["foil"]}
+        else:
+            record = index.get(sid) or {}
+            entries[key] = {"scryfall_id": sid, "name": record.get("name", ""),
+                            "mana_cost": record.get("mana_cost", ""),
+                            "type_line": record.get("type_line", ""),
+                            "rarity": record.get("rarity", ""),
+                            "collector_number": record.get("collector_number") or "",
+                            "image_url": record.get("image_url", ""),
+                            "price": unit_price(record.get("prices"), False),
+                            "quantity": 0, "foil": False}
+    for key, card in best.items():  # owned names the index does not list for this set
+        if key not in entries:
+            entries[key] = {k: card[k] for k in ("scryfall_id", "name", "mana_cost", "type_line", "rarity",
+                                                 "collector_number", "image_url", "price", "quantity", "foil")}
+    ordered = sorted(entries.values(),
+                     key=lambda e: (_number_key(e["collector_number"]), e["name"])
+                     if e["collector_number"] else ((1, 0, ""), e["name"]))
+    # cards with a number come first in numeric order, the rest by name
+    name = (catalog.get(code) or {}).get("name") or (owned[0]["set_name"] if owned else code.upper())
+    return {"code": code, "name": name, "total": len(names or {}),
+            "owned": len(best), "cards": ordered}

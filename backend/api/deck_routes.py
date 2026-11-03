@@ -92,6 +92,34 @@ async def list_decks(store: DeckStore = Depends(get_deck_store)):
     return {"decks": decks, "total": len(decks)}
 
 
+MAX_USAGE_IDS = 200
+
+
+@router.get("/decks/usage")
+async def deck_usage(ids: str = "", store: DeckStore = Depends(get_deck_store)):
+    """For each card id, the decks that hold it in any section or as commander."""
+    wanted = [i.strip() for i in ids.split(",") if i.strip()][:MAX_USAGE_IDS]
+    usage = {sid: [] for sid in wanted}  # type: Dict[str, List[dict]]
+    if not usage:
+        return usage
+    for summary in store.list():
+        record = store.get(summary["id"])
+        if record is None:
+            continue
+        held = set()
+        commander = record.get("commander")
+        if isinstance(commander, dict):
+            held.add(commander.get("scryfall_id"))
+        for entries in (record.get("sections") or {}).values():
+            for entry in entries:
+                if isinstance(entry, dict):
+                    held.add(entry.get("scryfall_id"))
+        for sid in wanted:
+            if sid in held:
+                usage[sid].append({"deck_id": summary["id"], "name": summary["name"]})
+    return usage
+
+
 @router.post("/decks", status_code=201)
 async def create_deck(
     request: CreateDeck,

@@ -236,3 +236,170 @@ def test_rewriting_the_older_collection_refreshes_new_flags(env):
     os.utime(store.storage_dir / "old.json", ns=(2 * 10**18, 2 * 10**18))
     flags = {c["name"]: c["new"] for c in get("/api/collection/cur/search")["cards"]}
     assert flags["Elf"] is True and flags["Bolt"] is False
+
+
+# --- shelves, sets, deck usage, and the sample collection ---
+
+import datetime
+
+from backend.api import collection_routes, routes
+from backend.api.dependencies import get_csv_processor, get_deck_store
+from backend.core.csv_processor import CSVProcessor
+from backend.decks.store import DeckStore
+
+
+@pytest.fixture
+def set_env(env):
+    store, bulk = env
+    for sid, name, number, rarity in (("id-neo-9", "Zed", "10", "common"),
+                                      ("id-neo-2", "Alpha Wolf", "2", "uncommon")):
+        card = make_record(name, "Creature — Wolf", "{G}", "", ("G",), 1, rarity=rarity)
+        card["set"] = "neo"
+        card["set_name"] = "Kamigawa Neon"
+        card["collector_number"] = number
+        bulk.cards[sid] = card
+    token = make_record("Spirit", "Token Creature — Spirit", "", "", (), 0, layout="token")
+    token["set"] = "neo"
+    bulk.cards["id-neo-token"] = token
+    bulk.cards["id-wurm"]["collector_number"] = "5"
+    bulk.cards["id-elf"]["collector_number"] = "100"
+    return store, bulk
+
+
+def test_shelves_lists_and_limits(set_env):
+    body = get("/api/collection/cur/shelves")
+    assert set(body) == {"spotlight", "valuable", "foils", "new"}
+    assert [c["name"] for c in body["valuable"]] == ["Gold Wurm", "Bolt", "Elf"]
+    assert body["foils"] == []
+    assert [c["name"] for c in body["new"]] == ["Gold Wurm", "Bolt"]
+    assert body["new"][0]["new"] is True
+    assert get("/api/collection/old/shelves")["new"] == []
+
+
+def test_shelves_foils_and_unique_by_id_and_foil(set_env):
+    store, _ = set_env
+    write(store, "dup", "Dup", "2026-03-01T00:00:00+00:00",
+          [row("id-bolt", "Bolt"), row("id-bolt", "Bolt", 3), row("id-bolt", "Bolt", 1, "foil")])
+    body = get("/api/collection/dup/shelves")
+    assert len(body["valuable"]) == 2
+    assert [c["name"] for c in body["foils"]] == ["Bolt"] and body["foils"][0]["foil"] is True
+
+
+def test_shelves_cap_at_twelve(set_env):
+    store, bulk = set_env
+    rows = []
+    for i in range(15):
+        card = make_record("Many %d" % i, "Instant", "{R}", "", ("R",), 1, rarity="common")
+        card["prices"]["usd"] = str(i + 1)
+        bulk.cards["id-many-%d" % i] = card
+        rows.append(row("id-many-%d" % i, "Many %d" % i))
+    write(store, "big", "Big", "2026-04-01T00:00:00+00:00", rows)
+    assert len(get("/api/collection/big/shelves")["valuable"]) == 12
+
+
+def test_spotlight_is_stable_in_a_day_and_changes_across_days(set_env, monkeypatch):
+    def at(day):
+        monkeypatch.setattr(collection_routes, "today", lambda: day)
+        return get("/api/collection/cur/shelves")["spotlight"]["name"]
+
+    first = datetime.date(2026, 11, 3)
+    assert at(first) == at(first)
+    days = (first - datetime.date(1970, 1, 1)).days
+    assert at(first) == ["Elf", "Gold Wurm"][days % 2]
+    assert at(first + datetime.timedelta(days=1)) != at(first)
+
+
+def test_spotlight_is_null_without_rare_cards(set_env):
+    store, _ = set_env
+    write(store, "commons", "Commons", "2026-05-01T00:00:00+00:00", [row("id-bolt", "Bolt")])
+    assert get("/api/collection/commons/shelves")["spotlight"] is None
+
+
+def test_sets_totals_ignore_tokens_and_sort_by_completion(set_env):
+    sets = get("/api/collection/cur/sets")
+    by_code = {s["code"]: s for s in sets}
+    neo = by_code["neo"]
+    assert neo["name"] == "Kamigawa Neon"
+    assert neo["total"] == 4 and neo["owned"] == 2  # Elf, Gold Wurm, Zed, Alpha Wolf; no token
+    assert neo["value"] == 11.0 and neo["art_id"] == "id-wurm"
+    assert by_code["tst"]["total"] == 1 and by_code["tst"]["owned"] == 1
+    assert by_code["tst"]["value"] == 4.0
+    assert [s["code"] for s in sets] == ["tst", "neo"]
+
+
+def test_set_checklist_order_and_owned_printing(set_env):
+    body = get("/api/collection/cur/sets/neo")
+    assert body["code"] == "neo" and body["name"] == "Kamigawa Neon"
+    assert body["total"] == 4 and body["owned"] == 2
+    assert [c["name"] for c in body["cards"]] == ["Alpha Wolf", "Gold Wurm", "Zed", "Elf"]
+    cards = {c["name"]: c for c in body["cards"]}
+    assert cards["Gold Wurm"]["quantity"] == 1 and cards["Gold Wurm"]["price"] == 10.0
+    assert cards["Zed"]["quantity"] == 0 and cards["Zed"]["scryfall_id"] == "id-neo-9"
+    for key in ("scryfall_id", "name", "mana_cost", "type_line", "rarity",
+                "collector_number", "image_url", "price", "quantity", "foil"):
+        assert key in body["cards"][0]
+
+
+def test_set_checklist_unknown_set_is_404(set_env):
+    assert client.get("/api/collection/cur/sets/zzz").status_code == 404
+
+
+def test_deck_usage(env, tmp_path):
+    decks = DeckStore(storage_dir=str(tmp_path / "decks"))
+    app.dependency_overrides[get_deck_store] = lambda: decks
+    record = {"name": "Red", "format": "modern", "commander": None,
+              "sections": {"main": [{"scryfall_id": "id-bolt", "name": "Bolt", "count": 1}],
+                           "sideboard": [], "maybeboard": []}}
+    other = {"name": "Boss", "format": "commander",
+             "commander": {"scryfall_id": "id-wurm", "name": "Gold Wurm", "count": 1},
+             "sections": {"main": [], "sideboard": [{"scryfall_id": "id-bolt", "name": "Bolt", "count": 1}],
+                          "maybeboard": []}}
+    red = decks.save(record)
+    boss = decks.save(other)
+    body = get("/api/decks/usage?ids=id-bolt,id-wurm,id-none")
+    assert {d["deck_id"] for d in body["id-bolt"]} == {red, boss}
+    assert body["id-wurm"] == [{"deck_id": boss, "name": "Boss"}]
+    assert body["id-none"] == []
+    assert get("/api/decks/usage?ids=") == {}
+
+
+def _sample_env(tmp_path, monkeypatch, csv_text):
+    store = CollectionStore(storage_dir=str(tmp_path / "collections"))
+    bulk = FakeBulk({"id-bolt": make_record("Bolt", "Instant", "{R}", "", ("R",), 1)})
+    sample = tmp_path / "sample.csv"
+    if csv_text is not None:
+        sample.write_text(csv_text)
+    monkeypatch.setattr(routes, "SAMPLE_PATH", sample)
+    processor = CSVProcessor(progress_dir=str(tmp_path / "progress"))
+    app.dependency_overrides[get_collection_store] = lambda: store
+    app.dependency_overrides[get_bulk_data_manager] = lambda: bulk
+    app.dependency_overrides[get_csv_processor] = lambda: processor
+    return store
+
+
+def test_sample_stream_ends_with_done_and_stores_the_name(tmp_path, monkeypatch):
+    store = _sample_env(tmp_path, monkeypatch, "Name,Scryfall ID,Quantity\nBolt,id-bolt,2\n")
+    try:
+        response = client.post("/api/process/sample")
+        events = [json.loads(line[6:]) for line in response.text.splitlines()
+                  if line.startswith("data: ")]
+        assert events[-1]["type"] == "done"
+        job_id = events[-1]["result"]["job_id"]
+        assert store.list_collections()[0]["name"] == "Sample collection"
+        assert store.get_collection(job_id) is not None
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_sample_missing_file_is_404(tmp_path, monkeypatch):
+    _sample_env(tmp_path, monkeypatch, None)
+    try:
+        response = client.post("/api/process/sample")
+        assert response.status_code == 404
+        assert response.json() == {"detail": "The sample collection is missing."}
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_real_sample_file_exists():
+    assert routes.SAMPLE_PATH.name == "ManaBox_Collection.csv" and routes.SAMPLE_PATH.exists()

@@ -1,3 +1,4 @@
+import datetime
 import os
 from pathlib import Path
 from collections import OrderedDict
@@ -16,6 +17,10 @@ from backend.core.collection_query import (
     owned_cards,
     parse_query,
     search,
+    set_catalog,
+    set_checklist,
+    sets_summary,
+    shelves,
 )
 from backend.core.collection_store import CollectionStore
 
@@ -25,6 +30,23 @@ CACHE_SIZE = 4
 # (job_id, file mtime, id(index), directory mtime) -> merged collection
 MERGE_CACHE = OrderedDict()
 _INDEX_ID = None
+# id(index) -> (index, set catalog); the index has ~108k records, so build once
+_CATALOG = {}
+
+
+def today() -> datetime.date:
+    """The server's local date. Tests replace it."""
+    return datetime.date.today()
+
+
+def get_catalog(index: dict) -> dict:
+    cached = _CATALOG.get(id(index))
+    if cached is not None and cached[0] is index:
+        return cached[1]
+    _CATALOG.clear()
+    catalog = set_catalog(index)
+    _CATALOG[id(index)] = (index, catalog)
+    return catalog
 
 
 class Merged:
@@ -182,4 +204,45 @@ async def collection_insights(
         "card_data_date": data_date,
         "has_previous": merged.has_previous,
     })
+    return result
+
+
+@router.get("/collection/{job_id}/shelves")
+async def collection_shelves(
+    job_id: str,
+    store: CollectionStore = Depends(get_collection_store),
+    bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager),
+):
+    """Spotlight, most valuable, foils, and new cards."""
+    index = await bulk_data_manager.load_bulk_data()
+    merged = get_merged(store, job_id, index)
+    day = (today() - datetime.date(1970, 1, 1)).days
+    return shelves(merged.cards, merged.new_keys, day)
+
+
+@router.get("/collection/{job_id}/sets")
+async def collection_sets(
+    job_id: str,
+    store: CollectionStore = Depends(get_collection_store),
+    bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager),
+):
+    """Owned sets with completion and value."""
+    index = await bulk_data_manager.load_bulk_data()
+    merged = get_merged(store, job_id, index)
+    return sets_summary(merged.cards, get_catalog(index))
+
+
+@router.get("/collection/{job_id}/sets/{code}")
+async def collection_set(
+    job_id: str,
+    code: str,
+    store: CollectionStore = Depends(get_collection_store),
+    bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager),
+):
+    """The checklist of one set."""
+    index = await bulk_data_manager.load_bulk_data()
+    merged = get_merged(store, job_id, index)
+    result = set_checklist(merged.cards, index, get_catalog(index), code)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Set not found")
     return result

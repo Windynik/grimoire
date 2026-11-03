@@ -261,25 +261,13 @@ async def process_csv(
     return result
 
 
-@router.post("/process/stream")
-async def process_csv_stream(
-    file: UploadFile = File(...),
-    bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager),
-    csv_processor: CSVProcessor = Depends(get_csv_processor),
-    store: CollectionStore = Depends(get_collection_store),
-):
-    """Upload and process a CSV file. Stream progress as server-sent events."""
-    bulk_data = await bulk_data_manager.load_bulk_data()
+SAMPLE_PATH = Path(__file__).resolve().parents[2] / "examples" / "ManaBox_Collection.csv"
+SAMPLE_NAME = "Sample collection.csv"
 
-    if not bulk_data:
-        raise HTTPException(
-            status_code=400,
-            detail="Bulk data not available. Please download cache first."
-        )
 
-    content = await file.read()
-    filename = file.filename or ""
-
+def import_stream(content: bytes, filename: str, bulk_data: dict,
+                  csv_processor: CSVProcessor, store: CollectionStore) -> StreamingResponse:
+    """Process CSV bytes and stream progress as server-sent events."""
     def sse(payload: dict) -> str:
         return f"data: {json.dumps(payload)}\n\n"
 
@@ -344,6 +332,46 @@ async def process_csv_stream(
         }})
 
     return StreamingResponse(generate(), media_type="text/event-stream")
+
+
+@router.post("/process/stream")
+async def process_csv_stream(
+    file: UploadFile = File(...),
+    bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager),
+    csv_processor: CSVProcessor = Depends(get_csv_processor),
+    store: CollectionStore = Depends(get_collection_store),
+):
+    """Upload and process a CSV file. Stream progress as server-sent events."""
+    bulk_data = await bulk_data_manager.load_bulk_data()
+
+    if not bulk_data:
+        raise HTTPException(
+            status_code=400,
+            detail="Bulk data not available. Please download cache first."
+        )
+
+    content = await file.read()
+    return import_stream(content, file.filename or "", bulk_data, csv_processor, store)
+
+
+@router.post("/process/sample")
+async def process_sample(
+    bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager),
+    csv_processor: CSVProcessor = Depends(get_csv_processor),
+    store: CollectionStore = Depends(get_collection_store),
+):
+    """Import the sample collection that ships with the app."""
+    try:
+        content = SAMPLE_PATH.read_bytes()
+    except OSError:
+        raise HTTPException(status_code=404, detail="The sample collection is missing.")
+    bulk_data = await bulk_data_manager.load_bulk_data()
+    if not bulk_data:
+        raise HTTPException(
+            status_code=400,
+            detail="Bulk data not available. Please download cache first."
+        )
+    return import_stream(content, SAMPLE_NAME, bulk_data, csv_processor, store)
 
 
 @router.get("/download/{job_id}")
