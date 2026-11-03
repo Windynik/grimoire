@@ -306,3 +306,18 @@ def test_collection_search_filters_by_identity(overrides):
     assert names("/api/collection/job1/search?color=C") == []
     assert names("/api/cards/search?color=R") == ["Mountain Lair"]
     assert names("/api/cards/search?color=C") == []
+
+
+@pytest.mark.parametrize("path", ["/", "/js/app/main.js"])
+def test_static_files_revalidate(path):
+    """The browser must revalidate each frontend file, so an update never mixes old and new modules."""
+    response = client.get(path)
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-cache"
+    assert "etag" in response.headers
+
+
+def test_api_responses_keep_their_cache_headers():
+    """The static cache rule does not touch the API."""
+    response = client.get("/api/health")
+    assert "cache-control" not in response.headers

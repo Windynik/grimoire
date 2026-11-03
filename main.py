@@ -8,6 +8,20 @@ from backend.api.deck_routes import router as deck_router
 from pathlib import Path
 
 
+class RevalidatedStaticFiles(StaticFiles):
+    """Static files that the browser must revalidate on each use.
+
+    The frontend is ES modules with named imports. One stale module breaks the
+    whole module graph, so every response says "no-cache". The browser sends
+    the ETag back and gets a 304 when the file did not change.
+    """
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
 # Create FastAPI app
 app = FastAPI(
     title="Grimoire",
@@ -33,7 +47,7 @@ app.include_router(deck_router)
 # Serve frontend static files last (catch-all)
 frontend_path = Path(__file__).parent / "frontend"
 if frontend_path.exists():
-    app.mount("/", StaticFiles(directory=str(frontend_path), html=True), name="frontend")
+    app.mount("/", RevalidatedStaticFiles(directory=str(frontend_path), html=True), name="frontend")
 
 
 def run():
