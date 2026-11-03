@@ -845,3 +845,8 @@
 
     #forge-view .forge-core::after { opacity: 0.5; }
 }
+
+#forge-view .forge-field-note {
+    color: var(--warning);
+    font-size: 0.8rem;
+}

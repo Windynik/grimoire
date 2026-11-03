@@ -3,7 +3,7 @@
 // A blocked or full storage does not stop the app: a read gives the defaults,
 // and a write does nothing.
 
-import { pickModel } from "./models.js";
+import { isRecommended } from "./models.js";
 
 export const SETTINGS_KEY = "grimoire.settings";
 /** The model value that means "run the engine without AI". */
@@ -42,12 +42,20 @@ export function writeSettings(patch, storage = localStorage) {
 }
 
 /**
- * Choose the model for a run: the wanted one when it is engine-only or
- * installed, else the automatic pick, else engine-only.
+ * Choose the model for a run: engine-only, or the wanted model when it is
+ * installed, else the recommended model when it is installed, else engine-only.
+ * It never falls back to another model, because a heavy default can swamp a small machine.
  */
 export function chooseModel(ai, wanted) {
   if (wanted === ENGINE_ONLY) return ENGINE_ONLY;
   const installed = ai && ai.available ? ai.models || [] : [];
   if (wanted && installed.includes(wanted)) return wanted;
-  return pickModel(ai) || ENGINE_ONLY;
+  return installed.find((name) => isRecommended(ai, name)) || ENGINE_ONLY;
+}
+
+/** The note for a model that is not installed, or "" when the model is fine. */
+export function recommendedMissingNote(ai) {
+  if (!ai || !ai.available || !ai.recommended) return "";
+  if ((ai.models || []).some((name) => isRecommended(ai, name))) return "";
+  return `The recommended model ${ai.recommended} is not installed, so Automatic uses engine-only mode.`;
 }

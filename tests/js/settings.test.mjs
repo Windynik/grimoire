@@ -66,6 +66,12 @@ test("chooseModel falls back when the model is gone", () => {
   assert.equal(chooseModel(ai, ""), "qwen3.5:9b");
 });
 
+test("chooseModel gives engine-only when only other models are installed", () => {
+  const other = { ...ai, models: ["llama3:8b", "big:70b"], default_model: "big:70b" };
+  assert.equal(chooseModel(other, ""), ENGINE_ONLY);
+  assert.equal(chooseModel(other, "gone:1b"), ENGINE_ONLY);
+});
+
 test("chooseModel gives engine-only with no models", () => {
   assert.equal(chooseModel({ available: false, models: [], default_model: null, recommended: "qwen3.5:9b" }, "x"), ENGINE_ONLY);
   assert.equal(chooseModel({ available: false, models: ["a"] }, "a"), ENGINE_ONLY);

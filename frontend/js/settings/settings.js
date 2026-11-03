@@ -8,7 +8,7 @@ import { del, getJSON } from "../shared/http.js";
 import { isRecommended } from "../shared/models.js";
 import { confirmDialog } from "../shared/modal.js";
 import {
-  ENGINE_ONLY, readSettings, writeSettings,
+  ENGINE_ONLY, readSettings, recommendedMissingNote, writeSettings,
 } from "../shared/settings.js";
 import { showToast } from "../shared/toast.js";
 
@@ -123,8 +123,12 @@ function renderModels(ai) {
   const wanted = readSettings().model;
   const known = wanted === "" || wanted === ENGINE_ONLY || models.includes(wanted);
   select.value = known ? wanted : "";
-  ui.note.hidden = known;
-  ui.note.textContent = known ? "" : `Your saved model ${wanted} is not installed.`;
+  const lines = [];
+  if (!known) lines.push(`Your saved model ${wanted} is not installed.`);
+  if (select.value === "") lines.push(recommendedMissingNote(ai));
+  const text = lines.filter(Boolean).join(" ");
+  ui.note.hidden = !text;
+  ui.note.textContent = text;
 }
 
 async function refresh() {

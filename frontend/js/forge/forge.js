@@ -5,7 +5,7 @@
 
 import * as api from "./api.js";
 import { isRecommended as isRecommendedModel } from "../shared/models.js";
-import { ENGINE_ONLY, chooseModel, readSettings } from "../shared/settings.js";
+import { ENGINE_ONLY, chooseModel, readSettings, recommendedMissingNote } from "../shared/settings.js";
 import { ForgeStage } from "./stage.js";
 import { ThoughtFeed } from "./feed.js";
 import { Timeline, STAGE_NAMES } from "./timeline.js";
@@ -61,6 +61,20 @@ function option(value, label) {
   el.value = value;
   el.textContent = label;
   return el;
+}
+
+// One line that says why the preselection is not the saved choice. The owner's own pick hides it.
+function renderModelNote(ai, saved) {
+  const lines = [];
+  if (!state.modelTouched) {
+    const installed = ai.available ? ai.models || [] : [];
+    const gone = saved && saved !== ENGINE_ONLY && !installed.includes(saved);
+    if (gone) lines.push(`Your saved model ${saved} is not installed.`);
+    if ((!saved || gone) && ai.available) lines.push(recommendedMissingNote(ai));
+  }
+  const text = lines.filter(Boolean).join(" ");
+  $("forge-model-note").hidden = !text;
+  $("forge-model-note").textContent = text;
 }
 
 // Start the ask mode at the saved setting, unless the owner changed it this visit.
@@ -149,6 +163,7 @@ async function loadAiStatus() {
   } else {
     select.value = chooseModel(ai, readSettings().model);
   }
+  renderModelNote(ai, readSettings().model);
   $("forge-ai-banner").hidden = ai.available;
 }
 
@@ -836,6 +851,12 @@ export async function open() {
   }
 }
 
+/** Leave the screen. The next visit starts from the saved settings. A running forge stays. */
+export function leave() {
+  state.modelTouched = false;
+  state.askTouched = false;
+}
+
 function init() {
   if (!$("forge-view")) return;
   window.addEventListener("pagehide", () => {
@@ -849,6 +870,7 @@ function init() {
   $("forge-format").addEventListener("change", applyFormat);
   $("forge-model").addEventListener("change", () => {
     state.modelTouched = true;
+    $("forge-model-note").hidden = true;
   });
   $("forge-ask-mode").addEventListener("change", () => {
     state.askTouched = true;
