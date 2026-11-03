@@ -32,6 +32,20 @@
     --mana-r: #e58a6e;
     --mana-g: #74c193;
 
+    /* Foil shine of the vault tiles (css/vault.css) */
+    --holo-1: #ff8ad8;
+    --holo-2: #8ad8ff;
+    --holo-3: #a8ff9e;
+    --holo-4: #ffe68a;
+    --foil-tag-1: #fff1c2;
+    --foil-tag-2: #d9c6ff;
+    --foil-tag-3: #b7f2ff;
+    --glare: rgba(255, 255, 255, 0.38);
+    --glare-faint: rgba(255, 255, 255, 0.05);
+
+    /* Dark text on a light accent: the gold badge, the foil tag, the NEW tag */
+    --ink-on-accent: #10131f;
+
     /* Semantic */
     --success: #6fd39a;
     --error: #e07a66;

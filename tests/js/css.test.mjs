@@ -104,7 +104,7 @@ test("index.html loads the stylesheets in token order", () => {
   const sheets = [...indexHtml().matchAll(/<link rel="stylesheet" href="([^"]+)"/g)].map((m) => m[1]);
   assert.deepEqual(sheets, [
     "/css/tokens.css", "/css/base.css", "/css/shell.css", "/css/forge.css", "/css/decks.css",
-    "/css/tile.css", "/css/home.css", "/css/collection.css", "/css/settings.css",
+    "/css/tile.css", "/css/home.css", "/css/collection.css", "/css/vault.css", "/css/settings.css",
   ]);
 });
 

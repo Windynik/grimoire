@@ -1,0 +1,229 @@
+/* ==========================================================================
+   The Vault: the collection screen.
+   The card tile (js/collection/tile.js): a face that tilts toward the pointer,
+   a glare and a foil shine that follow it, stacked backs for copies, a gold
+   quantity badge, and a caption.
+   The tilt writes an inline transform and the --mx, --my, --hx and --hy
+   properties of the face. Only transform and opacity move.
+   ========================================================================== */
+
+.vault-tile {
+    --tile-radius: 12px;
+    position: relative;
+    min-width: 0;
+    outline: 0;
+    perspective: 1000px;
+    cursor: pointer;
+}
+
+.vault-face {
+    position: relative;
+    aspect-ratio: 488 / 680;
+    border-radius: var(--tile-radius);
+    transform-style: preserve-3d;
+    transition: transform var(--dur-slow) var(--ease-out);
+}
+
+/* No transform transition while the face tracks the pointer. */
+.vault-tile.is-tilting .vault-face {
+    transition: none;
+    will-change: transform;
+}
+
+/* The resting shadow, and the deeper hover shadow with a gold edge on a
+   second layer. Only the opacity of that layer changes. */
+.vault-face::before,
+.vault-face::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+}
+
+.vault-face::before {
+    box-shadow: 0 14px 30px rgba(0, 0, 0, 0.45);
+}
+
+.vault-face::after {
+    box-shadow: 0 30px 50px rgba(0, 0, 0, 0.6), 0 0 0 1px var(--gold-dim);
+    opacity: 0;
+    transition: opacity var(--dur-base) var(--ease-out);
+}
+
+.vault-tile:hover .vault-face::after,
+.vault-tile:focus-visible .vault-face::after {
+    opacity: 1;
+}
+
+.vault-tile:focus-visible .vault-face {
+    outline: 2px solid var(--violet);
+    outline-offset: 4px;
+}
+
+.vault-face > .card-img {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+}
+
+/* Stacked backs: one for two copies, two for three or more. */
+.vault-stack {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: var(--surface-2);
+    border: 1px solid var(--border-bright);
+    box-shadow: var(--shadow-1);
+}
+
+.vault-stack.s1 {
+    transform: translate(6px, 6px) rotate(2.5deg);
+}
+
+.vault-stack.s2 {
+    transform: translate(11px, 10px) rotate(5deg);
+    opacity: 0.7;
+}
+
+/* The glare: a soft light at the pointer. Keyboard focus shows it at rest. */
+.vault-glare {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: radial-gradient(
+        farthest-corner circle at var(--mx, 35%) var(--my, 25%),
+        var(--glare), var(--glare-faint) 35%, transparent 60%);
+    mix-blend-mode: soft-light;
+    opacity: 0;
+    transition: opacity var(--dur-base) var(--ease-out);
+}
+
+.vault-tile:hover .vault-glare,
+.vault-tile:focus-visible .vault-glare {
+    opacity: 1;
+}
+
+/* The foil shine: a rainbow band. The pointer moves it through --hx and --hy. */
+.vault-holo {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: repeating-linear-gradient(115deg,
+        var(--holo-1) 0%, var(--holo-2) 7%, var(--holo-3) 14%, var(--holo-4) 21%, var(--holo-1) 28%);
+    background-size: 300% 300%;
+    background-position: var(--hx, 50%) var(--hy, 50%);
+    mix-blend-mode: color-dodge;
+    opacity: 0.32;
+    -webkit-mask: linear-gradient(115deg, transparent 20%, #000 45%, #000 55%, transparent 80%);
+    mask: linear-gradient(115deg, transparent 20%, #000 45%, #000 55%, transparent 80%);
+    transition: opacity var(--dur-base) var(--ease-out);
+}
+
+.vault-tile:hover .vault-holo,
+.vault-tile:focus-visible .vault-holo {
+    opacity: 0.45;
+}
+
+.vault-foil-tag {
+    position: absolute;
+    left: 10px;
+    top: 10px;
+    padding: 3px 6px;
+    border-radius: 5px;
+    font: 800 9.5px/1 var(--font-ui);
+    letter-spacing: 0.16em;
+    color: var(--ink-on-accent);
+    background: linear-gradient(90deg, var(--foil-tag-1), var(--foil-tag-2), var(--foil-tag-3));
+    box-shadow: var(--shadow-1);
+    transform: translateZ(30px);
+    pointer-events: none;
+}
+
+/* The quantity badge sits over the top-right corner and does not tilt. */
+.vault-qty {
+    position: absolute;
+    right: -8px;
+    top: -8px;
+    z-index: 3;
+    display: grid;
+    place-items: center;
+    min-width: 30px;
+    height: 30px;
+    padding: 0 8px;
+    border-radius: 999px;
+    font: 800 12.5px/1 var(--font-ui);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-on-accent);
+    background: linear-gradient(180deg, var(--gold-bright), var(--gold));
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.5);
+    pointer-events: none;
+}
+
+.vault-cap {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+}
+
+.vault-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    font-family: var(--font-serif);
+    font-size: 17px;
+    font-weight: 600;
+    line-height: 1.25;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: var(--text);
+}
+
+.vault-new {
+    flex: none;
+    align-self: center;
+    padding: 2px 5px;
+    border-radius: 4px;
+    font: 800 9px/1.2 var(--font-ui);
+    letter-spacing: 0.14em;
+    color: var(--ink-on-accent);
+    background: var(--success);
+}
+
+.vault-price {
+    flex: none;
+    font: 700 12.5px var(--font-ui);
+    font-variant-numeric: tabular-nums;
+    color: var(--gold);
+    white-space: nowrap;
+}
+
+.vault-cost {
+    display: flex;
+    gap: 2px;
+    min-height: 16px;
+    margin-top: 3px;
+    font-size: 13px;
+}
+
+/* The entrance: the first page rises in, one tile after the other.
+   tokens.css makes it end at once under reduced motion. */
+.vault-tile.is-rising {
+    animation: vault-rise var(--dur-slow) var(--ease-out)
+        calc(min(var(--tile-i, 0), 20) * var(--dur-fast) / 5) both;
+}
+
+@keyframes vault-rise {
+    from {
+        opacity: 0;
+        transform: translateY(14px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
