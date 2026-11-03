@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Store card images on the owner's machine, so images show at once and offline, and make the deck hover preview never show a stale card.
+**Goal:** Store card images on the owner's machine — small thumbnails for every owned card first, then full images by priority — so images show at once and offline, with a blur-up loading animation, and make the deck hover preview never show a stale card.
 
 **Architecture:** A backend image store keeps one JPEG per card face under the cache root. `GET /api/images/{scryfall_id}/{face}` serves a stored file, or downloads it from Scryfall once, stores it, and serves it. A prefetch stream downloads the images of every owned and deck card in the background. The frontend loads every card image through one helper that points at the local endpoint.
 
@@ -59,6 +59,28 @@
 
 ---
 
+### Task 1b: Small thumbnails and image versions (backend)
+
+**Files:**
+- Modify: `backend/core/image_store.py`, `backend/api/image_routes.py`, `README.md`
+- Test: `tests/test_image_store.py`, `tests/test_api_images.py`
+
+**Interfaces:**
+- Sizes: `SIZES = ("small", "normal")`. The small URL is the index's normal URL with the path segment `/normal/` replaced by `/small/` (Scryfall uses the same path for every size). A URL without `/normal/` has no small size.
+- Versions: the index URL ends in `?<stamp>` (digits). The stored file name carries it: `cache_path("images", id[0], id[1], f"{id}-{face}-{size}-{stamp}.jpg")` (stamp `0` when the URL has none). A file with another stamp for the same id, face and size is stale: `has()` is false for it, a new download replaces it, and the old file is deleted after the new one is in place. Existing files from Task 1 (`{id}-{face}.jpg`) count as stale.
+- `path_for(scryfall_id, face, size="normal", stamp="0")`, `has(...)`, `fetch(scryfall_id, face, url, size="normal", background=False)` (the store derives size URL and stamp from `url`).
+- `GET /api/images/{scryfall_id}/{face}?size=small|normal` (default `normal`; other values → 400). On-demand: when only a stale file exists, the route serves it at once with `Cache-Control: no-cache` and starts a background-lane refresh; a current file gets the long `immutable` header.
+- Prefetch order: phase 1 — the small image of every target, in the priority order; phase 2 — the normal image of every target, in the priority order. Events add `"phase": "small" | "normal"`; `total`, `done`, `failed`, `skipped` count across both phases.
+- `GET /api/images/status` → `{"count", "bytes", "owned_total", "owned_small", "owned_normal"}` (`owned_total` = unique (id, face) pairs; the two others count current-stamp files of each size). `owned_cached` is removed.
+
+- [ ] **Step 1: Write the failing tests** — small URL derivation; stamp parsing; a stale stamp is not `has()`, is replaced, and the old file is deleted; the old Task 1 name counts as stale; `?size=small` serves the small file; `?size=big` → 400; a stale file is served at once with `no-cache` and refreshed in the background; prefetch runs every small image before any normal image; status counts by size.
+- [ ] **Step 2: Run them and see them fail** — `python -m pytest tests/test_image_store.py tests/test_api_images.py -q`
+- [ ] **Step 3: Implement**
+- [ ] **Step 4: Run the full suite** — `python -m pytest -q`
+- [ ] **Step 5: Commit** — `feat: store small thumbnails first and refresh images whose version changed`
+
+---
+
 ### Task 2: Frontend uses local images, and the hover preview never goes stale
 
 **Files:**
@@ -67,9 +89,9 @@
 - Test: `tests/js/images.test.mjs`, `tests/js/dom/editor.test.mjs` or a new `tests/js/dom/preview.test.mjs`
 
 **Interfaces:**
-- `cardImage(card, face = "front") -> string` in `shared/images.js`: `/api/images/<scryfall_id>/<face>` when the card has a valid `scryfall_id` and the matching index URL (`image_url` for front, `back_image_url` for back); else the raw URL; else `""`. Data fields (`image_url` in saved decks and snapshots) stay as they are.
-- Loading animation: `cardImg(card, {face, alt, className, priority})` in `shared/images.js` returns a wrapper element: a card-shaped placeholder (the card name in small text, on a soft shimmer that runs only without reduced motion) with the `<img>` inside, `loading="lazy"` and `decoding="async"` by default; `priority: "high"` sets `fetchpriority="high"` and `loading="eager"`. On `load` the image fades in (opacity, `--dur-base`) and the shimmer stops; on `error` the placeholder stays with the name. Every card image in the app (collection grid and list, card detail, deck tiles, editor search, sample hand, forge stage and commander tiles, editor commander card) uses `cardImg`. Images in the first screenful (for example the first 12 grid cards and the hover preview) use `priority: "high"`.
-- Hover preview (`decks/pane.js`): when the source changes, the box shows the card name in a placeholder at once and hides the old image; it shows the new image only after its `load` event for that same source. A `load` or `error` for an older source is ignored. On `error`, the name placeholder stays.
+- `cardImage(card, face = "front", size = "normal") -> string` in `shared/images.js`: `/api/images/<scryfall_id>/<face>?size=<size>` when the card has a valid `scryfall_id` and the matching index URL (`image_url` for front, `back_image_url` for back); else the raw URL; else `""`. Data fields (`image_url` in saved decks and snapshots) stay as they are.
+- Loading animation (blur-up): `cardImg(card, {face, alt, className, priority, size})` in `shared/images.js` returns a wrapper element with three layers: a card-shaped placeholder (the card name in small text, on a soft shimmer that runs only without reduced motion); the small image (`size=small`), shown blurred (`filter: blur(6px)` and a slight `scale(1.04)`) as soon as it loads; and the sharp image. `size: "small"` (rows, list thumbnails, compact tiles) uses only the small image, not blurred. `size: "normal"` (default: grid cards, detail, preview, editor commander, hand, forge stage) loads the small image first, then the normal one; when the normal image loads it fades in over the small one (opacity, `--dur-slow`), and the blur layer then hides. Under reduced motion the layers swap with no fade and no shimmer. The `<img>` elements are `loading="lazy"` and `decoding="async"` by default; `priority: "high"` sets `fetchpriority="high"` and `loading="eager"`. On `load` the image fades in (opacity, `--dur-base`) and the shimmer stops; on `error` the placeholder stays with the name. Every card image in the app (collection grid and list, card detail, deck tiles, editor search, sample hand, forge stage and commander tiles, editor commander card) uses `cardImg`. Images in the first screenful (for example the first 12 grid cards and the hover preview) use `priority: "high"`.
+- Hover preview (`decks/pane.js`): when the source changes, the box shows the card name in a placeholder at once and hides the old image; it shows the new card's small image blurred as soon as that loads (usually at once, from the store), then the sharp image after its `load` event for that same source. A `load` or `error` for an older source is ignored. On `error`, the name placeholder stays.
 - Editor open (`decks/editor.js`): after the deck loads, it preloads the front images of the deck's cards in the background (at most 6 at a time, through `cardImage`), so the first hover is fast.
 
 - [ ] **Step 1: Write the failing tests** — unit: `cardImage` for front, back, missing id, bad id, no back URL. DOM: `cardImg` shows the name placeholder before `load`, adds the loaded state after `load`, keeps the placeholder on `error`, sets `fetchpriority="high"` for priority high; the CSS lint stays green (shimmer uses tokens and only `transform`/`opacity`/`background-position`-free animation — use a transform-moved gradient layer). DOM: hover row A, then row B before A's image loads → the preview shows B's name, not A's image; A's late `load` does not show A; B's `load` shows B. 
@@ -88,10 +110,10 @@
 
 **Interfaces:**
 - Consumes `GET /api/images/status` and `POST /api/images/prefetch` (Task 1) and `readSSE` (`shared/sse.js`).
-- At app start (`frontend/js/app/main.js`, after `dataset.ready`), the app starts one background download (`POST /api/images/prefetch`) unless the status says every owned image is stored, or Settings has `autoImages: false` (new field in `shared/settings.js`, default true). It runs quietly (no toast); a 409 is ignored. The stream object is shared through a small `shared/imagesync.js` (`startImageSync()`, `onImageSync(fn) -> unsubscribe`, `imageSyncState()`), so Settings can show the live progress of the run that main.js started.
-- A "Card images" section in Settings, after "Card data": a switch "Download images for my cards in the background" (the `autoImages` setting), the text "N of M images for your cards are on this Mac (X MB).", and a "Download now" button (calls `startImageSync()`). the text "N of M images for your cards are on this Mac (X MB)." and a "Download images" button. While it runs: a `scaleX` progress bar, "Downloading D of T images", and the button reads "Downloading…" and is disabled. At the end: "All images for your cards are on this Mac." or "F images could not be downloaded. Try again later." and a fresh status. A 409 shows the toast "A download is already running." Leaving the screen does not stop the server-side run's current image, but the stream closes (the server stops at the next image).
+- At app start (`frontend/js/app/main.js`, after `dataset.ready`), the app starts one background download (`POST /api/images/prefetch`) unless the status says every owned image is stored at both sizes (`owned_small == owned_total` and `owned_normal == owned_total`), or Settings has `autoImages: false` (new field in `shared/settings.js`, default true). It runs quietly (no toast); a 409 is ignored. The stream object is shared through a small `shared/imagesync.js` (`startImageSync()`, `onImageSync(fn) -> unsubscribe`, `imageSyncState()`), so Settings can show the live progress of the run that main.js started.
+- A "Card images" section in Settings, after "Card data": a switch "Download images for my cards in the background" (the `autoImages` setting), the text "Thumbnails: S of M. Full images: N of M. (X MB on this Mac)", and a "Download now" button (calls `startImageSync()`). the text "N of M images for your cards are on this Mac (X MB)." and a "Download images" button. While it runs: a `scaleX` progress bar, "Downloading D of T images", and the button reads "Downloading…" and is disabled. At the end: "All images for your cards are on this Mac." or "F images could not be downloaded. Try again later." and a fresh status. A 409 shows the toast "A download is already running." Leaving the screen does not stop the server-side run's current image, but the stream closes (the server stops at the next image).
 
-- [ ] **Step 1: Write the failing tests** — unit: `autoImages` read/write with fallback. DOM: main starts the sync when images are missing and `autoImages` is on; does not start it when all are stored or the switch is off; Settings shows the live progress of that run; status text; done text; failed text; the 409 toast from "Download now".
+- [ ] **Step 1: Write the failing tests** — unit: `autoImages` read/write with fallback. DOM: main starts the sync when images are missing and `autoImages` is on; does not start it when all are stored or the switch is off; Settings shows the live progress of that run, with the phase ("Thumbnails" then "Full images"); status text; done text; failed text; the 409 toast from "Download now".
 - [ ] **Step 2: Run them and see them fail** — `npm test`
 - [ ] **Step 3: Implement the section**
 - [ ] **Step 4: Run all tests** — `npm test && python -m pytest -q`
