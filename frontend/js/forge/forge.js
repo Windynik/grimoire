@@ -8,6 +8,7 @@ import { isRecommended as isRecommendedModel } from "../shared/models.js";
 import { ForgeStage } from "./stage.js";
 import { ThoughtFeed } from "./feed.js";
 import { Timeline, STAGE_NAMES } from "./timeline.js";
+import { animate } from "../shared/motion.js";
 
 const AI_OFF_MESSAGE = "Local AI is off. The engine still builds the deck. "
   + "Install Ollama and run `ollama pull qwen3.5:9b` for deeper decks.";
@@ -590,6 +591,7 @@ function endButtons(showNew) {
 }
 
 const HANDOFF_MS = 380; // the forge view fades out this long before the editor opens
+const HANDOFF_ID = "forge-handoff"; // the id of the handoff animations
 
 /**
  * Open the editor on the new deck. The center card scales toward the editor and
@@ -600,20 +602,18 @@ async function showResult(deckId, deckName) {
   const forgeId = state.forgeId;
   if (state.forgeId !== forgeId) return;
   const stage = $("forge-stage");
-  let fades = [];
   try {
-    const reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (!reduced && !stage.hidden && stage.animate) {
+    if (!stage.hidden) {
       const core = stage.querySelector(".forge-core");
-      const timing = { duration: HANDOFF_MS, easing: "ease-in", fill: "forwards" };
-      fades = [stage.animate([{ opacity: 1 }, { opacity: 0 }], timing)];
+      const timing = { duration: HANDOFF_MS, easing: "ease-in", fill: "forwards", id: HANDOFF_ID };
+      const fades = [animate(stage, [{ opacity: 1 }, { opacity: 0 }], timing)];
       if (core) {
-        fades.push(core.animate([
+        fades.push(animate(core, [
           { transform: "scale(1) translateY(0)" },
           { transform: "scale(0.55) translateY(-40px)" },
         ], timing));
       }
-      await Promise.all(fades.map((a) => a.finished.catch(() => null)));
+      await Promise.all(fades.map((fade) => fade.catch(() => null)));
       if (state.forgeId !== forgeId) return; // the owner left this run meanwhile
     }
     try {
@@ -626,7 +626,9 @@ async function showResult(deckId, deckName) {
     showSetup();
   } finally {
     // The next run shows the stage at full opacity, on every path.
-    fades.forEach((a) => a.cancel());
+    if (stage.getAnimations) {
+      stage.getAnimations({ subtree: true }).filter((a) => a.id === HANDOFF_ID).forEach((a) => a.cancel());
+    }
   }
 }
 

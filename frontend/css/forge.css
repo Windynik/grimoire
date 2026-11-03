@@ -1,15 +1,5 @@
 /* Forge view. Everything is scoped under #forge-view. */
 
-#forge-view {
-    --forge-gold: #e8c26a;
-    --forge-violet: #9b8cff;
-    --forge-teal: #6fd3c7;
-    --forge-green: #6fd39a;
-    --forge-font-display: "Cinzel", "Marcellus", Georgia, serif;
-    --forge-font-ui: "Inter", "Figtree", "Segoe UI", sans-serif;
-    font-family: var(--forge-font-ui);
-}
-
 #forge-view .forge-panel,
 #forge-view .forge-stage {
     max-width: 880px;
@@ -21,11 +11,11 @@
 }
 
 #forge-view .forge-title {
-    font-family: var(--forge-font-display);
+    font-family: var(--font-display);
     font-size: 1.9rem;
     font-weight: 600;
     letter-spacing: 0.06em;
-    color: var(--forge-gold);
+    color: var(--gold);
     margin-bottom: 0.35rem;
 }
 
@@ -40,7 +30,7 @@
     padding: 0.8rem 1rem;
     margin-bottom: 1.25rem;
     border: 1px solid rgba(232, 194, 106, 0.4);
-    border-left: 3px solid var(--forge-gold);
+    border-left: 3px solid var(--gold);
     border-radius: var(--radius-sm);
     background: rgba(232, 194, 106, 0.08);
     font-size: 0.92rem;
@@ -48,7 +38,7 @@
 
 #forge-view .forge-banner code {
     font-family: var(--font-mono);
-    color: var(--forge-gold);
+    color: var(--gold);
 }
 
 #forge-view .forge-form {
@@ -97,7 +87,7 @@
     padding: 0.6rem 0.75rem;
     font: inherit;
     font-size: 0.95rem;
-    color: var(--parchment);
+    color: var(--text);
     background: var(--surface-2);
     border: 1px solid var(--border-bright);
     border-radius: var(--radius-sm);
@@ -112,7 +102,7 @@
 #forge-view textarea:focus-visible,
 #forge-view .forge-tile:focus-visible,
 #forge-view .forge-color:focus-visible {
-    outline: 2px solid var(--forge-violet);
+    outline: 2px solid var(--violet);
     outline-offset: 2px;
 }
 
@@ -134,10 +124,10 @@
     border: 2px solid transparent;
     border-radius: 10px;
     background: var(--surface-2);
-    color: var(--parchment);
+    color: var(--text);
     cursor: pointer;
     overflow: hidden;
-    transition: transform 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+    transition: transform var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out), opacity var(--dur-fast) var(--ease-out);
     opacity: 0.8;
 }
 
@@ -155,7 +145,7 @@
 
 #forge-view .forge-tile.selected {
     opacity: 1;
-    border-color: var(--forge-gold);
+    border-color: var(--gold);
     box-shadow: 0 0 0 3px rgba(232, 194, 106, 0.25);
 }
 
@@ -165,7 +155,7 @@
     justify-content: center;
     padding: 0.75rem;
     text-align: center;
-    font-family: var(--forge-font-display);
+    font-family: var(--font-display);
     font-size: 0.95rem;
     border: 2px dashed var(--border-bright);
 }
@@ -190,12 +180,12 @@
     font: inherit;
     font-weight: 600;
     cursor: pointer;
-    transition: transform 0.15s ease, opacity 0.15s ease;
+    transition: transform var(--dur-fast) var(--ease-out), opacity var(--dur-fast) var(--ease-out);
 }
 
 #forge-view .forge-color[aria-pressed="true"] {
-    border-color: var(--forge-gold);
-    color: var(--forge-gold);
+    border-color: var(--gold);
+    color: var(--gold);
     background: rgba(232, 194, 106, 0.14);
 }
 
@@ -209,11 +199,8 @@
    Forge run: stage, feed, and timeline (design: specs/assets/forge-hybrid.html)
    -------------------------------------------------------------------------- */
 #forge-view .forge-stage {
-    --forge-core-w: 116px;
-    --forge-ring: calc(var(--forge-core-w) * 1.72); /* stage.js reads the same ratio */
-    --forge-ink: #e9e6f2;
-    --forge-muted: #9a98ad;
-    --forge-line: #262b3d;
+    --core-w: 116px;
+    --ring-size: calc(var(--core-w) * 1.72); /* stage.js reads the same ratio */
     max-width: 1120px;
     padding: 0;
     overflow: hidden;
@@ -254,7 +241,7 @@
 
 #forge-view .forge-links line {
     stroke-width: 1.7;
-    transition: opacity 0.6s ease;
+    transition: opacity var(--dur-slow) var(--ease-out);
 }
 
 #forge-view .forge-links line.gold { stroke: rgba(232, 194, 106, 0.85); }
@@ -273,7 +260,7 @@
     border-radius: 28px;
     opacity: 0;
     transform: scale(0.92);
-    transition: opacity 0.7s ease, transform 0.7s ease;
+    transition: opacity calc(var(--dur-slow) * 7 / 6) var(--ease-out), transform calc(var(--dur-slow) * 7 / 6) var(--ease-out);
 }
 
 #forge-view .forge-halo.show {
@@ -282,7 +269,7 @@
 }
 
 #forge-view .forge-halo.pulse {
-    animation: forge-halo-pulse 1.2s ease-in-out infinite;
+    animation: forge-halo-pulse calc(var(--dur-slow) * 2) var(--ease-in-out) infinite;
 }
 
 @keyframes forge-halo-pulse {
@@ -318,17 +305,17 @@
     background: #0f1220;
 }
 
-#forge-view .forge-halo.gold .forge-halo-label { color: var(--forge-gold); }
+#forge-view .forge-halo.gold .forge-halo-label { color: var(--gold); }
 #forge-view .forge-halo.violet .forge-halo-label { color: #cfc8ff; }
-#forge-view .forge-halo.teal .forge-halo-label { color: var(--forge-teal); }
+#forge-view .forge-halo.teal .forge-halo-label { color: var(--teal); }
 
 /* Progress ring and center card */
 #forge-view .forge-ring {
     position: absolute;
     left: 50%;
     top: 47%;
-    width: var(--forge-ring);
-    height: var(--forge-ring);
+    width: var(--ring-size);
+    height: var(--ring-size);
     transform: translate(-50%, -50%) rotate(-90deg);
     z-index: 2;
 }
@@ -345,15 +332,15 @@
     position: absolute;
     left: 50%;
     top: 47%;
-    width: var(--forge-core-w);
-    height: calc(var(--forge-core-w) * 88 / 63);
+    width: var(--core-w);
+    height: calc(var(--core-w) * 88 / 63);
     transform: translate(-50%, -50%);
     z-index: 2;
     padding: 0;
     border: 0;
     border-radius: 8px;
     background: linear-gradient(160deg, #23283f, #11141f);
-    box-shadow: 0 0 0 2px var(--forge-gold), 0 0 50px rgba(232, 194, 106, 0.3);
+    box-shadow: 0 0 0 2px var(--gold), 0 0 50px rgba(232, 194, 106, 0.3);
     pointer-events: auto;
     cursor: default;
 }
@@ -365,7 +352,7 @@
     border-radius: inherit;
     box-shadow: 0 0 70px rgba(232, 194, 106, 0.45);
     opacity: 0;
-    animation: forge-breathe 4s ease-in-out infinite;
+    animation: forge-breathe calc(var(--dur-slow) * 6.5) var(--ease-in-out) infinite;
 }
 
 @keyframes forge-breathe {
@@ -385,15 +372,15 @@
     align-items: center;
     justify-content: center;
     height: 100%;
-    font-family: var(--forge-font-display);
+    font-family: var(--font-display);
     font-size: 2.6rem;
-    color: var(--forge-gold);
+    color: var(--gold);
 }
 
 #forge-view .forge-core-meta {
     position: absolute;
     left: 50%;
-    top: calc(47% + var(--forge-ring) / 2 + 4px);
+    top: calc(47% + var(--ring-size) / 2 + 4px);
     transform: translateX(-50%);
     z-index: 4; /* above the inner orbit */
     padding: 1px 8px;
@@ -404,8 +391,8 @@
     font-variant-numeric: tabular-nums;
 }
 
-#forge-view .forge-pct { font-size: 13px; color: var(--forge-ink); }
-#forge-view .forge-count { font-size: 12px; color: var(--forge-muted); }
+#forge-view .forge-pct { font-size: 13px; color: var(--text); }
+#forge-view .forge-count { font-size: 12px; color: var(--text-dim); }
 
 /* Cards on the stage */
 #forge-view .forge-card {
@@ -418,9 +405,9 @@
     border: 0;
     border-radius: 5px;
     background: #1b2033;
-    color: var(--forge-ink);
+    color: var(--text);
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.55);
-    transition: opacity 0.8s ease, visibility 0s linear 0s;
+    transition: opacity calc(var(--dur-slow) * 4 / 3) var(--ease-out), visibility 0s linear 0s; /* stage.js FADE_MS */
     will-change: transform;
     pointer-events: auto;
     cursor: default;
@@ -463,12 +450,12 @@
     inset: 0;
     border-radius: inherit;
     opacity: 0;
-    transition: opacity 0.4s ease;
+    transition: opacity calc(var(--dur-base) * 1.6) var(--ease-out);
     pointer-events: none;
 }
 
-#forge-view .forge-card::before { box-shadow: 0 0 0 2px var(--forge-gold), 0 0 22px rgba(232, 194, 106, 0.55); }
-#forge-view .forge-card::after { box-shadow: 0 0 0 2px var(--forge-violet), 0 0 20px rgba(155, 140, 255, 0.6); }
+#forge-view .forge-card::before { box-shadow: 0 0 0 2px var(--gold), 0 0 22px rgba(232, 194, 106, 0.55); }
+#forge-view .forge-card::after { box-shadow: 0 0 0 2px var(--violet), 0 0 20px rgba(155, 140, 255, 0.6); }
 #forge-view .forge-card.forge-glow::before,
 #forge-view .forge-card.read::after { opacity: 1; }
 
@@ -476,12 +463,12 @@
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
-    transition: opacity 0.8s ease, visibility 0s linear 0.8s;
+    transition: opacity calc(var(--dur-slow) * 4 / 3) var(--ease-out), visibility 0s linear calc(var(--dur-slow) * 4 / 3);
 }
 
 #forge-view .forge-card:focus-visible,
 #forge-view .forge-core:focus-visible {
-    outline: 2px solid var(--forge-violet);
+    outline: 2px solid var(--violet);
     outline-offset: 3px;
 }
 
@@ -493,7 +480,7 @@
     z-index: 10;
     width: 200px;
     padding: 8px;
-    border: 1px solid var(--forge-line);
+    border: 1px solid var(--border);
     border-radius: 10px;
     background: #10131d;
     box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
@@ -510,8 +497,8 @@
     margin-bottom: 6px;
 }
 
-#forge-view .forge-tip strong { display: block; font-size: 13px; color: var(--forge-ink); }
-#forge-view .forge-tip small { display: block; font-size: 11px; color: var(--forge-muted); }
+#forge-view .forge-tip strong { display: block; font-size: 13px; color: var(--text); }
+#forge-view .forge-tip small { display: block; font-size: 11px; color: var(--text-dim); }
 #forge-view .forge-tip p { margin-top: 4px; font-size: 12px; line-height: 1.4; color: #cfcbe0; }
 
 /* Top bar and timeline */
@@ -533,14 +520,14 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     font-size: 12.5px;
-    color: var(--forge-muted);
+    color: var(--text-dim);
 }
 
 #forge-view .forge-eta {
     margin-left: auto;
     flex-shrink: 0;
     font-size: 12.5px;
-    color: var(--forge-ink);
+    color: var(--text);
     font-variant-numeric: tabular-nums;
 }
 
@@ -561,8 +548,8 @@
 #forge-view .forge-seg {
     min-width: 0;
     font-size: 11px;
-    color: var(--forge-muted);
-    transition: color 0.3s ease;
+    color: var(--text-dim);
+    transition: color calc(var(--dur-base) * 1.2) var(--ease-out);
 }
 
 #forge-view .forge-seg span {
@@ -584,14 +571,14 @@
 #forge-view .forge-seg b {
     display: block;
     height: 100%;
-    background: linear-gradient(90deg, var(--forge-violet), var(--forge-gold));
+    background: linear-gradient(90deg, var(--violet), var(--gold));
     transform: scaleX(0);
     transform-origin: left center;
-    transition: transform 0.35s linear;
+    transition: transform calc(var(--dur-base) * 1.4) linear;
 }
 
-#forge-view .forge-seg.active { color: var(--forge-ink); }
-#forge-view .forge-seg.done { color: var(--forge-green); }
+#forge-view .forge-seg.active { color: var(--text); }
+#forge-view .forge-seg.done { color: var(--success); }
 
 /* Thinking feed */
 #forge-view .forge-feed {
@@ -599,7 +586,7 @@
     flex-direction: column;
     min-height: 0;
     padding: 16px;
-    border-left: 1px solid var(--forge-line);
+    border-left: 1px solid var(--border);
     background: rgba(16, 19, 29, 0.85);
 }
 
@@ -608,19 +595,19 @@
     align-items: center;
     gap: 8px;
     margin-bottom: 9px;
-    font-family: var(--forge-font-display);
+    font-family: var(--font-display);
     font-size: 13px;
     letter-spacing: 0.5px;
-    color: var(--forge-gold);
+    color: var(--gold);
 }
 
 #forge-view .forge-dot {
     width: 7px;
     height: 7px;
     border-radius: 50%;
-    background: var(--forge-green);
-    box-shadow: 0 0 10px var(--forge-green);
-    animation: forge-blink 1.2s infinite;
+    background: var(--success);
+    box-shadow: 0 0 10px var(--success);
+    animation: forge-blink calc(var(--dur-slow) * 2) var(--ease-in-out) infinite;
 }
 
 @keyframes forge-blink {
@@ -640,7 +627,7 @@
 #forge-view .forge-entry {
     opacity: 0;
     transform: translateY(8px);
-    transition: opacity 0.4s ease, transform 0.4s ease;
+    transition: opacity var(--dur-base) var(--ease-out), transform var(--dur-base) var(--ease-out);
 }
 
 #forge-view .forge-entry.show {
@@ -655,14 +642,14 @@
     color: #cfcbe0;
 }
 
-#forge-view .forge-thought b { color: var(--forge-ink); font-weight: 600; }
-#forge-view .forge-note.status { font-size: 11.5px; color: var(--forge-muted); border-left-color: #262b3d; }
+#forge-view .forge-thought b { color: var(--text); font-weight: 600; }
+#forge-view .forge-note.status { font-size: 11.5px; color: var(--text-dim); border-left-color: #262b3d; }
 #forge-view .forge-note.warning { border-left-color: var(--warning); color: #ead9b0; }
 #forge-view .forge-note.error { border-left-color: var(--error); color: #f0b3a6; }
 
 #forge-view .forge-ask {
     padding: 10px;
-    border-left-color: var(--forge-gold);
+    border-left-color: var(--gold);
     border-radius: 0 10px 10px 0;
     background: rgba(232, 194, 106, 0.12);
 }
@@ -670,7 +657,7 @@
 #forge-view .forge-q {
     margin-bottom: 4px;
     font-weight: 500;
-    color: var(--forge-ink);
+    color: var(--text);
 }
 
 #forge-view .forge-opt {
@@ -681,29 +668,29 @@
     border: 1px solid #4a4f6a;
     border-radius: 8px;
     background: transparent;
-    color: var(--forge-ink);
+    color: var(--text);
     font: inherit;
     font-size: 12.5px;
     text-align: left;
     cursor: pointer;
-    transition: opacity 0.3s ease;
+    transition: opacity var(--dur-base) var(--ease-out);
 }
 
-#forge-view .forge-opt:hover:not(:disabled) { border-color: var(--forge-gold); }
-#forge-view .forge-opt:focus-visible { outline: 2px solid var(--forge-violet); outline-offset: 2px; }
+#forge-view .forge-opt:hover:not(:disabled) { border-color: var(--gold); }
+#forge-view .forge-opt:focus-visible { outline: 2px solid var(--violet); outline-offset: 2px; }
 #forge-view .forge-opt:disabled { cursor: default; opacity: 0.55; }
 
 #forge-view .forge-opt.chosen,
 #forge-view .forge-opt.chosen:disabled {
     opacity: 1;
-    border-color: var(--forge-gold);
+    border-color: var(--gold);
     background: rgba(232, 194, 106, 0.18);
 }
 
 #forge-view .forge-opt small {
     display: block;
     font-size: 11px;
-    color: var(--forge-muted);
+    color: var(--text-dim);
 }
 
 #forge-view .forge-sw {
@@ -715,9 +702,9 @@
     background: #4a4f6a;
 }
 
-#forge-view .forge-sw.gold { background: var(--forge-gold); }
-#forge-view .forge-sw.violet { background: var(--forge-violet); }
-#forge-view .forge-sw.teal { background: var(--forge-teal); }
+#forge-view .forge-sw.gold { background: var(--gold); }
+#forge-view .forge-sw.violet { background: var(--violet); }
+#forge-view .forge-sw.teal { background: var(--teal); }
 
 #forge-view .forge-opt-tag {
     display: inline-block;
@@ -725,21 +712,21 @@
     padding: 0 6px;
     border-radius: 999px;
     font-size: 10px;
-    color: var(--forge-gold);
+    color: var(--gold);
     border: 1px solid rgba(232, 194, 106, 0.4);
 }
 
 #forge-view .forge-timer {
     margin-top: 8px;
     font-size: 11px;
-    color: var(--forge-muted);
+    color: var(--text-dim);
 }
 
 #forge-view .forge-timer i {
     display: block;
     height: 2px;
     margin-top: 4px;
-    background: var(--forge-gold);
+    background: var(--gold);
     transform-origin: left center;
     transition-property: transform;
     transition-timing-function: linear;
@@ -765,38 +752,38 @@
     flex: 1;
     height: 100%;
     border-radius: 3px 3px 0 0;
-    background: linear-gradient(180deg, var(--forge-gold), #8a6f2f);
+    background: linear-gradient(180deg, var(--gold), #8a6f2f);
     transform: scaleY(0);
     transform-origin: bottom center;
-    transition: transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
+    transition: transform calc(var(--dur-slow) * 7 / 6) var(--ease-out);
 }
 
 #forge-view .forge-curve-x {
     display: flex;
     gap: 5px;
     font-size: 10px;
-    color: var(--forge-muted);
+    color: var(--text-dim);
 }
 
 #forge-view .forge-curve-x span { flex: 1; text-align: center; }
 
 #forge-view .forge-reveal-name {
-    font-family: var(--forge-font-display);
+    font-family: var(--font-display);
     font-size: 16px;
-    color: var(--forge-gold);
+    color: var(--gold);
 }
 
 #forge-view .forge-explain-title {
-    font-family: var(--forge-font-display);
-    color: var(--forge-gold);
+    font-family: var(--font-display);
+    color: var(--gold);
 }
 
 #forge-view .forge-explain-body h4 {
     margin: 8px 0 2px;
-    font-family: var(--forge-font-display);
+    font-family: var(--font-display);
     font-size: 12.5px;
     font-weight: 600;
-    color: var(--forge-gold);
+    color: var(--gold);
 }
 
 #forge-view .forge-explain-body p { margin-bottom: 4px; }
@@ -804,7 +791,7 @@
 #forge-view .forge-run-actions {
     margin: 0;
     padding: 12px 16px;
-    border-top: 1px solid var(--forge-line);
+    border-top: 1px solid var(--border);
 }
 
 /* Below 820 px the feed moves under the stage. */
@@ -819,12 +806,12 @@
     #forge-view .forge-feed {
         height: 340px;
         border-left: 0;
-        border-top: 1px solid var(--forge-line);
+        border-top: 1px solid var(--border);
     }
 }
 
 @media (max-width: 600px) {
-    #forge-view .forge-stage { --forge-core-w: 84px; }
+    #forge-view .forge-stage { --core-w: 84px; }
     #forge-view .forge-tip { width: 160px; }
     #forge-view .forge-seg { font-size: 10px; }
     #forge-view .forge-top { flex-wrap: wrap; }

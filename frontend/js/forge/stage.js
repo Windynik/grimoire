@@ -4,6 +4,8 @@
 // while the stage is not on screen (hidden tab, other view) and in destroy().
 // With reduced motion the cards sit in a static grid and every change shows at once.
 
+import { onReducedMotionChange, reducedMotion } from "../shared/motion.js";
+
 const SVG_NS = "http://www.w3.org/2000/svg";
 const MAX_CARDS = 24; // card elements on the stage at most
 const CARD_W = 62;
@@ -85,20 +87,18 @@ export class ForgeStage {
     this.onScreen = true;
     this.tipFor = null;
     this.destroyed = false;
-    this.motion = window.matchMedia("(prefers-reduced-motion: reduce)");
-    this.reduced = this.motion.matches;
+    this.reduced = reducedMotion();
 
     this.build();
     this.frame = this.frame.bind(this);
-    this.onMotion = () => {
-      this.reduced = this.motion.matches;
-      this.relayout();
-    };
     this.onVisibility = () => this.kick();
     this.onKey = (event) => {
       if (event.key === "Escape") this.hideTip();
     };
-    this.motion.addEventListener("change", this.onMotion);
+    this.offMotion = onReducedMotionChange((reduced) => {
+      this.reduced = reduced;
+      this.relayout();
+    });
     document.addEventListener("visibilitychange", this.onVisibility);
     root.addEventListener("keydown", this.onKey);
     this.resizer = new ResizeObserver(() => {
@@ -525,7 +525,7 @@ export class ForgeStage {
     this.timers.clear();
     this.resizer.disconnect();
     this.watcher.disconnect();
-    this.motion.removeEventListener("change", this.onMotion);
+    this.offMotion();
     document.removeEventListener("visibilitychange", this.onVisibility);
     this.root.removeEventListener("keydown", this.onKey);
     this.layer.remove();

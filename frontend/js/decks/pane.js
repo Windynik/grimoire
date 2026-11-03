@@ -5,6 +5,7 @@
 // manaNode (shared/dom.js), which filters them before parseManaSymbols.
 
 import { h, manaNode } from "../shared/dom.js";
+import { reducedMotion } from "../shared/motion.js";
 import { MAX_COUNT, SECTIONS, entryKey, groupEntries } from "./model.js";
 
 const SECTION_NAMES = { main: "Main", sideboard: "Sideboard", maybeboard: "Maybeboard" };
@@ -26,8 +27,6 @@ let preview = null;
 
 const finePointer = () => Boolean(window.matchMedia
   && window.matchMedia("(hover: hover) and (pointer: fine)").matches);
-const reducedMotion = () => Boolean(window.matchMedia
-  && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 
 // Mana symbols of a row; screen readers get the card name instead.
 function rowMana(cost) {

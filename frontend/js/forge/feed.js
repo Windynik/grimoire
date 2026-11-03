@@ -3,6 +3,8 @@
 // Card text and model text go into the page only as text nodes. The only
 // markup this module makes is its own structure (entries, buttons, headings).
 
+import { reducedMotion } from "../shared/motion.js";
+
 const MAX_ENTRIES = 8;
 const TICK_MS = 250;
 const CURVE_STAGGER_MS = 90;
@@ -163,7 +165,7 @@ export class ThoughtFeed {
     problem.hidden = true;
     const record = {
       entry, buttons: [], timerText, bar, problem, locked: false, answered: false, ticker: null,
-      left: () => Infinity, timeout: 0, still: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+      left: () => Infinity, timeout: 0, still: reducedMotion(),
     };
     record.buttons = (q.options || []).map((option, index) => {
       const button = el("button", "forge-opt");

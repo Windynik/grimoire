@@ -1,14 +1,5 @@
 /* Decks view and its dialogs. Scoped under #decks-view and .decks-dialog. */
 
-#decks-view,
-.decks-dialog {
-    --decks-gold: #e8c26a;
-    --decks-violet: #9b8cff;
-    --decks-font-display: "Cinzel", "Marcellus", Georgia, serif;
-    --decks-font-ui: "Inter", "Figtree", "Segoe UI", sans-serif;
-    font-family: var(--decks-font-ui);
-}
-
 #decks-view .decks-list[hidden],
 #decks-view .deck-editor[hidden],
 #decks-view p[hidden] {
@@ -25,11 +16,11 @@
 }
 
 #decks-view .decks-title {
-    font-family: var(--decks-font-display);
+    font-family: var(--font-display);
     font-size: 1.9rem;
     font-weight: 600;
     letter-spacing: 0.06em;
-    color: var(--decks-gold);
+    color: var(--gold);
     margin-bottom: 0.3rem;
 }
 
@@ -65,13 +56,13 @@
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     overflow: hidden;
-    transition: transform 0.2s ease, border-color 0.2s ease;
+    transition: transform var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
 }
 
 #decks-view .deck-tile:hover,
 #decks-view .deck-tile:focus-within {
     transform: translateY(-3px);
-    border-color: var(--decks-violet);
+    border-color: var(--violet);
 }
 
 #decks-view .deck-art {
@@ -97,7 +88,7 @@
 
 #decks-view .deck-title {
     margin: 0;
-    font-family: var(--decks-font-display);
+    font-family: var(--font-display);
     font-size: 1.1rem;
     letter-spacing: 0.04em;
 }
@@ -105,12 +96,12 @@
 #decks-view .deck-name {
     all: unset;
     cursor: pointer;
-    color: var(--decks-gold);
+    color: var(--gold);
     overflow-wrap: anywhere;
 }
 
 #decks-view .deck-name:focus-visible {
-    outline: 2px solid var(--decks-violet);
+    outline: 2px solid var(--violet);
     outline-offset: 2px;
 }
 
@@ -151,10 +142,10 @@
 }
 
 .decks-dialog .decks-dialog-title {
-    font-family: var(--decks-font-display);
+    font-family: var(--font-display);
     font-size: 1.4rem;
     letter-spacing: 0.05em;
-    color: var(--decks-gold);
+    color: var(--gold);
 }
 
 .decks-dialog .decks-field {
@@ -187,7 +178,7 @@
 .decks-dialog input:focus-visible,
 .decks-dialog select:focus-visible,
 .decks-dialog textarea:focus-visible {
-    outline: 2px solid var(--decks-violet);
+    outline: 2px solid var(--violet);
     outline-offset: 1px;
 }
 
@@ -244,11 +235,11 @@
     width: 100%;
     padding: 0.15rem 0.35rem;
     margin-left: -0.35rem;
-    font-family: var(--decks-font-display);
+    font-family: var(--font-display);
     font-size: 1.7rem;
     font-weight: 600;
     letter-spacing: 0.05em;
-    color: var(--decks-gold);
+    color: var(--gold);
     background: transparent;
     border: 1px solid transparent;
     border-radius: var(--radius-sm);
@@ -260,7 +251,7 @@
 
 #decks-view .editor-name:focus-visible {
     outline: none;
-    border-color: var(--decks-violet);
+    border-color: var(--violet);
     background: var(--surface-2);
 }
 
@@ -275,7 +266,7 @@
 
 #decks-view .editor-format {
     font-weight: 600;
-    color: var(--decks-violet);
+    color: var(--violet);
 }
 
 #decks-view .editor-collection,
@@ -290,7 +281,7 @@
     max-width: 18rem;
     padding: 0.3rem 0.5rem;
     font: inherit;
-    color: var(--parchment);
+    color: var(--text);
     background: var(--surface-2);
     border: 1px solid var(--border-bright);
     border-radius: var(--radius-sm);
@@ -403,18 +394,18 @@
     max-width: 100%;
     white-space: normal;
     overflow-wrap: anywhere;
-    font-family: var(--decks-font-display);
+    font-family: var(--font-display);
     font-size: 1.1rem;
-    color: var(--decks-gold);
+    color: var(--gold);
 }
 
 #decks-view .deck-commander-card.is-new {
-    animation: deck-row-in 150ms ease-out;
+    animation: deck-row-in var(--dur-fast) var(--ease-out);
 }
 
 /* Sections and groups */
 #decks-view .deck-section.is-drop {
-    border-color: var(--decks-violet);
+    border-color: var(--violet);
     background: rgba(155, 140, 255, 0.07);
 }
 
@@ -427,10 +418,10 @@
 
 #decks-view .deck-section-title {
     margin: 0;
-    font-family: var(--decks-font-display);
+    font-family: var(--font-display);
     font-size: 1.05rem;
     letter-spacing: 0.06em;
-    color: var(--decks-gold);
+    color: var(--gold);
 }
 
 #decks-view .deck-section-count,
@@ -465,7 +456,7 @@
     font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: var(--decks-violet);
+    color: var(--violet);
 }
 
 #decks-view .deck-group-rows {
@@ -497,7 +488,7 @@
 }
 
 #decks-view .deck-row.is-new {
-    animation: deck-row-in 150ms ease-out;
+    animation: deck-row-in var(--dur-fast) var(--ease-out);
 }
 
 #decks-view .deck-row-ghost {
@@ -505,7 +496,7 @@
     margin: 0;
     pointer-events: none;
     background: var(--surface-2);
-    animation: deck-row-out 150ms ease-in forwards;
+    animation: deck-row-out var(--dur-fast) var(--ease-in-out) forwards;
 }
 
 @keyframes deck-row-in {
@@ -525,7 +516,7 @@
 }
 
 #decks-view .deck-row-count.is-bumped {
-    animation: deck-count-pulse 220ms ease-out;
+    animation: deck-count-pulse var(--dur-base) var(--ease-out);
 }
 
 @keyframes deck-count-pulse {
@@ -540,18 +531,18 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     cursor: pointer;
-    color: var(--parchment);
+    color: var(--text);
 }
 
 #decks-view .deck-row-name:hover {
-    color: var(--decks-gold);
+    color: var(--gold);
 }
 
 #decks-view .deck-row-name:focus-visible,
 #decks-view .deck-row-btn:focus-visible,
 #decks-view .deck-row-menu-item:focus-visible,
 #decks-view .deck-commander-art:focus-visible {
-    outline: 2px solid var(--decks-violet);
+    outline: 2px solid var(--violet);
     outline-offset: 1px;
 }
 
@@ -590,7 +581,7 @@
     align-items: center;
     gap: 0.1rem;
     opacity: 0.35;
-    transition: opacity 120ms ease;
+    transition: opacity var(--dur-fast) var(--ease-out);
 }
 
 #decks-view .deck-row:hover .deck-row-actions,
@@ -615,7 +606,7 @@
 }
 
 #decks-view .deck-row-btn:hover {
-    color: var(--decks-gold);
+    color: var(--gold);
     background: var(--surface);
 }
 
@@ -629,7 +620,7 @@
 }
 
 #decks-view .deck-row-flip[aria-pressed="true"] {
-    color: var(--decks-violet);
+    color: var(--violet);
 }
 
 #decks-view .deck-row-menu {
@@ -657,12 +648,12 @@
     border-radius: 6px;
     font-size: 0.85rem;
     cursor: pointer;
-    color: var(--parchment);
+    color: var(--text);
 }
 
 #decks-view .deck-row-menu-item:hover {
     background: var(--surface-2);
-    color: var(--decks-gold);
+    color: var(--gold);
 }
 
 /* Hover preview: appended to the body, so not under #decks-view. */
@@ -674,7 +665,7 @@
     width: 244px;
     pointer-events: none;
     opacity: 0;
-    transition: opacity 120ms ease;
+    transition: opacity var(--dur-fast) var(--ease-out);
 }
 
 .deck-preview.is-visible {
@@ -730,12 +721,12 @@
 }
 
 #decks-view .editor-tab[aria-selected="true"] {
-    color: var(--decks-gold);
-    border-color: var(--decks-gold);
+    color: var(--gold);
+    border-color: var(--gold);
 }
 
 #decks-view .editor-tab:focus-visible {
-    outline: 2px solid var(--decks-violet);
+    outline: 2px solid var(--violet);
     outline-offset: 2px;
 }
 
@@ -753,7 +744,7 @@
     padding: 0.4rem 0.55rem;
     font: inherit;
     font-size: 0.88rem;
-    color: var(--parchment);
+    color: var(--text);
     background: var(--surface-1, var(--surface-2));
     border: 1px solid var(--border-bright);
     border-radius: var(--radius-sm);
@@ -762,7 +753,7 @@
 #decks-view .search-field:focus-visible,
 #decks-view .search-selects select:focus-visible {
     outline: none;
-    border-color: var(--decks-violet);
+    border-color: var(--violet);
 }
 
 #decks-view .search-selects {
@@ -834,7 +825,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    color: var(--parchment);
+    color: var(--text);
 }
 
 #decks-view .search-line {
@@ -856,7 +847,7 @@
     padding: 0.2rem 0.5rem;
     font: inherit;
     font-size: 0.78rem;
-    color: var(--parchment);
+    color: var(--text);
     background: transparent;
     border: 1px solid var(--border-bright);
     border-radius: 5px;
@@ -864,12 +855,12 @@
 }
 
 #decks-view .search-add:hover {
-    color: var(--decks-gold);
-    border-color: var(--decks-gold);
+    color: var(--gold);
+    border-color: var(--gold);
 }
 
 #decks-view .search-add:focus-visible {
-    outline: 2px solid var(--decks-violet);
+    outline: 2px solid var(--violet);
     outline-offset: 1px;
 }
 
@@ -880,11 +871,11 @@
 
 #decks-view .stat-title {
     margin: 0 0 0.4rem;
-    font-family: var(--decks-font-display);
+    font-family: var(--font-display);
     font-size: 0.82rem;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: var(--decks-gold);
+    color: var(--gold);
 }
 
 #decks-view .stat-count {
@@ -904,9 +895,9 @@
 #decks-view .stat-fill {
     display: block;
     height: 100%;
-    background: var(--decks-violet);
+    background: var(--violet);
     transform-origin: left;
-    transition: transform 300ms ease-out;
+    transition: transform var(--dur-base) var(--ease-out);
 }
 
 #decks-view .stat-bar-short .stat-fill {
@@ -946,11 +937,11 @@
     display: block;
     width: 100%;
     height: 100%;
-    background: var(--decks-gold);
+    background: var(--gold);
     border-radius: 3px 3px 0 0;
     transform-origin: bottom;
     transform: scaleY(0);
-    transition: transform 300ms ease-out;
+    transition: transform var(--dur-base) var(--ease-out);
 }
 
 #decks-view .stat-mana-row {
@@ -1048,12 +1039,12 @@
 }
 
 #decks-view .deck-view-tab[aria-selected="true"] {
-    color: var(--decks-gold);
-    border-color: var(--decks-gold);
+    color: var(--gold);
+    border-color: var(--gold);
 }
 
 #decks-view .deck-view-tab:focus-visible {
-    outline: 2px solid var(--decks-violet);
+    outline: 2px solid var(--violet);
     outline-offset: 2px;
 }
 
@@ -1099,7 +1090,7 @@
     gap: 0.75rem;
     padding: 0.3rem 0.5rem;
     font-size: 0.85rem;
-    color: var(--parchment);
+    color: var(--text);
 }
 
 #decks-view .export-actions {
@@ -1121,8 +1112,8 @@
 
 #decks-view .export-btn:hover,
 #decks-view .export-btn:focus-visible {
-    color: var(--decks-gold);
-    border-color: var(--decks-gold);
+    color: var(--gold);
+    border-color: var(--gold);
     outline: none;
 }
 
@@ -1164,7 +1155,7 @@
     aspect-ratio: 488 / 680;
     border-radius: 8px;
     background: linear-gradient(145deg, #2a2350, #14102c);
-    border: 1px solid var(--decks-violet);
+    border: 1px solid var(--violet);
     box-shadow: 3px 3px 0 #1d1840, 6px 6px 0 #14102c;
 }
 
@@ -1183,7 +1174,7 @@
     width: 7.5rem;
     aspect-ratio: 488 / 680;
     perspective: 700px;
-    transition: transform 0.15s ease;
+    transition: transform var(--dur-fast) var(--ease-out);
 }
 
 #decks-view .hand-card:hover,
@@ -1222,19 +1213,19 @@
 }
 
 #decks-view .hand-face-front.is-text {
-    color: var(--parchment);
+    color: var(--text);
     background: var(--surface);
     border: 1px solid var(--border-bright);
 }
 
 #decks-view .hand-face-back {
     background: linear-gradient(145deg, #2a2350, #14102c);
-    border: 1px solid var(--decks-violet);
+    border: 1px solid var(--violet);
     transform: rotateY(180deg);
 }
 
 #decks-view .hand-card.is-dealing .hand-card-inner {
-    animation: hand-deal 0.45s ease-out var(--deal-delay, 0ms) both;
+    animation: hand-deal calc(var(--dur-slow) * 0.75) var(--ease-out) var(--deal-delay, 0ms) both;
 }
 
 @keyframes hand-deal {
@@ -1261,15 +1252,15 @@
 }
 
 #decks-view .explain-title {
-    font-family: var(--decks-font-display);
+    font-family: var(--font-display);
     font-size: 1.3rem;
-    color: var(--decks-gold);
+    color: var(--gold);
     margin-bottom: 0.4rem;
 }
 
 #decks-view .deck-explain h4 {
     margin: 1.1rem 0 0.4rem;
-    color: var(--decks-violet);
+    color: var(--violet);
 }
 
 #decks-view .explain-thesis {
@@ -1313,8 +1304,8 @@
 
     /* The deck is always shown here, so "deck" selects the Add cards tab. */
     #decks-view .editor-shell:has(.editor-body[data-tab="deck"]) .editor-tab[data-tab="search"] {
-        color: var(--decks-gold);
-        border-color: var(--decks-gold);
+        color: var(--gold);
+        border-color: var(--gold);
     }
 
     #decks-view .editor-body[data-tab="stats"] .editor-search,
@@ -1372,12 +1363,12 @@
 }
 
 #decks-view .side-tab[aria-selected="true"] {
-    color: var(--decks-violet);
-    border-color: var(--decks-violet);
+    color: var(--violet);
+    border-color: var(--violet);
 }
 
 #decks-view .side-tab:focus-visible {
-    outline: 2px solid var(--decks-violet);
+    outline: 2px solid var(--violet);
     outline-offset: 2px;
 }
 
@@ -1414,7 +1405,7 @@
 }
 
 #decks-view .agent-status {
-    color: var(--decks-gold);
+    color: var(--gold);
 }
 
 #decks-view .agent-error {
@@ -1424,7 +1415,7 @@
 
 #decks-view .agent-thinking {
     color: var(--text-dim);
-    animation: agent-pulse 1.2s ease-in-out infinite;
+    animation: agent-pulse calc(var(--dur-slow) * 2) var(--ease-in-out) infinite;
 }
 
 #decks-view .agent-notice {
@@ -1472,13 +1463,13 @@
 #decks-view .agent-card-cut {
     opacity: 0.55;
     text-decoration: line-through;
-    animation: agent-flip-out 450ms ease-in both;
+    animation: agent-flip-out calc(var(--dur-slow) * 0.75) var(--ease-in-out) both;
 }
 
 #decks-view .agent-card-in {
-    color: var(--decks-gold);
-    border-color: var(--decks-gold);
-    animation: agent-flip-in 450ms ease-out both;
+    color: var(--gold);
+    border-color: var(--gold);
+    animation: agent-flip-in calc(var(--dur-slow) * 0.75) var(--ease-out) both;
 }
 
 #decks-view .agent-card-cut {

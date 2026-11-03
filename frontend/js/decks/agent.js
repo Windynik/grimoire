@@ -7,6 +7,7 @@
 
 import * as api from "./api.js";
 import { h } from "../shared/dom.js";
+import { reducedMotion } from "../shared/motion.js";
 import { pickModel } from "../shared/models.js";
 import { agentResultFits, snapshotDeck } from "./model.js";
 
@@ -14,10 +15,6 @@ const MAX_LENGTH = 500;
 const STEP_MS = 150; // Delay between two swaps.
 const FLIP_MS = 700; // Time the last swap needs to finish.
 const NO_MODEL = "Start Ollama to chat with the deck agent.";
-
-function reducedMotion() {
-  return Boolean(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
-}
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 

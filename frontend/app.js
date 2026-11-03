@@ -1,5 +1,7 @@
 // Scryfall Collection Enhancer — frontend application
 
+import { reducedMotion } from "./js/shared/motion.js";
+
 const API_BASE = "/api";
 
 // State
@@ -16,7 +18,7 @@ const views = {
   settings: document.getElementById("settings-view"),
 };
 
-const REDUCED_MOTION = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const REDUCED_MOTION = reducedMotion();
 
 function boot() {
   setupNavigation();
@@ -177,7 +179,7 @@ const ORB_FORTUNES = [
   "It whispers a single word — “sideboard” — then goes dark.",
 ];
 
-const MANA_COLORS_HEX = ["#f2eed9", "#6fa8e0", "#a895c4", "#e58a6e", "#74c193", "#c3cdff"];
+const MANA_COLORS_HEX = ["#f2eed9", "#6fa8e0", "#a895c4", "#e58a6e", "#74c193", "#f4dc9e"];
 
 function burstAt(x, y, count = 14) {
   if (REDUCED_MOTION) return;
@@ -509,7 +511,7 @@ async function downloadCache() {
   const progressText = document.getElementById("download-progress-text");
 
   progressContainer.style.display = "block";
-  progressFill.style.width = "0%";
+  progressFill.style.transform = "scaleX(0)";
   progressText.textContent = "0%";
 
   try {
@@ -536,7 +538,7 @@ async function downloadCache() {
               const data = JSON.parse(line.substring(6));
 
               if (data.percentage !== undefined) {
-                progressFill.style.width = `${data.percentage}%`;
+                progressFill.style.transform = `scaleX(${data.percentage / 100})`;
                 progressText.textContent = `${data.percentage}%`;
                 const progressBar = document.querySelector("#download-progress .progress-bar");
                 if (progressBar) {
