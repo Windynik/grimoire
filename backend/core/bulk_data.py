@@ -9,6 +9,7 @@ from typing import Callable, Dict, Iterator, Optional
 import certifi
 import httpx
 
+from backend.core.paths import cache_root
 from backend.models.schemas import CacheStatus
 
 
@@ -94,13 +95,13 @@ class BulkDataManager:
 
     BULK_DATA_API = "https://api.scryfall.com/bulk-data/default-cards"
 
-    def __init__(self, cache_dir: str = ".scryfall_cache"):
+    def __init__(self, cache_dir: Optional[str] = None):
         """Initialize bulk data manager.
 
         Args:
             cache_dir: Directory to store cached bulk data
         """
-        self.cache_dir = Path(cache_dir)
+        self.cache_dir = Path(cache_dir) if cache_dir else cache_root()
         # Raw Scryfall download; only kept on disk while the index is built
         self.bulk_data_file = self.cache_dir / "bulk_data.json"
         self.download_file = self.cache_dir / "bulk_data.json.part"

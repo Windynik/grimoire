@@ -1,9 +1,7 @@
 import asyncio
 import json
-import os
 import random
 import re
-import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
@@ -17,6 +15,7 @@ from backend.api.dependencies import (
 )
 from backend.core.bulk_data import NON_GAME_LAYOUTS, BulkDataManager
 from backend.core.collection_store import CollectionStore
+from backend.core.paths import cache_path
 from backend.core.prices import best_price  # noqa: F401  (re-exported)
 from backend.core.csv_processor import CSVProcessor, enrich_rows, write_enriched_csv
 from backend.core.ollama_client import OllamaClient
@@ -28,7 +27,7 @@ from backend.models.schemas import CacheStatus, ProcessResult
 router = APIRouter(prefix="/api")
 
 RECOMMENDED_MODEL = "qwen3.5:9b"
-PROGRESS_DIR = Path(".scryfall_cache/progress")
+PROGRESS_DIR = cache_path("progress")
 
 
 def progress_file(job_id: str) -> Path:
@@ -299,14 +298,7 @@ async def export_collection(
             )
         headers, rows, _errors, _count = enrich_rows(original[0], original[1], bulk_data)
         output_file.parent.mkdir(parents=True, exist_ok=True)
-        # Write beside the target, then swap in one step so a failed rebuild leaves no partial file
-        tmp = output_file.with_name(f".{output_file.name}.{uuid.uuid4().hex}.tmp")
-        try:
-            write_enriched_csv(tmp, headers, rows)
-            os.replace(tmp, output_file)
-        except BaseException:
-            tmp.unlink(missing_ok=True)
-            raise
+        write_enriched_csv(output_file, headers, rows)
 
     return FileResponse(
         path=str(output_file),

@@ -6,6 +6,8 @@ import os
 import re
 import uuid
 
+from backend.core.paths import cache_path
+
 _ID = re.compile(r"^[a-f0-9-]+$")
 
 
@@ -23,8 +25,8 @@ def _summary_image(data: dict) -> str:
 class DeckStore:
     """Store and retrieve forged decks as JSON files."""
 
-    def __init__(self, storage_dir: str = ".scryfall_cache/decks"):
-        self.storage_dir = Path(storage_dir)
+    def __init__(self, storage_dir: Optional[str] = None):
+        self.storage_dir = Path(storage_dir) if storage_dir else cache_path("decks")
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 
     def _path(self, deck_id: str) -> Optional[Path]:

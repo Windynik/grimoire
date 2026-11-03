@@ -1,8 +1,10 @@
 import csv
+import os
 import uuid
 from io import StringIO
 from pathlib import Path
 from typing import Dict, Optional, Callable, Any, List, Tuple
+from backend.core.paths import cache_path
 from backend.models.schemas import ProcessResult
 
 ENHANCED_COLUMNS = ("Mana Cost", "Oracle Text", "Type Line")
@@ -74,20 +76,27 @@ def write_enriched_csv(path: Path, headers: List[str], rows: List[dict]) -> None
     writer = csv.DictWriter(output, fieldnames=headers)
     writer.writeheader()
     writer.writerows(rows)
-    with open(path, 'w', encoding='utf-8', newline='') as f:
-        f.write(output.getvalue())
+    path = Path(path)
+    tmp = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    try:
+        with open(tmp, 'w', encoding='utf-8', newline='') as f:
+            f.write(output.getvalue())
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
 
 
 class CSVProcessor:
     """Processes CSV files and enriches with card data."""
 
-    def __init__(self, progress_dir: str = ".scryfall_cache/progress"):
+    def __init__(self, progress_dir: Optional[str] = None):
         """Initialize CSV processor.
 
         Args:
             progress_dir: Directory to store processing progress
         """
-        self.progress_dir = Path(progress_dir)
+        self.progress_dir = Path(progress_dir) if progress_dir else cache_path("progress")
         self.progress_dir.mkdir(parents=True, exist_ok=True)
 
     def validate_csv_structure(self, reader: csv.DictReader) -> Dict[str, Any]:

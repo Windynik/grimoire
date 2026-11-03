@@ -1,7 +1,8 @@
 import pytest
 import csv
 from io import StringIO
-from backend.core.csv_processor import CSVProcessor, enrich_rows
+from backend.core import csv_processor
+from backend.core.csv_processor import CSVProcessor, enrich_rows, write_enriched_csv
 from backend.models.schemas import ProcessResult
 
 
@@ -200,3 +201,17 @@ Counterspell,blue,def-456,3"""
     assert len(result._original_rows) == 3
     assert "Mana Cost" not in result._original_rows[0]
     assert result._original_rows[1]["Binder"] == "misc"
+
+
+def test_write_enriched_csv_is_atomic(tmp_path, monkeypatch):
+    target = tmp_path / "job.csv"
+    target.write_text("old", encoding="utf-8")
+
+    def boom(*args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(csv_processor.os, "replace", boom)
+    with pytest.raises(OSError):
+        write_enriched_csv(target, ["Name"], [{"Name": "Bolt"}])
+    assert target.read_text(encoding="utf-8") == "old"
+    assert [p.name for p in tmp_path.iterdir()] == ["job.csv"]

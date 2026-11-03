@@ -3,12 +3,14 @@ from typing import Dict, List, Optional, Tuple
 from pathlib import Path
 import json
 
+from backend.core.paths import cache_path
+
 
 class CollectionStore:
     """Store and retrieve processed collection data for viewing."""
 
-    def __init__(self, storage_dir: str = ".scryfall_cache/collections"):
-        self.storage_dir = Path(storage_dir)
+    def __init__(self, storage_dir: Optional[str] = None):
+        self.storage_dir = Path(storage_dir) if storage_dir else cache_path("collections")
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 
     def store_collection(self, job_id: str, cards: List[Dict], bulk_data: Dict,
