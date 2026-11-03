@@ -8,6 +8,7 @@ import * as api from "./api.js";
 import { applyOp, History, SaveQueue, sameDeck, SECTIONS } from "./model.js";
 import { h, safeManaCost } from "../shared/dom.js";
 import { showCardDetail } from "../shared/card.js";
+import { cardImage, preload } from "../shared/images.js";
 import { showToast } from "../shared/toast.js";
 import { renderAgent } from "./agent.js";
 import { renderExplanation } from "../forge/feed.js";
@@ -20,6 +21,7 @@ import { renderStats } from "./stats.js";
 const GROUP_KEY = "grimoire.groupMode";
 const GROUP_MODES = ["type", "role", "cmc"];
 const RETRY_MS = 3000;
+const PRELOAD_LIMIT = 6; // normal images that preload at the same time
 const STATUS_TEXT = {
   saving: "Saving…",
   saved: "Saved",
@@ -146,6 +148,22 @@ function renderExplain(root, state) {
   root.replaceChildren(...parts);
 }
 
+// Load the front images of the deck in the background, so the first hover is
+// fast. The small local images of every card load at once; the normal images of
+// the commander and the main deck load PRELOAD_LIMIT at a time.
+// Returns the function that stops the preload.
+function preloadDeck(state) {
+  const main = [state.commander, ...(state.sections.main || [])].filter(Boolean);
+  const all = main.concat(state.sections.sideboard || [], state.sections.maybeboard || []);
+  const small = all.map((card) => cardImage(card, "front", "small"))
+    .filter((url) => url.startsWith("/api/images/"));
+  const stops = [
+    preload(small, Infinity),
+    preload(main.map((card) => cardImage(card)), PRELOAD_LIMIT),
+  ];
+  return () => stops.forEach((stop) => stop());
+}
+
 function createSession(host, deckId, options) {
   const view = mount(host);
   const history = new History();
@@ -155,6 +173,7 @@ function createSession(host, deckId, options) {
   let lastBody = null; // Newest body given to the queue.
   let status = "saved";
   let retryTimer = null;
+  let stopPreload = () => {};
 
   const state = {
     deckId,
@@ -282,8 +301,10 @@ function createSession(host, deckId, options) {
   function showCard(card) {
     const info = (state.analysis.cards || {})[card.scryfall_id || `basic:${card.name}`] || {};
     showCardDetail({
+      scryfall_id: card.scryfall_id,
       name: card.name,
       image_url: card.image_url || "",
+      back_image_url: card.back_image_url || "",
       mana_cost: safeManaCost(card.mana_cost),
       type_line: card.type_line || "",
       price: card.price || 0,
@@ -437,6 +458,7 @@ function createSession(host, deckId, options) {
       view.loading.hidden = true;
       view.shell.hidden = false;
       render();
+      stopPreload = preloadDeck(state);
       if (options.isNew) {
         view.name.focus();
         view.name.select();
@@ -454,6 +476,7 @@ function createSession(host, deckId, options) {
     window.removeEventListener("pagehide", onPageHide);
     document.removeEventListener("visibilitychange", onVisibility);
     hidePreview();
+    stopPreload();
     // A name typed but not yet committed (browser Back, deck switch) still saves.
     if (deck && document.activeElement === view.name) commitName();
     const flushed = flushNow();

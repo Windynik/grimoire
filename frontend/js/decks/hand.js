@@ -3,6 +3,7 @@
 // is kept per root, so an editor re-render does not deal again.
 
 import { h } from "../shared/dom.js";
+import { cardImage, cardImg } from "../shared/images.js";
 import { drawHand, entryKey } from "./model.js";
 
 const HAND_SIZE = 7;
@@ -27,8 +28,8 @@ function libraryEntries(state, cards) {
 
 function faceNode(card) {
   const face = h("span", { class: "hand-face hand-face-front" });
-  if (card.image_url) {
-    face.append(h("img", { src: card.image_url, alt: card.name, loading: "lazy" }));
+  if (cardImage(card)) {
+    face.append(cardImg(card, { alt: card.name, priority: "high" }));
   } else {
     face.classList.add("is-text");
     face.textContent = card.name;

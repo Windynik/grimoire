@@ -4,6 +4,7 @@
 
 import { h } from "../shared/dom.js";
 import { plural } from "../shared/format.js";
+import { cardImg } from "../shared/images.js";
 
 function formatDate(value) {
   const date = new Date(value);
@@ -11,10 +12,11 @@ function formatDate(value) {
   return date.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
 
-function artOf(deck) {
+// A deck summary holds the image URL but no card id, so cardImg uses that URL.
+function artOf(deck, compact) {
   const art = h("div", { class: "deck-art", "aria-hidden": "true" });
   if (deck.image_url) {
-    art.append(h("img", { src: deck.image_url, alt: "", loading: "lazy" }));
+    art.append(cardImg({ image_url: deck.image_url }, { size: compact ? "small" : "normal" }));
   } else {
     art.classList.add("deck-art-empty");
   }
@@ -40,7 +42,7 @@ export function deckTile(deck, {
 
   if (compact) {
     return h("button", { type: "button", class: "deck-tile deck-tile-compact", onclick: onOpen },
-      artOf(deck),
+      artOf(deck, true),
       h("span", { class: "deck-body" },
         h("span", { class: "deck-title", text: deck.name }),
         h("span", { class: "deck-meta", text: meta.join(" · ") })));
@@ -67,5 +69,5 @@ export function deckTile(deck, {
       ? h("p", { class: "deck-commander", text: deck.commander.name || deck.commander }) : null,
     h("p", { class: "deck-meta", text: meta.join(" · ") }),
     h("div", { class: "deck-actions" }, open, duplicate, remove));
-  return h("article", { class: "deck-tile" }, artOf(deck), body);
+  return h("article", { class: "deck-tile" }, artOf(deck, false), body);
 }

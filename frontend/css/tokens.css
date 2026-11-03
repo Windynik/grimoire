@@ -20,6 +20,8 @@
     --gold-dim: rgba(232, 194, 106, 0.35);
     --violet: #9b8cff;
     --violet-dim: rgba(155, 140, 255, 0.35);
+    --violet-faint: rgba(155, 140, 255, 0.14);
+    --gold-faint: rgba(232, 194, 106, 0.1);
     --teal: #6fd3c7;
 
     /* The five colors of mana, moonlit pastels */
@@ -80,5 +82,11 @@
     .btn-primary:hover:not(:disabled),
     .mana:hover {
         transform: none !important;
+    }
+
+    /* The card image placeholder does not shimmer. */
+    .card-img-shimmer {
+        animation: none !important;
+        opacity: 0;
     }
 }

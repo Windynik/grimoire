@@ -23,7 +23,7 @@ before(async () => {
 
 const panel = () => document.querySelector("dialog.dialog-panel");
 const flipButton = () => panel()?.querySelector(".flip-btn");
-const detailImage = () => panel().querySelector(".modal-card-image");
+const detailImage = () => panel().querySelector(".modal-card-image .card-img-sharp");
 
 test("a double-faced card flips in the detail", async () => {
   card.showCardDetail({ name: "Delver", image_url: "front.jpg", back_image_url: "back.jpg" });

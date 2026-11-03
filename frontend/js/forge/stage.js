@@ -4,6 +4,7 @@
 // while the stage is not on screen (hidden tab, other view) and in destroy().
 // With reduced motion the cards sit in a static grid and every change shows at once.
 
+import { cardImage, cardImg } from "../shared/images.js";
 import { onReducedMotionChange, reducedMotion } from "../shared/motion.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -32,6 +33,23 @@ function el(tag, className) {
   const node = document.createElement(tag);
   if (className) node.className = className;
   return node;
+}
+
+// The id of a stage card is its Scryfall id; cardImg reads scryfall_id.
+function imageCard(card) {
+  return { ...card, scryfall_id: card.scryfall_id || card.id };
+}
+
+// Put the image of card into holder, unless holder shows that image already.
+// Returns false when the card has no image.
+function showArt(holder, card, options) {
+  const art = imageCard(card);
+  const src = cardImage(art);
+  if (src && holder.dataset.src !== src) holder.replaceChildren(cardImg(art, options));
+  if (!src) holder.replaceChildren();
+  holder.dataset.src = src;
+  holder.hidden = !src;
+  return Boolean(src);
 }
 
 function svg(tag, attrs) {
@@ -144,13 +162,11 @@ export class ForgeStage {
     this.core = el("button", "forge-core");
     this.core.type = "button";
     this.core.setAttribute("aria-label", "Deck center");
-    this.coreImg = el("img");
-    this.coreImg.alt = "";
-    this.coreImg.decoding = "async";
-    this.coreImg.hidden = true;
+    this.coreArt = el("span", "forge-core-art");
+    this.coreArt.hidden = true;
     this.corePlaceholder = el("span", "forge-core-sigil");
     this.corePlaceholder.textContent = "G";
-    this.core.append(this.coreImg, this.corePlaceholder);
+    this.core.append(this.coreArt, this.corePlaceholder);
     this.bindTip(this.core, () => this.centerId);
 
     const meta = el("div", "forge-core-meta");
@@ -165,12 +181,12 @@ export class ForgeStage {
     this.tip.id = "forge-tip";
     this.tip.setAttribute("role", "tooltip");
     this.tip.hidden = true;
-    this.tipImg = el("img");
-    this.tipImg.alt = "";
+    this.tipArt = el("span", "forge-tip-art");
+    this.tipArt.hidden = true;
     this.tipName = el("strong");
     this.tipType = el("small");
     this.tipReason = el("p");
-    this.tip.append(this.tipImg, this.tipName, this.tipType, this.tipReason);
+    this.tip.append(this.tipArt, this.tipName, this.tipType, this.tipReason);
 
     layer.append(this.linksSvg, this.haloLayer, this.ring, this.cardLayer, this.core, meta, this.tip);
     this.root.prepend(layer);
@@ -188,14 +204,12 @@ export class ForgeStage {
     const button = el("button", "forge-card");
     button.type = "button";
     button.setAttribute("aria-label", card.name || "Card");
-    const img = el("img");
-    img.alt = "";
-    img.decoding = "async";
-    if (card.image_url) img.src = card.image_url;
+    const art = imageCard(card);
+    if (cardImage(art)) button.append(cardImg(art));
     else button.classList.add("forge-card-text");
-    const label = el("span");
+    const label = el("span", "forge-card-label");
     label.textContent = card.name || "";
-    button.append(img, label);
+    button.append(label);
     this.cardLayer.appendChild(button);
     const angle = Math.random() * Math.PI * 2;
     const far = Math.max(this.width, this.height) * 0.75;
@@ -251,12 +265,7 @@ export class ForgeStage {
     const card = id && this.catalog.get(id);
     if (!card) return;
     this.tipFor = id;
-    if (card.image_url) {
-      this.tipImg.src = card.image_url;
-      this.tipImg.hidden = false;
-    } else {
-      this.tipImg.hidden = true;
-    }
+    showArt(this.tipArt, card, { priority: "high" });
     this.tipName.textContent = card.name || "";
     this.tipType.textContent = card.type_line || "";
     this.tipReason.textContent = this.reasons.get(id) || "No reason for this card yet.";
@@ -306,7 +315,7 @@ export class ForgeStage {
     if (this.tipFor && this.tipFor === this.centerId) this.hideTip();
     if (!card || !card.id) {
       this.centerId = null;
-      this.coreImg.hidden = true;
+      showArt(this.coreArt, {});
       this.corePlaceholder.hidden = false;
       this.core.setAttribute("aria-label", "Deck center");
       return;
@@ -315,9 +324,7 @@ export class ForgeStage {
     this.centerId = card.id;
     const body = this.bodies.get(card.id);
     if (body) this.removeBody(body, false);
-    this.coreImg.hidden = !card.image_url;
-    if (card.image_url) this.coreImg.src = card.image_url;
-    this.corePlaceholder.hidden = Boolean(card.image_url);
+    this.corePlaceholder.hidden = showArt(this.coreArt, card, { priority: "high" });
     this.core.setAttribute("aria-label", card.name || "Deck center");
     this.relayout();
   }

@@ -5,6 +5,7 @@
 // manaNode (shared/dom.js), which filters them before parseManaSymbols.
 
 import { h, manaNode } from "../shared/dom.js";
+import { cardImage, cardImg } from "../shared/images.js";
 import { reducedMotion } from "../shared/motion.js";
 import { MAX_COUNT, SECTIONS, entryKey, groupEntries } from "./model.js";
 
@@ -184,8 +185,8 @@ function commanderNode(state, previousCommander) {
     return slot;
   }
   const key = entryKey(card);
-  const art = card.image_url
-    ? h("img", { src: card.image_url, alt: "", loading: "lazy" })
+  const art = cardImage(card)
+    ? cardImg(card, { priority: "high" })
     : h("span", { class: "deck-commander-noart", "aria-hidden": "true" });
   const name = h("button", {
     type: "button", class: "deck-row-name", "data-action": "detail", "data-focus": "commander|detail",
@@ -214,10 +215,10 @@ function commanderNode(state, previousCommander) {
 
 function previewBox() {
   if (!preview) {
-    const img = h("img", { alt: "" });
-    const box = h("div", { class: "deck-preview", "aria-hidden": "true" }, img);
+    const box = h("div", { class: "deck-preview", "aria-hidden": "true" });
     document.body.append(box);
-    preview = { box, img };
+    // src: the URL of the sharp image on view.
+    preview = { box, src: "" };
     // A scroll moves the rows away from the pointer.
     window.addEventListener("scroll", hidePreview, { passive: true, capture: true });
   }
@@ -251,16 +252,24 @@ function previewCard(ctx, anchor) {
   return findEntry(ctx.state, anchor.dataset.section, anchor.dataset.key);
 }
 
+// A new source gets a new image element: the name placeholder shows at once, and
+// a late load or error of the old element changes only that detached element.
+// A failed image tries again on the next hover.
 function showPreview(ctx, anchor, event) {
   const card = previewCard(ctx, anchor);
-  const back = card && ctx.state.flipped.has(entryKey(card)) && card.back_image_url;
-  const src = card && (back || card.image_url);
+  const back = Boolean(card && ctx.state.flipped.has(entryKey(card)) && cardImage(card, "back"));
+  const face = back ? "back" : "front";
+  const src = card ? cardImage(card, face) : "";
   if (!src) {
     hidePreview();
     return;
   }
-  const { box, img } = previewBox();
-  if (img.getAttribute("src") !== src) img.setAttribute("src", src);
+  const view = previewBox();
+  if (view.src !== src || view.box.querySelector(".card-img.is-error")) {
+    view.src = src;
+    view.box.replaceChildren(cardImg(card, { face, priority: "high" }));
+  }
+  const { box } = view;
   placePreview(anchor, event);
   box.classList.add("is-visible");
 }

@@ -14,6 +14,7 @@ import { showToast } from "../shared/toast.js";
 
 const API_BASE = "/api";
 const PAGE_SIZE = 60;
+const FIRST_SCREEN = 12; // grid cards that load with a high priority
 
 const $ = (id) => document.getElementById(id);
 
@@ -297,8 +298,11 @@ function appendCards(cards) {
   const gridFrag = document.createDocumentFragment();
   const listFrag = document.createDocumentFragment();
 
+  // The cards of the first screen load first.
+  const start = cardCount - cards.length;
   cards.forEach((card, i) => {
-    gridFrag.appendChild(cardTile(card, i));
+    const priority = start + i < FIRST_SCREEN ? "high" : undefined;
+    gridFrag.appendChild(cardTile(card, i, { priority }));
     listFrag.appendChild(cardRow(card, i));
   });
 

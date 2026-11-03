@@ -5,6 +5,7 @@
 // state link and the collection. Card text goes in with textContent only.
 
 import { h, manaNode } from "../shared/dom.js";
+import { cardImage, cardImg } from "../shared/images.js";
 import { toEntryCard } from "./model.js";
 import * as api from "./api.js";
 
@@ -74,8 +75,8 @@ function build(root, ctx) {
 }
 
 function resultNode(card, index, owned) {
-  const art = card.image_url
-    ? h("img", { class: "search-art", src: card.image_url, alt: "", loading: "lazy", width: 40, height: 56 })
+  const art = cardImage(card)
+    ? cardImg(card, { className: "search-art", size: "small" })
     : h("span", { class: "search-art" });
   const name = h("span", { class: "search-name" });
   name.textContent = card.name;

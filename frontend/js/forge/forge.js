@@ -9,6 +9,7 @@ import { ENGINE_ONLY, chooseModel, readSettings, recommendedMissingNote } from "
 import { ForgeStage } from "./stage.js";
 import { ThoughtFeed } from "./feed.js";
 import { Timeline, STAGE_NAMES } from "./timeline.js";
+import { cardImage, cardImg } from "../shared/images.js";
 import { animate } from "../shared/motion.js";
 import { showToast } from "../shared/toast.js";
 import { activeCollection } from "../shared/session.js";
@@ -181,7 +182,10 @@ function selectCommander(name) {
   });
 }
 
-function makeTile(name, imageUrl) {
+// A commander tile. card is {id, name, image_url} from the commander list, or
+// null for the "Let the agent choose" tile.
+function makeTile(name, card) {
+  const art = card ? { scryfall_id: card.id, name, image_url: card.image_url } : null;
   const tile = document.createElement("button");
   tile.type = "button";
   tile.className = "forge-tile";
@@ -189,13 +193,11 @@ function makeTile(name, imageUrl) {
   tile.setAttribute("role", "radio");
   tile.setAttribute("aria-checked", "false");
   tile.tabIndex = -1;
-  if (imageUrl) {
-    const img = document.createElement("img");
-    img.loading = "lazy";
-    img.decoding = "async";
-    img.alt = name;
-    img.src = imageUrl;
-    tile.appendChild(img);
+  if (cardImage(art)) {
+    // startForge reads these to show the asked commander at once.
+    tile.dataset.image = art.image_url;
+    tile.dataset.id = art.scryfall_id || "";
+    tile.appendChild(cardImg(art, { alt: name }));
   } else {
     tile.classList.add("forge-tile-text");
     const label = document.createElement("span");
@@ -242,7 +244,7 @@ async function loadCommanders() {
   }
   if (request !== state.commanderRequest) return;
   grid.appendChild(makeTile("", null));
-  (data.commanders || []).forEach((c) => grid.appendChild(makeTile(c.name, c.image_url)));
+  (data.commanders || []).forEach((c) => grid.appendChild(makeTile(c.name, c)));
   const keep = [...grid.children].some((t) => t.dataset.name === state.commander);
   selectCommander(keep ? state.commander : "");
   note.textContent = data.total
@@ -306,8 +308,8 @@ class ForgeRun {
   /**
    * @param {Object} opts
    * @param {boolean} opts.replay True on a reattach: the stored events play fast.
-   * @param {Object|null} opts.commander {name, image_url} of the commander the
-   *   owner asked for, or null.
+   * @param {Object|null} opts.commander {name, image_url, scryfall_id} of the
+   *   commander the owner asked for, or null.
    */
   constructor(opts) {
     const asked = opts.commander || {};
@@ -340,7 +342,10 @@ class ForgeRun {
     // Show the asked commander at once; its real card replaces it when it comes in.
     if (asked.name && asked.image_url) {
       this.commanderFormat = true;
-      this.stage.setCenter({ id: "forge-asked-commander", name: String(asked.name), image_url: String(asked.image_url) });
+      this.stage.setCenter({
+        id: "forge-asked-commander", name: String(asked.name), image_url: String(asked.image_url),
+        scryfall_id: typeof asked.scryfall_id === "string" ? asked.scryfall_id : "",
+      });
     }
     this.unsubscribe = onEvent("*", (data, _id, type) => this.push(type, data));
   }
@@ -766,9 +771,11 @@ async function startForge(body) {
   const { forge_id: forgeId } = await api.startForge(request);
   const tile = [...document.querySelectorAll("#forge-commander-grid .forge-tile")]
     .find((t) => request.commander && t.dataset.name === request.commander);
-  const image = tile && tile.querySelector("img");
-  const commander = request.commander
-    ? { name: request.commander, image_url: image ? image.src : "" } : null;
+  const commander = request.commander ? {
+    name: request.commander,
+    image_url: (tile && tile.dataset.image) || "",
+    scryfall_id: (tile && tile.dataset.id) || "",
+  } : null;
   store(sessionStorage, COMMANDER_KEY, commander ? JSON.stringify(commander) : null);
   attach(forgeId, { commander });
   return forgeId;

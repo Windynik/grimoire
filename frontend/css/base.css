@@ -356,6 +356,119 @@ body {
 }
 
 /* --------------------------------------------------------------------------
+   Card image (js/shared/images.js cardImg): a placeholder with the card name
+   and a shimmer, the small image blurred, then the sharp image on top.
+   Only opacity moves between the layers. The blur and the scale are static.
+   -------------------------------------------------------------------------- */
+.card-img {
+    position: relative;
+    display: block;
+    overflow: hidden;
+    aspect-ratio: 488 / 680;
+    border-radius: inherit;
+    isolation: isolate;
+}
+
+.card-img-placeholder,
+.card-img > img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+}
+
+.card-img-placeholder {
+    display: block;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    background:
+        radial-gradient(120% 70% at 15% 0%, var(--violet-faint), transparent 60%),
+        radial-gradient(120% 70% at 90% 100%, var(--gold-faint), transparent 60%),
+        var(--surface-2);
+}
+
+/* One diagonal band moves across the placeholder with transform only. */
+.card-img-shimmer {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(110deg, transparent 30%, rgba(233, 236, 248, 0.07) 50%, transparent 70%);
+    transform: translateX(-100%);
+    animation: card-img-shimmer calc(var(--dur-slow) * 2.5) linear infinite;
+}
+
+@keyframes card-img-shimmer {
+    to { transform: translateX(100%); }
+}
+
+.card-img-name {
+    position: absolute;
+    top: 9%;
+    left: 8%;
+    right: 8%;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    font-family: var(--font-ui);
+    font-size: 0.7rem;
+    font-weight: 500;
+    line-height: 1.3;
+    text-align: center;
+    color: var(--text-dim);
+    opacity: 0.85;
+}
+
+/* Thumbnails are too small for a readable name. */
+.card-img[data-size="small"] .card-img-name {
+    display: none;
+}
+
+.card-img > img {
+    display: block;
+    object-fit: cover;
+    opacity: 0;
+    transition: opacity var(--dur-base) var(--ease-out);
+}
+
+.card-img-blur {
+    filter: blur(6px);
+    transform: scale(1.04);
+}
+
+.card-img > .card-img-blur {
+    transition-duration: var(--dur-fast);
+}
+
+.card-img.is-small > .card-img-blur,
+.card-img.is-loaded > .card-img-sharp {
+    opacity: 1;
+}
+
+/* The sharp image comes in slowly over the blurred one. */
+.card-img.is-small > .card-img-sharp {
+    transition: opacity var(--dur-slow) var(--ease-out);
+}
+
+.card-img.no-fade > img,
+.card-img.no-fade.is-small > .card-img-sharp {
+    transition: none;
+}
+
+.card-img.is-small .card-img-shimmer,
+.card-img.is-loaded .card-img-shimmer,
+.card-img.is-error .card-img-shimmer {
+    animation: none;
+    opacity: 0;
+}
+
+.card-img.is-done > .card-img-placeholder,
+.card-img.is-done > .card-img-blur,
+.card-img.is-error > img {
+    visibility: hidden;
+}
+
+/* --------------------------------------------------------------------------
    Toasts
    -------------------------------------------------------------------------- */
 #toast-container {

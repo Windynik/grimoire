@@ -3,11 +3,10 @@
 
 import { h, manaNode } from "./dom.js";
 import { formatPrice } from "./format.js";
+import { cardImage, cardImg } from "./images.js";
 import { renderOracleText } from "./mana.js";
 import { showPanel } from "./modal.js";
 import { animate } from "./motion.js";
-
-const hasText = (value) => Boolean(value && String(value).trim() !== "");
 
 function manaOrDash(cost, className) {
   return cost ? manaNode(cost, className) : h("span", { class: "mana-none", text: "—" });
@@ -30,12 +29,18 @@ function onActivate(el, card) {
   });
 }
 
-/** A grid tile for a card. */
-export function cardTile(card, index) {
-  const hasImage = hasText(card.image_url);
+/**
+ * A grid tile for a card.
+ *
+ * @param {Object} card
+ * @param {number} index Place in its batch; it sets the entrance delay.
+ * @param {{priority: string}} [options] priority "high" for the cards of the first screen.
+ */
+export function cardTile(card, index, options = {}) {
+  const hasImage = Boolean(cardImage(card));
   const owned = card.owned && card.quantity > 0;
   const art = hasImage
-    ? h("img", { src: card.image_url, alt: card.name || "", loading: "lazy" })
+    ? cardImg(card, { alt: card.name || "", priority: options.priority })
     : h("div", { class: "card-placeholder" },
       h("img", { src: "/favicon.svg", alt: "", class: "placeholder-icon" }),
       h("p", { class: "placeholder-text", text: "No Image" }));
@@ -63,8 +68,8 @@ export function cardTile(card, index) {
 
 /** A list row for a card. */
 export function cardRow(card, index) {
-  const thumb = hasText(card.image_url)
-    ? h("img", { src: card.image_url, alt: "", class: "list-thumb", loading: "lazy" })
+  const thumb = cardImage(card)
+    ? cardImg(card, { className: "list-thumb", size: "small" })
     : h("div", { class: "list-thumb-placeholder" }, h("img", { src: "/favicon.svg", alt: "" }));
   const qty = card.owned && card.quantity > 0
     ? h("span", { class: "list-qty", text: `× ${card.quantity}` })
@@ -90,9 +95,18 @@ function statPill(label, value, valueClass) {
     h("span", { class: `stat-pill-value ${valueClass}`, text: value }));
 }
 
+// The detail image of one face.
+function detailImage(card, back) {
+  return cardImg(card, {
+    face: back ? "back" : "front", alt: back ? `${card.name} (back)` : card.name || "",
+    className: "modal-card-image", priority: "high",
+  });
+}
+
 // The Flip button swaps the image between the two faces with a turn on the Y axis.
+// It reads the image on view after each turn, so a fast second click is safe.
 function flipControl(card, art) {
-  const img = art.querySelector(".modal-card-image");
+  const current = () => art.querySelector(".modal-card-image");
   let showBack = false;
   const button = h("button", {
     type: "button", class: "btn btn-secondary btn-compact flip-btn", "aria-pressed": "false",
@@ -100,12 +114,12 @@ function flipControl(card, art) {
   button.addEventListener("click", async () => {
     showBack = !showBack;
     button.setAttribute("aria-pressed", String(showBack));
-    await animate(img, [{ transform: "rotateY(0deg)" }, { transform: "rotateY(90deg)" }], {
+    await animate(current(), [{ transform: "rotateY(0deg)" }, { transform: "rotateY(90deg)" }], {
       duration: "fast", easing: "ease-in",
     });
-    img.src = showBack ? card.back_image_url : card.image_url;
-    img.alt = showBack ? `${card.name} (back)` : card.name;
-    await animate(img, [{ transform: "rotateY(-90deg)" }, { transform: "rotateY(0deg)" }], {
+    const next = detailImage(card, showBack);
+    current().replaceWith(next);
+    await animate(next, [{ transform: "rotateY(-90deg)" }, { transform: "rotateY(0deg)" }], {
       duration: "fast",
     });
   });
@@ -115,12 +129,12 @@ function flipControl(card, art) {
 /** Open the detail panel for a card. The card may hold only some fields. */
 export function showCardDetail(card) {
   const art = h("div", { class: "modal-card-art" },
-    hasText(card.image_url)
-      ? h("img", { src: card.image_url, alt: card.name || "", class: "modal-card-image" })
+    cardImage(card)
+      ? detailImage(card, false)
       : h("div", { class: "modal-card-placeholder" },
         h("img", { src: "/favicon.svg", alt: "", class: "placeholder-icon-large" }),
         h("p", { class: "placeholder-text", text: "No Image Available" })));
-  if (hasText(card.image_url) && hasText(card.back_image_url)) art.append(flipControl(card, art));
+  if (cardImage(card) && cardImage(card, "back")) art.append(flipControl(card, art));
 
   const stats = [];
   if (card.price) stats.push(statPill("Price", formatPrice(card.price), "price-value"));
