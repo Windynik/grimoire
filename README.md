@@ -180,7 +180,7 @@ python -m pytest -q     # Python tests
 
 The app keeps all data in one cache directory. The default is `.scryfall_cache/`. Set `GRIMOIRE_CACHE_DIR` to use another directory.
 
-Card images live in `images/` inside the cache directory. The app downloads each image once from Scryfall's image server. It stores two sizes: a small thumbnail (about 10 KB) and the normal image. The download fetches every small image first, so each grid shows a picture quickly. Then it fetches the normal images. It starts with the cards of your decks and collections. It serves every later request from disk. When Scryfall changes an image, the app shows the old file once and replaces it in the background.
+Card images live in `images/` inside the cache directory. The app downloads each image once from Scryfall's image server. It stores two sizes: a small thumbnail (about 10 KB) and the normal image. The download fetches every small image first, so each grid shows a picture quickly. Then it fetches the normal images. It starts with the cards of your decks and collections. It serves every later request from disk. Each image URL carries the version of the card data. When Scryfall changes an image and you update the card data, the browser asks the server again. The server then sends the old file at once and downloads the new file in the background. The next request gets the new file.
 
 Never test against your real collections. Build a sandbox instead. The script links the card index. It copies the metadata file, your collections, and your decks into the new directory.
 

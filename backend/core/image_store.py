@@ -22,7 +22,9 @@ logger = logging.getLogger(__name__)
 ID_PATTERN = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 FACES = ("front", "back")
 SIZES = ("small", "normal")
-STAMP_PATTERN = re.compile(r"\?(\d+)$")
+STAMP_PATTERN = re.compile(r"\?([0-9]+)$")
+STAMP_CHECK = re.compile(r"[0-9]+")
+TMP_MAX_AGE_SECONDS = 3600
 MAX_BYTES = 2 * 1024 * 1024
 ALLOWED_TYPES = ("image/jpeg", "image/png")
 USER_AGENT = "Grimoire/1.0 (local card viewer)"
@@ -76,6 +78,7 @@ class ImageStore:
         self._offline_until = 0.0
         self._client: Optional[httpx.AsyncClient] = None
         self._client_loop = None
+        self._swept = False
 
     def path_for(self, scryfall_id: str, face: str, size: str = "normal",
                  stamp: str = "0") -> Path:
@@ -86,7 +89,7 @@ class ImageStore:
             raise ValueError("Invalid face")
         if size not in SIZES:
             raise ValueError("Invalid size")
-        if not isinstance(stamp, str) or not stamp.isdigit():
+        if not isinstance(stamp, str) or STAMP_CHECK.fullmatch(stamp) is None:
             raise ValueError("Invalid stamp")
         name = "%s-%s-%s-%s.jpg" % (scryfall_id, face, size, stamp)
         return self.root / scryfall_id[0] / scryfall_id[1] / name
@@ -112,8 +115,25 @@ class ImageStore:
                 return path
         return None
 
+    def _sweep_tmp(self) -> None:
+        """Delete leftover .tmp files that are more than one hour old."""
+        limit = time.time() - TMP_MAX_AGE_SECONDS
+        for path in self.root.glob("*/*/*.tmp"):
+            try:
+                if path.stat().st_mtime < limit:
+                    path.unlink()
+            except OSError:
+                continue
+
     def stats(self) -> Dict[str, int]:
-        """Return the number of stored images and their total size in bytes."""
+        """Return the number of stored images and their total size in bytes.
+
+        The first call also removes old .tmp files. The caller runs it off the
+        event loop.
+        """
+        if not self._swept:
+            self._swept = True
+            self._sweep_tmp()
         count = 0
         size = 0
         for path in self.root.glob("*/*/*.jpg"):
@@ -232,7 +252,7 @@ class ImageStore:
                 if kind not in ALLOWED_TYPES:
                     raise ImageError("Bad content type")
                 declared = response.headers.get("content-length", "")
-                if declared.isdigit() and int(declared) > MAX_BYTES:
+                if STAMP_CHECK.fullmatch(declared) and int(declared) > MAX_BYTES:
                     raise ImageError("Image is too large")
                 body = bytearray()
                 async for chunk in response.aiter_bytes():

@@ -364,3 +364,26 @@ test("a stream cut off before done shows the stopped text", async () => {
   await app.until(() => $("settings-images-text").textContent === "The image download stopped. Try again later.");
   assert.equal($("settings-images-now").disabled, false);
 });
+
+test("the progress counts failed images as handled", async () => {
+  await setup();
+  $("settings-images-now").click();
+  await app.until(() => imageSyncState().running);
+  held.send({ type: "progress", phase: "small", done: 2, total: 10, failed: 3 });
+  await app.until(() => $("settings-images-text").textContent === "Downloading thumbnails: 5 of 10");
+  assert.equal($("settings-images-fill").style.transform, "scaleX(0.5)");
+  held.end();
+  held = null;
+  await app.until(() => !imageSyncState().running);
+});
+
+test("a cut-off run with a failure shows the stopped text", async () => {
+  await setup();
+  $("settings-images-now").click();
+  await app.until(() => imageSyncState().running);
+  held.send({ type: "progress", phase: "small", done: 2, total: 10, failed: 3 });
+  await app.until(() => $("settings-images-text").textContent === "Downloading thumbnails: 5 of 10");
+  held.end();
+  held = null;
+  await app.until(() => $("settings-images-text").textContent === "The image download stopped. Try again later.");
+});

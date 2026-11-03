@@ -30,14 +30,15 @@ before(async () => {
   sync = await import("../../../frontend/js/shared/imagesync.js");
 });
 
+function saveAuto(auto) {
+  app.window.localStorage.setItem("grimoire.settings", JSON.stringify({ model: "", askMode: "countdown", autoImages: auto }));
+}
+
 function setup({ auto, images, code = 200 }) {
   saveAuto(auto);
   status = images;
   prefetchStatus = code;
   app.fetchLog.length = 0;
-}
-function saveAuto(auto) {
-  app.window.localStorage.setItem("grimoire.settings", JSON.stringify({ model: "", askMode: "countdown", autoImages: auto }));
 }
 
 function clearToasts() {

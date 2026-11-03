@@ -28,6 +28,22 @@ test("cardImage gives the local back image", () => {
   assert.equal(cardImage(card, "back", "small"), `/api/images/${ID}/back?size=small`);
 });
 
+test("cardImage adds the version stamp of the raw URL", () => {
+  const stamped = {
+    ...card,
+    image_url: "https://cards.example/normal/front/a.jpg?1700000000",
+    back_image_url: "https://cards.example/normal/back/a.jpg?1700000001",
+  };
+  assert.equal(cardImage(stamped), `/api/images/${ID}/front?size=normal&v=1700000000`);
+  assert.equal(cardImage(stamped, "front", "small"), `/api/images/${ID}/front?size=small&v=1700000000`);
+  assert.equal(cardImage(stamped, "back"), `/api/images/${ID}/back?size=normal&v=1700000001`);
+  // No stamp, or a stamp that is not plain digits: no v parameter.
+  assert.equal(cardImage({ ...card, image_url: "https://cards.example/a.jpg?x1" }), `/api/images/${ID}/front?size=normal`);
+  assert.equal(cardImage({ ...card, image_url: "https://cards.example/a.jpg?\u00b2" }), `/api/images/${ID}/front?size=normal`);
+  // A raw fallback keeps its own URL.
+  assert.equal(cardImage({ ...stamped, scryfall_id: null }), stamped.image_url);
+});
+
 test("cardImage falls back to the raw URL without an id", () => {
   const noId = { ...card, scryfall_id: undefined };
   assert.equal(cardImage(noId), card.image_url);

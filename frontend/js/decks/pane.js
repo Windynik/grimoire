@@ -6,7 +6,7 @@
 
 import { h, manaNode } from "../shared/dom.js";
 import {
-  cardImage, cardImg, isDeferred, loadCardImg, stopCardImg,
+  cardImage, cardImg, isDeferred, loadCardImg, stopCardImg, wasLoaded,
 } from "../shared/images.js";
 import { reducedMotion } from "../shared/motion.js";
 import { MAX_COUNT, SECTIONS, entryKey, groupEntries } from "./model.js";
@@ -242,6 +242,11 @@ export function hidePreview() {
 function loadAfterDwell(view) {
   const wrap = view.box.firstElementChild;
   if (!isDeferred(wrap) || view.timer) return;
+  // An image that loaded before comes from the browser cache: no dwell.
+  if (wasLoaded(view.src)) {
+    loadCardImg(wrap);
+    return;
+  }
   view.timer = setTimeout(() => {
     view.timer = null;
     if (view.box.firstElementChild === wrap) loadCardImg(wrap);

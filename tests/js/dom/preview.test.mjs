@@ -136,6 +136,18 @@ test("the preview loads after the dwell when the pointer comes back", async () =
   assert.equal(srcOf(box().querySelector(".card-img-sharp")), `/api/images/${uuid(7)}/front?size=normal`);
 });
 
+test("hovering back to a card that already loaded starts its image at once", async () => {
+  await openEditor(deck([entry("Card H", 8), entry("Card I", 9)]));
+  hover(row("Card H"));
+  await app.until(loaded);
+  fire(box().querySelector(".card-img-sharp"), "load");
+  hover(row("Card I"));
+  assert.equal(srcOf(box().querySelector(".card-img-sharp")), null, "a new card waits for the dwell");
+  hover(row("Card H"));
+  assert.equal(srcOf(box().querySelector(".card-img-sharp")), `/api/images/${uuid(8)}/front?size=normal`,
+    "a loaded card has its src with no dwell");
+});
+
 test("the preview keeps the name when the image fails", async () => {
   await openEditor(deck([entry("Card C", 3)]));
   hover(row("Card C"));

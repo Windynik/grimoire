@@ -128,6 +128,17 @@ def test_size_small_and_normal_are_served_from_their_own_files(setup):
     assert small.headers["cache-control"] == "public, max-age=31536000, immutable"
 
 
+def test_version_parameter_is_ignored(setup):
+    store, calls, state = setup
+    state["index"] = {A: versioned(A, "5")}
+    with TestClient(app) as client:
+        plain = client.get("/api/images/%s/front?size=small" % A)
+        versioned_ = client.get("/api/images/%s/front?size=small&v=5" % A)
+        other = client.get("/api/images/%s/front?size=small&v=123" % A)
+    assert plain.status_code == versioned_.status_code == other.status_code == 200
+    assert calls == ["https://cards.test/small/front/%s.jpg?5" % A]
+
+
 def test_bad_size_is_400_and_missing_small_url_is_404(setup):
     with TestClient(app) as client:
         assert client.get("/api/images/%s/front?size=big" % A).status_code == 400

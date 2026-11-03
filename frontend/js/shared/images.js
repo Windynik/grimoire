@@ -11,6 +11,8 @@ import { reducedMotion } from "./motion.js";
 // The id pattern of backend/core/image_store.py.
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const SIZES = new Set(["small", "normal"]);
+// The version stamp at the end of an index image URL (ASCII digits only).
+const STAMP = /\?([0-9]+)$/;
 
 const hasText = (value) => typeof value === "string" && value.trim() !== "";
 
@@ -30,9 +32,21 @@ export function cardImage(card, face = "front", size = "normal") {
   const raw = back ? card.back_image_url : card.image_url;
   if (!hasText(raw)) return "";
   if (typeof card.scryfall_id === "string" && ID.test(card.scryfall_id) && SIZES.has(size)) {
-    return `/api/images/${card.scryfall_id}/${back ? "back" : "front"}?size=${size}`;
+    // The version stamp of the raw URL goes on the local URL. A new stamp then
+    // bypasses the browser cache of the old, immutable image.
+    const stamp = STAMP.exec(raw.trim());
+    const version = stamp ? `&v=${stamp[1]}` : "";
+    return `/api/images/${card.scryfall_id}/${back ? "back" : "front"}?size=${size}${version}`;
   }
   return raw;
+}
+
+// The sharp image sources that fired load in this page session.
+const loadedSources = new Set();
+
+/** True when the sharp image with this source finished loading in this page session. */
+export function wasLoaded(src) {
+  return loadedSources.has(src);
 }
 
 // The start function of each card image built with defer and not yet started.
@@ -109,7 +123,10 @@ export function cardImg(card, options = {}) {
     if (wrap.classList.contains("no-fade")) done();
     else sharp.addEventListener("transitionend", done, { once: true });
   };
-  sharp.addEventListener("load", () => show(false));
+  sharp.addEventListener("load", () => {
+    if (sharp.hasAttribute("src")) loadedSources.add(sharpUrl);
+    show(false);
+  });
   sharp.addEventListener("error", () => wrap.classList.add("is-error"));
 
   // A cached image shows at once, with no fade. The second check runs after

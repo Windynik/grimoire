@@ -51,7 +51,9 @@ def test_bad_id_or_face_raises(tmp_path, sid, face):
         ImageStore(root=tmp_path).path_for(sid, face)
 
 
-@pytest.mark.parametrize("size,stamp", [("big", "0"), ("small", "../1"), ("small", "")])
+@pytest.mark.parametrize("size,stamp", [
+    ("big", "0"), ("small", "../1"), ("small", ""), ("small", "\u00b2"), ("small", "\u0663"),
+])
 def test_bad_size_or_stamp_raises(tmp_path, size, stamp):
     with pytest.raises(ValueError):
         ImageStore(root=tmp_path).path_for(A, "front", size, stamp)
@@ -276,6 +278,9 @@ def test_size_url_and_stamp():
     assert size_url(url, "small") == ""  # no /normal/ segment: no small size
     assert stamp_of(url) == "1700000000"
     assert stamp_of("https://cards.test/normal/x.jpg") == "0"
+    # Unicode digits are not a stamp.
+    assert stamp_of("https://cards.test/normal/x.jpg?\u00b2") == "0"
+    assert stamp_of("https://cards.test/normal/x.jpg?\u0663\u0663") == "0"
     assert size_url("https://cards.test/large/x.jpg", "small") == ""
     assert size_url("", "small") == ""
 
@@ -569,3 +574,29 @@ async def test_prefetch_skips_current_and_downloads_stale(tmp_path):
     events = await collect(prefetch_events(store, [(A, "front", new), (B, "front", new)]))
     assert events[-1]["skipped"] == 1 and events[-1]["total"] == 3
     assert len(calls) == 3
+
+
+def test_stats_removes_old_tmp_files_once(tmp_path):
+    import os
+    import time
+    store = ImageStore(root=tmp_path / "images")
+    folder = store.root / "a" / "a"
+    folder.mkdir(parents=True)
+    old = folder / "old.tmp"
+    fresh = folder / "fresh.tmp"
+    image = folder / "keep.jpg"
+    for path in (old, fresh, image):
+        path.write_bytes(b"x")
+    past = time.time() - 2 * 3600
+    os.utime(old, (past, past))
+    os.utime(image, (past, past))
+    assert store.stats() == {"count": 1, "bytes": 1}
+    assert not old.exists()
+    assert fresh.exists()
+    assert image.exists()
+    # The sweep runs once per store: a later old file stays until the next start.
+    later = folder / "later.tmp"
+    later.write_bytes(b"x")
+    os.utime(later, (past, past))
+    store.stats()
+    assert later.exists()

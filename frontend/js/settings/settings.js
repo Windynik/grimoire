@@ -109,20 +109,22 @@ function renderImages(sync) {
   if (!images) return;
   if (wasRunning && !sync.running) {
     if (sync.error === "busy") endText = "";
-    else if (sync.failed > 0) endText = `${sync.failed} ${sync.failed === 1 ? "image" : "images"} could not be downloaded. Try again later.`;
     else if (sync.error) endText = "The image download stopped. Try again later.";
+    else if (sync.failed > 0) endText = `${sync.failed} ${sync.failed === 1 ? "image" : "images"} could not be downloaded. Try again later.`;
     else endText = "All images for your cards are on this Mac.";
     refreshImages();
   }
   if (sync.running) endText = "";
   wasRunning = sync.running;
   images.bar.hidden = !sync.running;
-  images.fill.style.transform = `scaleX(${sync.total > 0 ? Math.min(1, sync.done / sync.total) : 0})`;
+  // A failed image counts as handled, so the bar moves when the breaker fails many at once.
+  const handled = sync.done + (sync.failed || 0);
+  images.fill.style.transform = `scaleX(${sync.total > 0 ? Math.min(1, handled / sync.total) : 0})`;
   images.now.disabled = sync.running;
   images.now.textContent = sync.running ? "Downloading\u2026" : "Download now";
   if (sync.running) {
     const what = sync.phase === "small" ? "thumbnails" : "full images";
-    images.text.textContent = `Downloading ${what}: ${sync.done} of ${sync.total}`;
+    images.text.textContent = `Downloading ${what}: ${Math.min(handled, sync.total)} of ${sync.total}`;
   } else {
     images.text.textContent = endText;
   }
