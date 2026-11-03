@@ -11,15 +11,22 @@ from backend.core.paths import cache_path
 _ID = re.compile(r"^[a-f0-9-]+$")
 
 
-def _summary_image(data: dict) -> str:
-    """Art URL for a deck list row: the commander's, else the first main card with one."""
+def _summary_art(data: dict) -> dict:
+    """Return the art card of a deck list row: the commander, else the first main card with an image.
+
+    The keys are image_url, image_id (the Scryfall id of that card, so the page can
+    ask for the stored image) and image_name. Each is "" when the deck has no art.
+    """
     commander = data.get("commander")
-    if isinstance(commander, dict) and commander.get("image_url"):
-        return commander["image_url"]
-    for entry in data["sections"]["main"]:
-        if isinstance(entry, dict) and entry.get("image_url"):
-            return entry["image_url"]
-    return ""
+    cards = [commander] + list(data["sections"]["main"])
+    for card in cards:
+        if isinstance(card, dict) and card.get("image_url"):
+            return {
+                "image_url": card["image_url"],
+                "image_id": str(card.get("scryfall_id") or ""),
+                "image_name": str(card.get("name") or ""),
+            }
+    return {"image_url": "", "image_id": "", "image_name": ""}
 
 
 class DeckStore:
@@ -139,7 +146,7 @@ class DeckStore:
                     "commander": commander["name"] if commander else None,
                     "count": count + (1 if commander else 0),
                     "updated": str(data.get("updated") or ""),
-                    "image_url": _summary_image(data),
+                    **_summary_art(data),
                     "collection_job_id": data.get("collection_job_id") or "",
                 })
             except (OSError, ValueError, KeyError, TypeError, AttributeError):

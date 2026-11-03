@@ -105,6 +105,9 @@ export async function loadApp({ hash = "", routes = {}, storage = {}, reducedMot
     };
   }
   window.Element.prototype.scrollIntoView = function scrollIntoView() {};
+  // jsdom prints "Not implemented" for scrollTo. A test can put its own spy here.
+  window.scrollTo = function scrollTo() {};
+  setGlobal("scrollTo", window.scrollTo);
   URL.createObjectURL = () => "blob:grimoire-test";
   URL.revokeObjectURL = () => {};
   const clipboard = { writes: [], async writeText(text) { this.writes.push(text); } };

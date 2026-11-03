@@ -21,7 +21,7 @@ import { renderStats } from "./stats.js";
 const GROUP_KEY = "grimoire.groupMode";
 const GROUP_MODES = ["type", "role", "cmc"];
 const RETRY_MS = 3000;
-const PRELOAD_LIMIT = 6; // normal images that preload at the same time
+const PRELOAD_LIMIT = 6; // images that preload at the same time
 const STATUS_TEXT = {
   saving: "Saving…",
   saved: "Saved",
@@ -149,19 +149,17 @@ function renderExplain(root, state) {
 }
 
 // Load the front images of the deck in the background, so the first hover is
-// fast. The small local images of every card load at once; the normal images of
-// the commander and the main deck load PRELOAD_LIMIT at a time.
+// fast. One queue loads PRELOAD_LIMIT images at a time: first the small images of
+// every card, then the normal images of the commander and the main deck. Only
+// local images preload; a card without a valid id is skipped.
 // Returns the function that stops the preload.
 function preloadDeck(state) {
   const main = [state.commander, ...(state.sections.main || [])].filter(Boolean);
   const all = main.concat(state.sections.sideboard || [], state.sections.maybeboard || []);
-  const small = all.map((card) => cardImage(card, "front", "small"))
-    .filter((url) => url.startsWith("/api/images/"));
-  const stops = [
-    preload(small, Infinity),
-    preload(main.map((card) => cardImage(card)), PRELOAD_LIMIT),
-  ];
-  return () => stops.forEach((stop) => stop());
+  const local = (url) => url.startsWith("/api/images/");
+  const small = all.map((card) => cardImage(card, "front", "small")).filter(local);
+  const normal = main.map((card) => cardImage(card, "front", "normal")).filter(local);
+  return preload(small.concat(normal), PRELOAD_LIMIT);
 }
 
 function createSession(host, deckId, options) {

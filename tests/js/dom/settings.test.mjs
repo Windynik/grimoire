@@ -129,7 +129,7 @@ test("Clear card data sends nothing when the owner cancels", async () => {
 });
 
 test("the forge setup starts with the saved ask mode", async () => {
-  app.route("GET /api/formats", () => ({ json: { formats: [{ key: "commander", name: "Commander", commander: true, deck_size: 100 }] } }));
+  app.route("GET /api/forge/formats", () => ({ json: { formats: [{ key: "commander", name: "Commander", commander: true, deck_size: 100 }] } }));
   app.route("GET /api/collections", () => ({ json: { collections: [] } }));
   app.route("GET /api/ai/status", () => ({ json: AI_UP }));
   window.localStorage.clear();
@@ -152,7 +152,7 @@ test("online research is disabled", async () => {
 });
 
 test("the forge keeps a model the owner picked during the visit", async () => {
-  app.route("GET /api/formats", () => ({ json: { formats: [{ key: "commander", name: "Commander", commander: true, deck_size: 100 }] } }));
+  app.route("GET /api/forge/formats", () => ({ json: { formats: [{ key: "commander", name: "Commander", commander: true, deck_size: 100 }] } }));
   app.route("GET /api/collections", () => ({ json: { collections: [] } }));
   app.route("GET /api/ai/status", () => ({ json: AI_UP }));
   window.localStorage.clear();
@@ -170,7 +170,7 @@ test("the forge keeps a model the owner picked during the visit", async () => {
 // Clear the forge's touched flags, as leaving the screen does, then set the stubs.
 async function forgeStubs(ai) {
   (await import("../../../frontend/js/forge/forge.js")).leave();
-  app.route("GET /api/formats", () => ({ json: { formats: [{ key: "commander", name: "Commander", commander: true, deck_size: 100 }] } }));
+  app.route("GET /api/forge/formats", () => ({ json: { formats: [{ key: "commander", name: "Commander", commander: true, deck_size: 100 }] } }));
   app.route("GET /api/collections", () => ({ json: { collections: [] } }));
   app.route("GET /api/ai/status", () => ({ json: ai }));
   window.sessionStorage.clear();

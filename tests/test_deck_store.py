@@ -195,6 +195,12 @@ def test_list_summary_has_image_and_job(tmp_path, playbook):
     assert rows[with_commander]["image_url"] == "http://img/chief"
     assert rows[without]["image_url"] == "http://img/gem"
     assert rows[bare]["image_url"] == ""
+    # The art card's id and name let the page ask for the stored image.
+    assert rows[with_commander]["image_id"] == "id-chief"
+    assert rows[with_commander]["image_name"] == "Chief"
+    assert rows[without]["image_id"] == "id-gem"
+    assert rows[without]["image_name"] == "Gem"
+    assert rows[bare]["image_id"] == "" and rows[bare]["image_name"] == ""
     assert rows[bare]["collection_job_id"] == "job1"
 
 

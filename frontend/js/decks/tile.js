@@ -12,11 +12,13 @@ function formatDate(value) {
   return date.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
 
-// A deck summary holds the image URL but no card id, so cardImg uses that URL.
+// The art card of a deck summary: image_url, image_id (its Scryfall id) and
+// image_name. An older summary with no image_id falls back to the raw URL.
 function artOf(deck, compact) {
   const art = h("div", { class: "deck-art", "aria-hidden": "true" });
   if (deck.image_url) {
-    art.append(cardImg({ image_url: deck.image_url }, { size: compact ? "small" : "normal" }));
+    const card = { scryfall_id: deck.image_id, name: deck.image_name, image_url: deck.image_url };
+    art.append(cardImg(card, { size: compact ? "small" : "normal" }));
   } else {
     art.classList.add("deck-art-empty");
   }

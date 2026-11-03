@@ -23,7 +23,6 @@ before(async () => {
   app = await loadApp({ hash: "#decks" });
   document = app.document;
   window = app.window;
-  window.scrollTo = () => {}; // jsdom lacks it; the router calls it.
   // The preview shows only for a fine pointer that can hover.
   const base = window.matchMedia;
   window.matchMedia = (query) => (/hover: hover/.test(query) ? { ...base(query), matches: true } : base(query));
@@ -72,38 +71,77 @@ const hover = (el) => el.dispatchEvent(new window.MouseEvent("mouseover", { bubb
 const box = () => document.querySelector(".deck-preview");
 const fire = (el, type) => el.dispatchEvent(new window.Event(type));
 
+const DWELL = 70; // pane.js PREVIEW_DWELL_MS
+const srcOf = (img) => img.getAttribute("src");
+const loaded = () => box().querySelector(".card-img-sharp").hasAttribute("src");
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 test("the preview shows the hovered card, never a late image of the card before", async () => {
   await openEditor(deck([entry("Card A", 1), entry("Card B", 2)]));
   hover(row("Card A"));
   assert.ok(box().classList.contains("is-visible"));
   assert.equal(box().querySelector(".card-img-name").textContent, "Card A");
+  await app.until(loaded);
   const oldSharp = box().querySelector(".card-img-sharp");
-  assert.equal(oldSharp.getAttribute("src"), `/api/images/${uuid(1)}/front?size=normal`);
+  assert.equal(srcOf(oldSharp), `/api/images/${uuid(1)}/front?size=normal`);
   assert.equal(oldSharp.getAttribute("fetchpriority"), "high");
 
   // B before A's image loads: B's name at once, and no image of A.
   hover(row("Card B"));
   assert.equal(box().querySelector(".card-img-name").textContent, "Card B");
-  const srcs = () => [...box().querySelectorAll("img")].map((img) => img.getAttribute("src"));
-  assert.ok(srcs().every((src) => !src.includes(uuid(1))), "the old image is gone");
+  assert.ok(![...box().querySelectorAll("img")].includes(oldSharp), "the old image is gone");
+  // The replaced image stops its download.
+  assert.equal(srcOf(oldSharp), null);
 
   // A's late load does not show A.
   fire(oldSharp, "load");
   assert.ok(!box().querySelector(".card-img").classList.contains("is-loaded"));
-  assert.ok(srcs().every((src) => !src.includes(uuid(1))));
 
   // B's small image shows blurred, then B's load shows B.
+  await app.until(loaded);
   fire(box().querySelector(".card-img-blur"), "load");
   assert.ok(box().querySelector(".card-img").classList.contains("is-small"));
   fire(box().querySelector(".card-img-sharp"), "load");
   assert.ok(box().querySelector(".card-img").classList.contains("is-loaded"));
-  assert.equal(box().querySelector(".card-img-sharp").getAttribute("src"), `/api/images/${uuid(2)}/front?size=normal`);
+  assert.equal(srcOf(box().querySelector(".card-img-sharp")), `/api/images/${uuid(2)}/front?size=normal`);
+});
+
+test("a fast sweep over the rows loads only the card the pointer stays on", async () => {
+  await openEditor(deck([entry("Card E", 5), entry("Card F", 6)]));
+  hover(row("Card E"));
+  const passed = [...box().querySelectorAll("img")];
+  assert.ok(passed.length > 0);
+  assert.ok(passed.every((img) => srcOf(img) === null), "no download before the dwell");
+
+  hover(row("Card F"));
+  assert.equal(box().querySelector(".card-img-name").textContent, "Card F");
+  const stayed = [...box().querySelectorAll("img")];
+  assert.ok(stayed.every((img) => srcOf(img) === null));
+
+  await wait(DWELL * 2);
+  assert.ok(passed.every((img) => srcOf(img) === null), "the passed card never downloads");
+  assert.deepEqual(stayed.map(srcOf).sort(), [
+    `/api/images/${uuid(6)}/front?size=normal`, `/api/images/${uuid(6)}/front?size=small`,
+  ]);
+});
+
+test("the preview loads after the dwell when the pointer comes back", async () => {
+  await openEditor(deck([entry("Card G", 7)]));
+  hover(row("Card G"));
+  row("Card G").dispatchEvent(new window.MouseEvent("mouseout", { bubbles: true, relatedTarget: document.body }));
+  await wait(DWELL * 2);
+  assert.equal(srcOf(box().querySelector(".card-img-sharp")), null, "a hidden preview does not load");
+  hover(row("Card G"));
+  await app.until(loaded);
+  assert.equal(srcOf(box().querySelector(".card-img-sharp")), `/api/images/${uuid(7)}/front?size=normal`);
 });
 
 test("the preview keeps the name when the image fails", async () => {
   await openEditor(deck([entry("Card C", 3)]));
   hover(row("Card C"));
-  fire(box().querySelector(".card-img-sharp"), "error");
+  await app.until(loaded);
+  const failed = box().querySelector(".card-img-sharp");
+  fire(failed, "error");
   assert.ok(box().querySelector(".card-img").classList.contains("is-error"));
   assert.equal(box().querySelector(".card-img-name").textContent, "Card C");
   assert.ok(!box().querySelector(".card-img").classList.contains("is-loaded"));
@@ -112,39 +150,53 @@ test("the preview keeps the name when the image fails", async () => {
   row("Card C").dispatchEvent(new window.MouseEvent("mouseout", { bubbles: true, relatedTarget: document.body }));
   hover(row("Card C"));
   assert.ok(!box().querySelector(".card-img").classList.contains("is-error"));
-  assert.equal(box().querySelector(".card-img-sharp").getAttribute("src"), `/api/images/${uuid(3)}/front?size=normal`);
+  assert.notEqual(box().querySelector(".card-img-sharp"), failed);
+  await app.until(loaded);
+  assert.equal(srcOf(box().querySelector(".card-img-sharp")), `/api/images/${uuid(3)}/front?size=normal`);
 });
 
 test("the preview shows the back face of a flipped card", async () => {
   await openEditor(deck([entry("Card D", 4, { back_image_url: "https://cards.example/4b.jpg" })]));
   row("Card D").querySelector(".deck-row-flip").click();
   hover(row("Card D"));
-  assert.equal(box().querySelector(".card-img-sharp").getAttribute("src"), `/api/images/${uuid(4)}/back?size=normal`);
+  await app.until(loaded);
+  assert.equal(srcOf(box().querySelector(".card-img-sharp")), `/api/images/${uuid(4)}/back?size=normal`);
 });
 
-test("the editor preloads small images at once and normal images 6 at a time", async () => {
+test("the editor preloads 6 images at a time, small images first", async () => {
   const main = Array.from({ length: 8 }, (_, i) => entry(`Main ${i}`, 10 + i));
   await openEditor(deck(main, {
     format: "commander",
     commander: entry("Leader", 30, { type_line: "Legendary Creature" }),
-    sections: { main, sideboard: [entry("Side", 40)], maybeboard: [] },
+    sections: {
+      main: [...main, entry("Raw Land", 0, { scryfall_id: null, image_url: "https://cards.example/raw.jpg" })],
+      sideboard: [entry("Side", 40)],
+      maybeboard: [],
+    },
   }));
-  const src = (img) => img.getAttribute("src");
-  await app.until(() => made.length >= 10 + 6);
-  const small = made.filter((img) => src(img).endsWith("?size=small")).map(src);
-  for (const n of [10, 11, 12, 13, 14, 15, 16, 17, 30, 40]) {
-    assert.ok(small.includes(`/api/images/${uuid(n)}/front?size=small`), `small ${n}`);
+  // made holds every image the preload started; one with a src set is in flight
+  // until its load or error fires.
+  const settled = new Set();
+  const inFlight = () => made.filter((img) => !settled.has(img));
+  const finish = (img, type) => {
+    settled.add(img);
+    fire(img, type);
+  };
+  const expected = [
+    ...[30, 10, 11, 12, 13, 14, 15, 16, 17, 40].map((n) => `/api/images/${uuid(n)}/front?size=small`),
+    ...[30, 10, 11, 12, 13, 14, 15, 16, 17].map((n) => `/api/images/${uuid(n)}/front?size=normal`),
+  ];
+  await app.until(() => made.length === 6);
+  for (let step = 0; made.length < expected.length; step += 1) {
+    assert.ok(inFlight().length <= 6, `step ${step}: ${inFlight().length} in flight`);
+    const before = made.length;
+    finish(inFlight()[0], step % 2 ? "error" : "load");
+    await app.until(() => made.length === before + 1);
   }
-  const normal = () => made.filter((img) => src(img).endsWith("?size=normal"));
-  assert.equal(normal().length, 6);
-  assert.ok(normal().every((img) => !src(img).includes(uuid(40))), "only the main deck preloads normal images");
-
-  fire(normal()[0], "load");
-  await app.until(() => normal().length === 7);
-  fire(normal()[1], "error");
-  await app.until(() => normal().length === 8);
   await app.settle();
-  assert.equal(normal().length, 8);
+  assert.equal(inFlight().length, 6);
+  // Small images first, then normal images; no raw URL and no sideboard normal image.
+  assert.deepEqual(made.map(srcOf), expected);
 });
 
 test("the search rows and the sample hand use the local images", async () => {

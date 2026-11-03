@@ -5,7 +5,9 @@
 // manaNode (shared/dom.js), which filters them before parseManaSymbols.
 
 import { h, manaNode } from "../shared/dom.js";
-import { cardImage, cardImg } from "../shared/images.js";
+import {
+  cardImage, cardImg, isDeferred, loadCardImg, stopCardImg,
+} from "../shared/images.js";
 import { reducedMotion } from "../shared/motion.js";
 import { MAX_COUNT, SECTIONS, entryKey, groupEntries } from "./model.js";
 
@@ -21,6 +23,9 @@ const ISSUE_LABELS = {
 const PREVIEW_WIDTH = 244;
 const PREVIEW_HEIGHT = 340;
 const PREVIEW_GAP = 12;
+// The pointer stays this long on a row before the preview downloads its image,
+// so a fast sweep over the rows does not start a download per row.
+const PREVIEW_DWELL_MS = 70;
 
 // Per pane root: the newest state and handlers, the row counts of the last render, the drag.
 const contexts = new WeakMap();
@@ -217,8 +222,8 @@ function previewBox() {
   if (!preview) {
     const box = h("div", { class: "deck-preview", "aria-hidden": "true" });
     document.body.append(box);
-    // src: the URL of the sharp image on view.
-    preview = { box, src: "" };
+    // src: the URL of the sharp image on view. timer: the dwell before its download.
+    preview = { box, src: "", timer: null };
     // A scroll moves the rows away from the pointer.
     window.addEventListener("scroll", hidePreview, { passive: true, capture: true });
   }
@@ -227,7 +232,20 @@ function previewBox() {
 
 /** Hide the floating card preview. */
 export function hidePreview() {
-  if (preview) preview.box.classList.remove("is-visible");
+  if (!preview) return;
+  preview.box.classList.remove("is-visible");
+  clearTimeout(preview.timer);
+  preview.timer = null;
+}
+
+// Start the download of the preview image after the dwell, if it still shows then.
+function loadAfterDwell(view) {
+  const wrap = view.box.firstElementChild;
+  if (!isDeferred(wrap) || view.timer) return;
+  view.timer = setTimeout(() => {
+    view.timer = null;
+    if (view.box.firstElementChild === wrap) loadCardImg(wrap);
+  }, PREVIEW_DWELL_MS);
 }
 
 function placePreview(anchor, event) {
@@ -253,7 +271,8 @@ function previewCard(ctx, anchor) {
 }
 
 // A new source gets a new image element: the name placeholder shows at once, and
-// a late load or error of the old element changes only that detached element.
+// its download starts after the dwell. The old element loses its src, which
+// aborts its download; a late load or error of it changes nothing on view.
 // A failed image tries again on the next hover.
 function showPreview(ctx, anchor, event) {
   const card = previewCard(ctx, anchor);
@@ -266,12 +285,15 @@ function showPreview(ctx, anchor, event) {
   }
   const view = previewBox();
   if (view.src !== src || view.box.querySelector(".card-img.is-error")) {
+    stopCardImg(view.box.firstElementChild);
+    clearTimeout(view.timer);
+    view.timer = null;
     view.src = src;
-    view.box.replaceChildren(cardImg(card, { face, priority: "high" }));
+    view.box.replaceChildren(cardImg(card, { face, priority: "high", defer: true }));
   }
-  const { box } = view;
+  loadAfterDwell(view);
   placePreview(anchor, event);
-  box.classList.add("is-visible");
+  view.box.classList.add("is-visible");
 }
 
 // ---------------------------------------------------------------------------

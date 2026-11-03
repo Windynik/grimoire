@@ -71,3 +71,10 @@ test("reduced motion turns the shimmer off", () => {
   assert.ok(block);
   assert.match(block[1], /\.card-img-shimmer\s*\{[^}]*animation:\s*none/);
 });
+
+test("the shimmer band color is a token", () => {
+  const rule = css("base.css").match(/\.card-img-shimmer\s*\{([^}]*)\}/);
+  assert.match(rule[1], /var\(--shimmer-band\)/);
+  assert.doesNotMatch(rule[1], /rgba\(/);
+  assert.match(css("tokens.css"), /--shimmer-band:\s*rgba\(/);
+});

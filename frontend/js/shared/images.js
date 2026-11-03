@@ -35,6 +35,9 @@ export function cardImage(card, face = "front", size = "normal") {
   return raw;
 }
 
+// The start function of each card image built with defer and not yet started.
+const pending = new WeakMap();
+
 // True when the image is in the browser cache and decoded enough to show.
 const ready = (img) => Boolean(img.complete && img.naturalWidth > 0);
 
@@ -64,10 +67,14 @@ function layer(className, alt, priority) {
  * @param {string} [options.priority] "high" loads at once with a high fetch priority.
  * @param {string} [options.size] "normal" (default: small image, then normal image)
  *   or "small" (the small image only, not blurred).
+ * @param {boolean} [options.defer] true: the images get no src until loadCardImg.
+ *   The name placeholder shows at once.
  * @returns {HTMLSpanElement}
  */
 export function cardImg(card, options = {}) {
-  const { face = "front", alt = "", className = "", priority, size = "normal" } = options;
+  const {
+    face = "front", alt = "", className = "", priority, size = "normal", defer = false,
+  } = options;
   const small = size === "small";
   const sharpUrl = cardImage(card, face, small ? "small" : "normal");
   const blurUrl = small ? "" : cardImage(card, face, "small");
@@ -105,16 +112,43 @@ export function cardImg(card, options = {}) {
   sharp.addEventListener("load", () => show(false));
   sharp.addEventListener("error", () => wrap.classList.add("is-error"));
 
-  if (blur) blur.setAttribute("src", blurUrl);
-  sharp.setAttribute("src", sharpUrl);
   // A cached image shows at once, with no fade. The second check runs after
   // the caller inserts the wrapper, before the first paint.
   const cached = () => {
     if (!wrap.classList.contains("is-loaded") && ready(sharp)) show(true);
   };
-  cached();
-  if (typeof requestAnimationFrame === "function") requestAnimationFrame(cached);
+  const start = () => {
+    if (blur) blur.setAttribute("src", blurUrl);
+    sharp.setAttribute("src", sharpUrl);
+    cached();
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(cached);
+  };
+  if (defer) pending.set(wrap, start);
+  else start();
   return wrap;
+}
+
+/** Start the downloads of a card image that cardImg built with defer. */
+export function loadCardImg(wrap) {
+  const start = wrap && pending.get(wrap);
+  if (!start) return;
+  pending.delete(wrap);
+  start();
+}
+
+/** True when a card image built with defer did not start. */
+export function isDeferred(wrap) {
+  return Boolean(wrap && pending.has(wrap));
+}
+
+/**
+ * Stop a card image for good: remove the src of its images, which aborts an
+ * unfinished download. A deferred card image does not start after this.
+ */
+export function stopCardImg(wrap) {
+  if (!wrap) return;
+  pending.delete(wrap);
+  wrap.querySelectorAll("img").forEach((img) => img.removeAttribute("src"));
 }
 
 /**

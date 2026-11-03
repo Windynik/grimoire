@@ -22,6 +22,7 @@
     --violet-dim: rgba(155, 140, 255, 0.35);
     --violet-faint: rgba(155, 140, 255, 0.14);
     --gold-faint: rgba(232, 194, 106, 0.1);
+    --shimmer-band: rgba(233, 236, 248, 0.07); /* the loading shimmer of card images */
     --teal: #6fd3c7;
 
     /* The five colors of mana, moonlit pastels */
