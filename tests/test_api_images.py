@@ -1,5 +1,6 @@
 import asyncio
 import json
+import time
 
 import httpx
 import pytest
@@ -33,10 +34,11 @@ def setup(tmp_path):
 
     store = ImageStore(root=tmp_path / "images", transport=httpx.MockTransport(handler))
     index = {A: card(A, back=True), B: card(B), C: {"image_url": "", "back_image_url": ""}}
+    state["index"] = index
     decks = FakeDecks([deck("d", main=[A, B])])
     cols = FakeCollections([("c", [{"scryfall_id": B, "quantity": 1, "name": "b"}])])
     app.dependency_overrides[get_image_store] = lambda: store
-    app.dependency_overrides[get_bulk_data_manager] = lambda: FakeBulk(index)
+    app.dependency_overrides[get_bulk_data_manager] = lambda: FakeBulk(state["index"])
     app.dependency_overrides[get_deck_store] = lambda: decks
     app.dependency_overrides[get_collection_store] = lambda: cols
     yield store, calls, state
@@ -85,10 +87,91 @@ def test_status_counts(setup):
     store, _, _ = setup
     with TestClient(app) as client:
         before = client.get("/api/images/status").json()
-        assert before == {"count": 0, "bytes": 0, "owned_total": 3, "owned_cached": 0}
+        assert before == {"count": 0, "bytes": 0, "owned_total": 3,
+                          "owned_small": 0, "owned_normal": 0}
         client.get("/api/images/%s/front" % A)
         after = client.get("/api/images/status").json()
-    assert after == {"count": 1, "bytes": len(JPEG), "owned_total": 3, "owned_cached": 1}
+    assert after == {"count": 1, "bytes": len(JPEG), "owned_total": 3,
+                     "owned_small": 0, "owned_normal": 1}
+
+
+def test_status_counts_by_size_and_ignores_stale(setup):
+    store, _, state = setup
+    state["index"] = {A: versioned(A, "5"), B: versioned(B, "5")}
+    with TestClient(app) as client:
+        client.get("/api/images/%s/front?size=small" % A)
+        client.get("/api/images/%s/front?size=small" % B)
+        client.get("/api/images/%s/front" % A)
+        state["index"] = {A: versioned(A, "6"), B: versioned(B, "5")}
+        after = client.get("/api/images/status").json()
+    assert after["count"] == 3
+    assert after["owned_total"] == 2
+    assert after["owned_small"] == 1  # A's small file is stale now
+    assert after["owned_normal"] == 0
+
+
+def versioned(sid, stamp, back=False):
+    url = "https://cards.test/normal/front/%s.jpg?%s" % (sid, stamp)
+    return {"image_url": url, "back_image_url": url.replace("/front/", "/back/") if back else ""}
+
+
+def test_size_small_and_normal_are_served_from_their_own_files(setup):
+    store, calls, state = setup
+    state["index"] = {A: versioned(A, "5")}
+    with TestClient(app) as client:
+        small = client.get("/api/images/%s/front?size=small" % A)
+        normal = client.get("/api/images/%s/front?size=normal" % A)
+        default = client.get("/api/images/%s/front" % A)
+    assert small.status_code == normal.status_code == default.status_code == 200
+    assert calls == ["https://cards.test/small/front/%s.jpg?5" % A,
+                     "https://cards.test/normal/front/%s.jpg?5" % A]
+    assert small.headers["cache-control"] == "public, max-age=31536000, immutable"
+
+
+def test_bad_size_is_400_and_missing_small_url_is_404(setup):
+    with TestClient(app) as client:
+        assert client.get("/api/images/%s/front?size=big" % A).status_code == 400
+        # the default fixture URLs have no /normal/ segment, so no small size
+        assert client.get("/api/images/%s/front?size=small" % A).status_code == 404
+
+
+def test_stale_file_is_served_at_once_and_refreshed_in_background(setup):
+    store, calls, state = setup
+    state["index"] = {A: versioned(A, "5")}
+    stale = store.root / "a" / "a" / (A + "-front.jpg")
+    stale.parent.mkdir(parents=True)
+    stale.write_bytes(b"old-bytes")
+    state["delay"] = 0.2
+    with TestClient(app) as client:
+        started = time.monotonic()
+        response = client.get("/api/images/%s/front" % A)
+        elapsed = time.monotonic() - started
+        assert response.content == b"old-bytes"
+        assert response.headers["cache-control"] == "no-cache"
+        assert elapsed < 0.15  # the request did not wait for the download
+        for _ in range(50):
+            if store.has(A, "front", "normal", "5"):
+                break
+            time.sleep(0.05)
+        fresh = client.get("/api/images/%s/front" % A)
+    assert fresh.content == JPEG
+    assert fresh.headers["cache-control"] == "public, max-age=31536000, immutable"
+    assert not stale.exists()
+
+
+def test_stale_file_is_kept_when_the_refresh_fails(setup):
+    store, calls, state = setup
+    state["index"] = {A: versioned(A, "5")}
+    stale = store.root / "a" / "a" / (A + "-front.jpg")
+    stale.parent.mkdir(parents=True)
+    stale.write_bytes(b"old-bytes")
+    state["status"] = 500
+    with TestClient(app) as client:
+        first = client.get("/api/images/%s/front" % A)
+        time.sleep(0.2)
+        second = client.get("/api/images/%s/front" % A)
+    assert first.content == second.content == b"old-bytes"
+    assert second.headers["cache-control"] == "no-cache"
 
 
 def events_of(response):
@@ -105,9 +188,21 @@ def test_prefetch_events_and_skips(setup):
         events = events_of(response)
         again = events_of(client.post("/api/images/prefetch"))
     assert response.headers["content-type"].startswith("text/event-stream")
-    assert events[-1] == {"type": "done", "done": 2, "total": 2, "failed": 0, "skipped": 1}
-    assert again[-1] == {"type": "done", "done": 0, "total": 0, "failed": 0, "skipped": 3}
+    assert events[-1] == {"type": "done", "phase": "normal", "done": 2, "total": 2,
+                          "failed": 0, "skipped": 1}
+    assert again[-1] == {"type": "done", "phase": "normal", "done": 0, "total": 0,
+                         "failed": 0, "skipped": 3}
     assert len(calls) == 2
+
+
+def test_prefetch_runs_small_phase_first(setup):
+    store, calls, state = setup
+    state["index"] = {A: versioned(A, "5", back=True), B: versioned(B, "5")}
+    with TestClient(app) as client:
+        events = events_of(client.post("/api/images/prefetch"))
+    assert [c.split("/")[3] for c in calls] == ["small"] * 3 + ["normal"] * 3
+    assert {e["phase"] for e in events} == {"small", "normal"}
+    assert events[-1]["total"] == 6 and events[-1]["done"] == 6
 
 
 @pytest.mark.asyncio

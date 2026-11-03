@@ -5,6 +5,7 @@ A page asks for an image and gets the stored file. The store downloads
 the file first when it is missing.
 """
 import asyncio
+import logging
 import os
 import re
 import tempfile
@@ -16,8 +17,12 @@ import httpx
 
 from backend.core.paths import cache_path
 
+logger = logging.getLogger(__name__)
+
 ID_PATTERN = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 FACES = ("front", "back")
+SIZES = ("small", "normal")
+STAMP_PATTERN = re.compile(r"\?(\d+)$")
 MAX_BYTES = 2 * 1024 * 1024
 ALLOWED_TYPES = ("image/jpeg", "image/png")
 USER_AGENT = "Grimoire/1.0 (local card viewer)"
@@ -34,6 +39,24 @@ def is_valid_id(scryfall_id) -> bool:
     return isinstance(scryfall_id, str) and ID_PATTERN.fullmatch(scryfall_id) is not None
 
 
+def stamp_of(url: str) -> str:
+    """Return the version stamp of an index URL. Return "0" when it has none."""
+    match = STAMP_PATTERN.search(url or "")
+    return match.group(1) if match else "0"
+
+
+def size_url(url: str, size: str) -> str:
+    """Return the URL of an image size. Return "" when the size does not exist.
+
+    Scryfall uses one path for every size. Only the size segment differs.
+    """
+    if size == "normal":
+        return url or ""
+    if size == "small" and url and "/normal/" in url:
+        return url.replace("/normal/", "/small/", 1)
+    return ""
+
+
 class ImageError(Exception):
     """A download failed. No file was stored."""
 
@@ -44,7 +67,8 @@ class ImageStore:
     def __init__(self, root: Optional[Path] = None, transport=None, clock=None):
         self.root = Path(root) if root is not None else cache_path("images")
         self.transport = transport
-        self._inflight: Dict[Tuple[str, str], "asyncio.Task"] = {}
+        self._inflight: Dict[Tuple[str, str, str, str], "asyncio.Task"] = {}
+        self._refreshes: set = set()
         self._semaphores: Dict[str, asyncio.Semaphore] = {}
         self._loop = None
         self._prefetching = False
@@ -53,16 +77,40 @@ class ImageStore:
         self._client: Optional[httpx.AsyncClient] = None
         self._client_loop = None
 
-    def path_for(self, scryfall_id: str, face: str) -> Path:
-        """Return the file path of an image. Raise ValueError for a bad id or face."""
+    def path_for(self, scryfall_id: str, face: str, size: str = "normal",
+                 stamp: str = "0") -> Path:
+        """Return the file path of an image. Raise ValueError for a bad argument."""
         if not is_valid_id(scryfall_id):
             raise ValueError("Invalid Scryfall id")
         if face not in FACES:
             raise ValueError("Invalid face")
-        return self.root / scryfall_id[0] / scryfall_id[1] / ("%s-%s.jpg" % (scryfall_id, face))
+        if size not in SIZES:
+            raise ValueError("Invalid size")
+        if not isinstance(stamp, str) or not stamp.isdigit():
+            raise ValueError("Invalid stamp")
+        name = "%s-%s-%s-%s.jpg" % (scryfall_id, face, size, stamp)
+        return self.root / scryfall_id[0] / scryfall_id[1] / name
 
-    def has(self, scryfall_id: str, face: str) -> bool:
-        return self.path_for(scryfall_id, face).is_file()
+    def has(self, scryfall_id: str, face: str, size: str = "normal",
+            stamp: str = "0") -> bool:
+        return self.path_for(scryfall_id, face, size, stamp).is_file()
+
+    def _siblings(self, scryfall_id: str, face: str, size: str) -> List[Path]:
+        """List the stored files of one id, face and size, whatever their stamp."""
+        folder = self.root / scryfall_id[0] / scryfall_id[1]
+        found = list(folder.glob("%s-%s-%s-*.jpg" % (scryfall_id, face, size)))
+        if size == "normal":
+            found.append(folder / ("%s-%s.jpg" % (scryfall_id, face)))  # Task 1 name
+        return [p for p in found if p.is_file()]
+
+    def stale_path(self, scryfall_id: str, face: str, size: str = "normal",
+                   stamp: str = "0") -> Optional[Path]:
+        """Return a stored file with another stamp, or None."""
+        current = self.path_for(scryfall_id, face, size, stamp)
+        for path in self._siblings(scryfall_id, face, size):
+            if path != current:
+                return path
+        return None
 
     def stats(self) -> Dict[str, int]:
         """Return the number of stored images and their total size in bytes."""
@@ -87,27 +135,49 @@ class ImageStore:
             self._semaphores[lane] = asyncio.Semaphore(limit)
         return self._semaphores[lane]
 
-    async def fetch(self, scryfall_id: str, face: str, url: str,
+    async def fetch(self, scryfall_id: str, face: str, url: str, size: str = "normal",
                     background: bool = False) -> Path:
         """Return the stored path of an image. Download it when it is missing.
+
+        "url" is the index URL of the normal image. The store derives the size
+        URL and the version stamp from it. A file with another stamp is stale:
+        the store downloads the new file and deletes the old one.
 
         Callers for one key share one download. A background caller uses the
         background lane. Every other caller uses the on-demand lane.
         """
-        path = self.path_for(scryfall_id, face)
+        stamp = stamp_of(url)
+        path = self.path_for(scryfall_id, face, size, stamp)
         if path.is_file():
             return path
-        key = (scryfall_id, face)
+        source = size_url(url, size)
+        if not source:
+            raise ImageError("No %s image for this card" % size)
+        key = (scryfall_id, face, size, stamp)
         loop = asyncio.get_running_loop()
         task = self._inflight.get(key)
         if task is None or task.get_loop() is not loop:
             if self._clock() < self._offline_until:
                 raise ImageError("The image server is not reachable")
-            task = loop.create_task(self._download(key, path, url, background))
+            task = loop.create_task(self._download(key, path, source, background))
             self._inflight[key] = task
             task.add_done_callback(lambda t, k=key: self._forget(k, t))
         # A waiter that is cancelled must not cancel the shared download.
         return await asyncio.shield(task)
+
+    def refresh_in_background(self, scryfall_id: str, face: str, url: str,
+                              size: str = "normal") -> None:
+        """Start a background-lane download. Do not wait. Log and drop a failure."""
+        async def run():
+            try:
+                await self.fetch(scryfall_id, face, url, size, background=True)
+            except Exception as exc:
+                logger.info("Image refresh failed for %s %s %s: %s",
+                            scryfall_id, face, size, exc)
+
+        task = asyncio.get_running_loop().create_task(run())
+        self._refreshes.add(task)
+        task.add_done_callback(self._refreshes.discard)
 
     def _forget(self, key, task) -> None:
         if self._inflight.get(key) is task:
@@ -122,7 +192,17 @@ class ImageStore:
                 return path
             body = await self._get_body(url)
         self._write(path, body)
+        self._delete_stale(*key[:3], path)
         return path
+
+    def _delete_stale(self, scryfall_id: str, face: str, size: str, current: Path) -> None:
+        """Delete the older files of the same id, face and size."""
+        for old in self._siblings(scryfall_id, face, size):
+            if old != current:
+                try:
+                    old.unlink()
+                except OSError:
+                    pass
 
     def _get_client(self) -> httpx.AsyncClient:
         """Return the shared client of the running loop. Create it when needed."""
@@ -261,22 +341,35 @@ async def prefetch_events(store: ImageStore,
                           targets: List[Tuple[str, str, str]]) -> AsyncIterator[dict]:
     """Download the missing images in background order. Yield progress events.
 
-    "total" counts the images that need a download. "skipped" counts the
-    images already stored. Closing the generator stops new downloads. Downloads
-    already running may finish.
+    Phase "small" downloads the small image of every target in priority order.
+    Phase "normal" then downloads the normal image of every target in the same
+    order. "total" counts the images that need a download in both phases.
+    "skipped" counts the images already stored. Each event names its phase.
+    Closing the generator stops new downloads. Downloads already running may
+    finish.
     """
-    pending = [t for t in targets if not store.has(t[0], t[1])]
-    skipped = len(targets) - len(pending)
+    pending: List[Tuple[str, Tuple[str, str, str]]] = []
+    skipped = 0
+    for phase in SIZES:
+        for target in targets:
+            if not size_url(target[2], phase):
+                continue  # this card has no image of this size
+            if store.has(target[0], target[1], phase, stamp_of(target[2])):
+                skipped += 1
+            else:
+                pending.append((phase, target))
     total = len(pending)
     done = 0
     failed = 0
+    phase_left = {phase: sum(1 for p, _ in pending if p == phase) for phase in SIZES}
 
-    async def one(target) -> bool:
+    async def one(item) -> Tuple[str, bool]:
+        phase, target = item
         try:
-            await store.fetch(target[0], target[1], target[2], background=True)
-            return True
+            await store.fetch(target[0], target[1], target[2], phase, background=True)
+            return phase, True
         except Exception:  # one bad image must not stop the run
-            return False
+            return phase, False
 
     running = set()
     queue = iter(pending)
@@ -285,24 +378,27 @@ async def prefetch_events(store: ImageStore,
     try:
         while True:
             while not exhausted and len(running) < BACKGROUND_LIMIT:
-                target = next(queue, None)
-                if target is None:
+                item = next(queue, None)
+                if item is None:
                     exhausted = True
                     break
-                running.add(asyncio.ensure_future(one(target)))
+                running.add(asyncio.ensure_future(one(item)))
             if not running:
                 break
             completed, running = await asyncio.wait(running, return_when=asyncio.FIRST_COMPLETED)
             for task in completed:
+                phase, ok = task.result()
                 finished += 1
-                if task.result():
+                phase_left[phase] -= 1
+                if ok:
                     done += 1
                 else:
                     failed += 1
-                if finished % PROGRESS_EVERY == 0 or finished == total:
-                    yield {"type": "progress", "done": done, "total": total, "failed": failed}
-        yield {"type": "done", "done": done, "total": total, "failed": failed,
-               "skipped": skipped}
+                if finished % PROGRESS_EVERY == 0 or finished == total or phase_left[phase] == 0:
+                    yield {"type": "progress", "phase": phase, "done": done, "total": total,
+                           "failed": failed}
+        yield {"type": "done", "phase": "normal", "done": done, "total": total,
+               "failed": failed, "skipped": skipped}
     finally:
         # In-flight downloads may finish. Do not leave a task unobserved.
         for task in running:

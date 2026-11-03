@@ -8,6 +8,8 @@ from backend.core.image_store import (
     ImageStore,
     prefetch_events,
     priority_targets,
+    size_url,
+    stamp_of,
 )
 
 A = "aaaaaaaa-0000-0000-0000-000000000001"
@@ -35,7 +37,9 @@ def make_store(tmp_path, handler):
 
 def test_path_layout(tmp_path):
     store = ImageStore(root=tmp_path)
-    assert store.path_for(A, "front") == tmp_path / "a" / "a" / (A + "-front.jpg")
+    assert store.path_for(A, "front") == tmp_path / "a" / "a" / (A + "-front-normal-0.jpg")
+    assert store.path_for(A, "back", "small", "123") == (
+        tmp_path / "a" / "a" / (A + "-back-small-123.jpg"))
 
 
 @pytest.mark.parametrize("sid,face", [
@@ -45,6 +49,12 @@ def test_path_layout(tmp_path):
 def test_bad_id_or_face_raises(tmp_path, sid, face):
     with pytest.raises(ValueError):
         ImageStore(root=tmp_path).path_for(sid, face)
+
+
+@pytest.mark.parametrize("size,stamp", [("big", "0"), ("small", "../1"), ("small", "")])
+def test_bad_size_or_stamp_raises(tmp_path, size, stamp):
+    with pytest.raises(ValueError):
+        ImageStore(root=tmp_path).path_for(A, "front", size, stamp)
 
 
 def test_default_root_uses_cache_dir(tmp_path, monkeypatch):
@@ -255,6 +265,131 @@ async def test_write_error_becomes_image_error(tmp_path):
     await store.aclose()
 
 
+# ---- sizes and versions ----
+
+NORMAL = "https://cards.test/front/a/a/%s.jpg?1700000000"
+
+
+def test_size_url_and_stamp():
+    url = NORMAL % A
+    assert size_url(url, "normal") == url
+    assert size_url(url, "small") == ""  # no /normal/ segment: no small size
+    assert stamp_of(url) == "1700000000"
+    assert stamp_of("https://cards.test/normal/x.jpg") == "0"
+    assert size_url("https://cards.test/large/x.jpg", "small") == ""
+    assert size_url("", "small") == ""
+
+
+def test_small_url_replaces_the_normal_segment():
+    url = "https://cards.scryfall.io/normal/front/a/a/x.jpg?1700000000"
+    assert size_url(url, "small") == "https://cards.scryfall.io/small/front/a/a/x.jpg?1700000000"
+
+
+@pytest.mark.asyncio
+async def test_small_and_normal_download_separately(tmp_path):
+    calls = []
+    store = make_store(tmp_path, jpeg_handler(calls))
+    url = "https://cards.scryfall.io/normal/front/a/a/x.jpg?55"
+    small = await store.fetch(A, "front", url, "small")
+    normal = await store.fetch(A, "front", url)
+    assert small != normal
+    assert calls == ["https://cards.scryfall.io/small/front/a/a/x.jpg?55", url]
+    assert small.name == A + "-front-small-55.jpg"
+    assert store.has(A, "front", "small", "55") and store.has(A, "front", "normal", "55")
+
+
+@pytest.mark.asyncio
+async def test_concurrent_small_and_normal_do_not_share_a_task(tmp_path):
+    calls = []
+    store = make_store(tmp_path, jpeg_handler(calls))
+    url = "https://cards.scryfall.io/normal/front/a/a/x.jpg?55"
+    await asyncio.gather(store.fetch(A, "front", url, "small"), store.fetch(A, "front", url))
+    assert len(calls) == 2
+
+
+@pytest.mark.asyncio
+async def test_no_small_url_raises(tmp_path):
+    store = make_store(tmp_path, jpeg_handler([]))
+    with pytest.raises(ImageError):
+        await store.fetch(A, "front", "https://cards.test/x.jpg", "small")
+
+
+@pytest.mark.asyncio
+async def test_stale_stamp_is_not_has_is_replaced_and_old_file_deleted(tmp_path):
+    calls = []
+    store = make_store(tmp_path, jpeg_handler(calls))
+    old_url = "https://cards.scryfall.io/normal/front/a/a/x.jpg?1"
+    new_url = "https://cards.scryfall.io/normal/front/a/a/x.jpg?2"
+    old = await store.fetch(A, "front", old_url)
+    other_size = await store.fetch(A, "front", old_url, "small")
+    other_face = await store.fetch(A, "back", old_url)
+    assert not store.has(A, "front", "normal", "2")
+    assert store.stale_path(A, "front", "normal", "2") == old
+    new = await store.fetch(A, "front", new_url)
+    assert new != old and new.is_file()
+    assert not old.exists()
+    assert other_size.is_file() and other_face.is_file()  # other size and face stay
+    assert store.stale_path(A, "front", "normal", "2") is None
+    assert len(calls) == 4
+
+
+@pytest.mark.asyncio
+async def test_task_1_file_name_counts_as_stale(tmp_path):
+    store = make_store(tmp_path, jpeg_handler([]))
+    legacy = store.root / "a" / "a" / (A + "-front.jpg")
+    legacy.parent.mkdir(parents=True)
+    legacy.write_bytes(b"old")
+    assert not store.has(A, "front")
+    assert store.stale_path(A, "front") == legacy
+    assert store.stale_path(A, "front", "small") is None
+    path = await store.fetch(A, "front", "https://cards.scryfall.io/normal/x.jpg")
+    assert path.read_bytes() == JPEG
+    assert not legacy.exists()
+
+
+@pytest.mark.asyncio
+async def test_stale_delete_failure_keeps_the_new_file(tmp_path, monkeypatch):
+    store = make_store(tmp_path, jpeg_handler([]))
+    await store.fetch(A, "front", "https://cards.scryfall.io/normal/x.jpg?1")
+    monkeypatch.setattr("pathlib.Path.unlink", lambda self, *a, **k: (_ for _ in ()).throw(
+        PermissionError("no")))
+    new = await store.fetch(A, "front", "https://cards.scryfall.io/normal/x.jpg?2")
+    monkeypatch.undo()
+    assert new.is_file()
+
+
+@pytest.mark.asyncio
+async def test_stats_count_all_sizes(tmp_path):
+    store = make_store(tmp_path, jpeg_handler([]))
+    url = "https://cards.scryfall.io/normal/x.jpg?1"
+    await store.fetch(A, "front", url, "small")
+    await store.fetch(A, "front", url)
+    assert store.stats() == {"count": 2, "bytes": 2 * len(JPEG)}
+
+
+@pytest.mark.asyncio
+async def test_refresh_in_background_swallows_failure_and_keeps_stale(tmp_path):
+    state = {"fail": True}
+
+    def handler(request):
+        if state["fail"]:
+            return httpx.Response(500)
+        return httpx.Response(200, content=JPEG, headers={"content-type": "image/jpeg"})
+
+    store = make_store(tmp_path, handler)
+    stale = store.root / "a" / "a" / (A + "-front.jpg")
+    stale.parent.mkdir(parents=True)
+    stale.write_bytes(b"old")
+    url = "https://cards.scryfall.io/normal/x.jpg?9"
+    store.refresh_in_background(A, "front", url)
+    await asyncio.gather(*store._refreshes)
+    assert stale.read_bytes() == b"old"
+    state["fail"] = False
+    store.refresh_in_background(A, "front", url)
+    await asyncio.gather(*store._refreshes)
+    assert store.has(A, "front", "normal", "9") and not stale.exists()
+
+
 # ---- priority ----
 
 class FakeCollections:
@@ -369,7 +504,8 @@ async def test_prefetch_events_and_skips(tmp_path):
     assert len(calls) == 24
     progress = [e for e in events if e["type"] == "progress"]
     assert [e["done"] for e in progress] == [10, 20, 24]
-    assert events[-1] == {"type": "done", "done": 24, "total": 24, "failed": 0, "skipped": 1}
+    assert events[-1] == {"type": "done", "phase": "normal", "done": 24, "total": 24,
+                          "failed": 0, "skipped": 1}
 
 
 @pytest.mark.asyncio
@@ -382,7 +518,8 @@ async def test_prefetch_counts_failures(tmp_path):
     store = make_store(tmp_path, handler)
     targets = [(A, "front", "https://c.test/ok.jpg"), (B, "front", "https://c.test/bad.jpg")]
     events = await collect(prefetch_events(store, targets))
-    assert events[-1] == {"type": "done", "done": 1, "total": 2, "failed": 1, "skipped": 0}
+    assert events[-1] == {"type": "done", "phase": "normal", "done": 1, "total": 2,
+                          "failed": 1, "skipped": 0}
 
 
 @pytest.mark.asyncio
@@ -397,3 +534,38 @@ async def test_closing_the_stream_stops_new_downloads(tmp_path):
     await gen.aclose()
     await asyncio.sleep(0.1)
     assert len(calls) < 40
+
+
+@pytest.mark.asyncio
+async def test_prefetch_runs_every_small_before_any_normal(tmp_path):
+    started = []
+
+    async def handler(request):
+        started.append(request.url.path)
+        await asyncio.sleep(0.01)
+        return httpx.Response(200, content=JPEG, headers={"content-type": "image/jpeg"})
+
+    store = make_store(tmp_path, handler)
+    ids = ["%08x-0000-0000-0000-000000000000" % n for n in range(1, 8)]
+    targets = [(i, "front", "https://c.test/normal/%s.jpg?3" % i) for i in ids]
+    events = await collect(prefetch_events(store, targets))
+    sizes = [p.split("/")[1] for p in started]
+    assert sizes == ["small"] * 7 + ["normal"] * 7
+    assert [p.split("/")[2] for p in started[:7]] == [i + ".jpg" for i in ids]
+    assert {e["phase"] for e in events} == {"small", "normal"}
+    assert events[-1] == {"type": "done", "phase": "normal", "done": 14, "total": 14,
+                          "failed": 0, "skipped": 0}
+
+
+@pytest.mark.asyncio
+async def test_prefetch_skips_current_and_downloads_stale(tmp_path):
+    calls = []
+    store = make_store(tmp_path, jpeg_handler(calls))
+    old = "https://c.test/normal/x.jpg?1"
+    new = "https://c.test/normal/x.jpg?2"
+    await store.fetch(A, "front", old, "small")
+    await store.fetch(B, "front", new, "small")
+    calls.clear()
+    events = await collect(prefetch_events(store, [(A, "front", new), (B, "front", new)]))
+    assert events[-1]["skipped"] == 1 and events[-1]["total"] == 3
+    assert len(calls) == 3

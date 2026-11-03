@@ -16,8 +16,11 @@ from backend.core.collection_store import CollectionStore
 from backend.core.image_store import (
     ImageError,
     ImageStore,
+    SIZES,
     prefetch_events,
     priority_targets,
+    size_url,
+    stamp_of,
 )
 from backend.decks.store import DeckStore
 
@@ -25,6 +28,7 @@ from backend.decks.store import DeckStore
 router = APIRouter(prefix="/api")
 
 CACHE_CONTROL = "public, max-age=31536000, immutable"
+STALE_CACHE_CONTROL = "no-cache"
 
 
 @router.get("/images/status")
@@ -39,8 +43,14 @@ async def image_status(
 
     def count():
         targets = priority_targets(collections, decks, index)
-        cached = sum(1 for sid, face, _ in targets if store.has(sid, face))
-        return {**store.stats(), "owned_total": len(targets), "owned_cached": cached}
+        owned = {"small": 0, "normal": 0}
+        for sid, face, url in targets:
+            stamp = stamp_of(url)
+            for size in SIZES:
+                if size_url(url, size) and store.has(sid, face, size, stamp):
+                    owned[size] += 1
+        return {**store.stats(), "owned_total": len(targets),
+                "owned_small": owned["small"], "owned_normal": owned["normal"]}
 
     return await asyncio.to_thread(count)
 
@@ -63,7 +73,7 @@ async def prefetch_images(
         # Claim the run here, not in the route. A response that is dropped before
         # the body starts never runs this code, so the claim cannot leak.
         if not store.begin_prefetch():
-            event = {"type": "done", "done": 0, "total": 0, "failed": 0, "skipped": 0,
+            event = {"type": "done", "phase": "normal", "done": 0, "total": 0, "failed": 0, "skipped": 0,
                      "busy": True}
             yield "data: %s\n\n" % json.dumps(event)
             return
@@ -82,21 +92,36 @@ async def prefetch_images(
 async def get_image(
     scryfall_id: str,
     face: str,
+    size: str = "normal",
     store: ImageStore = Depends(get_image_store),
     bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager),
 ):
-    """Serve a card image from the store. Download it first when it is missing."""
+    """Serve a card image from the store. Download it first when it is missing.
+
+    A file with an old version stamp is served at once. A background download
+    replaces it.
+    """
     try:
-        store.path_for(scryfall_id, face)
+        store.path_for(scryfall_id, face, size)
     except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid card id or face")
+        raise HTTPException(status_code=400, detail="Invalid card id, face, or size")
     index: Dict[str, dict] = await bulk_data_manager.load_bulk_data()
     card = index.get(scryfall_id)
     url = (card or {}).get("image_url" if face == "front" else "back_image_url")
-    if not url:
+    if not url or not size_url(url, size):
         raise HTTPException(status_code=404, detail="No image for this card")
+    stamp = stamp_of(url)
+    current = store.path_for(scryfall_id, face, size, stamp)
+    if current.is_file():
+        return FileResponse(str(current), media_type="image/jpeg",
+                            headers={"Cache-Control": CACHE_CONTROL})
+    stale = store.stale_path(scryfall_id, face, size, stamp)
+    if stale is not None:
+        store.refresh_in_background(scryfall_id, face, url, size)
+        return FileResponse(str(stale), media_type="image/jpeg",
+                            headers={"Cache-Control": STALE_CACHE_CONTROL})
     try:
-        path = await store.fetch(scryfall_id, face, url)
+        path = await store.fetch(scryfall_id, face, url, size)
     except ImageError:
         raise HTTPException(status_code=502, detail="Image download failed")
     return FileResponse(str(path), media_type="image/jpeg",
