@@ -1,8 +1,10 @@
-// Home screen: the archive status, the bulk data download, and the collection list.
+// Home screen: quick actions, the card data status, the collections, and the recent decks.
 //
-// Collection names and server text go in with textContent only.
+// Collection names, deck names and server text go in with textContent only.
 
 import { navigate } from "../app/router.js";
+import * as decksApi from "../decks/api.js";
+import { deckTile } from "../decks/tile.js";
 import { h } from "../shared/dom.js";
 import { formatDate } from "../shared/format.js";
 import { confirmDialog } from "../shared/modal.js";
@@ -13,13 +15,17 @@ import { readSSE } from "../shared/sse.js";
 import { showToast } from "../shared/toast.js";
 
 const API_BASE = "/api";
+const RECENT_DECKS = 4;
 
 const $ = (id) => document.getElementById(id);
 
 let listRequest = 0;
+let decksRequest = 0;
+let downloading = false;
+let formatNames = new Map();
 
 // ---------------------------------------------------------------------------
-// Archive status and the bulk data download
+// Card data status and the download
 // ---------------------------------------------------------------------------
 
 async function checkCacheStatus() {
@@ -33,26 +39,34 @@ async function checkCacheStatus() {
 
 function updateCacheStatusUI(status) {
   const isReady = status.status === "ready";
-  const view = $("home-view");
 
-  view.querySelector(".status-dot").classList.toggle("ready", isReady);
-  view.querySelector(".status-text").textContent = isReady
-    ? "Archive ready — everything works offline"
-    : "Archive not downloaded yet (~100 MB, one-time)";
+  $("home-view").querySelector(".status-dot").classList.toggle("ready", isReady);
+  $("home-status-text").textContent = isReady
+    ? "Card data ready. Everything works offline."
+    : "Card data not downloaded yet (about 100 MB, one time).";
   $("card-count").textContent = isReady ? status.card_count?.toLocaleString() || "—" : "—";
   $("cache-size").textContent = isReady && status.file_size_mb
     ? `${status.file_size_mb.toFixed(1)} MB`
     : "—";
   $("last-updated").textContent = isReady ? formatDate(status.download_date) : "—";
-  $("quick-process").disabled = !isReady;
+  $("download-cache").textContent = isReady ? "Update card data" : "Download card data";
 }
 
 async function downloadCache() {
+  if (downloading) return;
+  downloading = true;
+  const button = $("download-cache");
   const progressContainer = $("download-progress");
   const progressFill = $("download-progress-fill");
   const progressText = $("download-progress-text");
+  const finish = () => {
+    progressContainer.hidden = true;
+    button.disabled = false;
+    downloading = false;
+  };
 
-  progressContainer.style.display = "block";
+  button.disabled = true;
+  progressContainer.hidden = false;
   progressFill.style.transform = "scaleX(0)";
   progressText.textContent = "0%";
 
@@ -68,44 +82,26 @@ async function downloadCache() {
       }
 
       if (data.status === "complete") {
-        showToast("Bulk data downloaded successfully!", "success");
+        showToast("Card data downloaded", "success");
         await checkCacheStatus();
-        progressContainer.style.display = "none";
+        finish();
       }
 
       if (data.error) {
         showToast(data.error, "error");
-        progressContainer.style.display = "none";
+        finish();
       }
     });
   } catch (error) {
     console.error("Download error:", error);
-    showToast("Error downloading bulk data: " + error.message, "error");
-    progressContainer.style.display = "none";
-  }
-}
-
-async function clearCache() {
-  const ok = await confirmDialog({
-    title: "Clear the cache",
-    message: "Are you sure you want to clear the cache?",
-    confirmLabel: "Clear cache",
-  });
-  if (!ok) return;
-
-  try {
-    const response = await fetch(`${API_BASE}/cache`, { method: "DELETE" });
-    if (response.ok) {
-      showToast("Cache cleared successfully", "success");
-      await checkCacheStatus();
-    }
-  } catch (error) {
-    showToast("Error clearing cache", "error");
+    showToast("Error downloading card data: " + error.message, "error");
+  } finally {
+    finish();
   }
 }
 
 // ---------------------------------------------------------------------------
-// Collection list
+// Collections
 // ---------------------------------------------------------------------------
 
 // Fetch the collection CSV and save it. A failed export shows the server's reason.
@@ -158,59 +154,48 @@ async function deleteCollection(c) {
   }
 }
 
+function openCollection(c) {
+  setActiveCollection(c.job_id);
+  setViewerSource(c.job_id);
+  navigate("#collection");
+}
+
 function collectionRow(c) {
   const created = c.created ? ` · ${new Date(c.created).toLocaleDateString()}` : "";
   const count = Number(c.card_count || 0).toLocaleString();
 
+  const view = h("button", {
+    type: "button",
+    class: "btn btn-secondary btn-compact collection-view",
+    "aria-label": `View ${c.name}`,
+    onclick: () => openCollection(c),
+  }, "View");
+
   const exportLink = h("a", {
-    class: "collection-export",
+    class: "btn btn-secondary btn-compact collection-export",
     href: `${API_BASE}/collection/${encodeURIComponent(c.job_id)}/export`,
     download: true,
     title: "Download this collection as a CSV",
     "aria-label": `Export ${c.name} as CSV`,
     onclick: (e) => {
-      e.stopPropagation();
       e.preventDefault();
       exportCollection(c);
     },
   }, "Export CSV");
 
-  const deleteButton = h("button", {
-    class: "collection-del",
-    title: "Delete this collection",
+  const remove = h("button", {
+    type: "button",
+    class: "btn btn-danger btn-compact collection-del",
     "aria-label": `Delete ${c.name}`,
-    onclick: (e) => {
-      e.stopPropagation();
-      deleteCollection(c);
-    },
-  }, "×");
+    onclick: () => deleteCollection(c),
+  }, "Delete");
 
-  const openIt = () => {
-    setActiveCollection(c.job_id);
-    setViewerSource(c.job_id);
-    navigate("#collection");
-  };
-
-  return h("div", {
-    class: "collection-row",
-    tabindex: "0",
-    role: "button",
-    "aria-label": `View ${c.name}`,
-    onclick: openIt,
-    onkeydown: (e) => {
-      if (e.target !== e.currentTarget) return; // keys on the Export and Delete controls stay theirs
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        openIt();
-      }
-    },
-  },
-  h("img", { src: "/favicon.svg", alt: "", class: "collection-row-icon" }),
-  h("span", { class: "collection-row-name", text: c.name }),
-  h("span", { class: "collection-row-meta", text: `${count} cards${created}` }),
-  h("span", { class: "collection-row-cta", text: "View →" }),
-  exportLink,
-  deleteButton);
+  return h("div", { class: "collection-row" },
+    h("img", { src: "/favicon.svg", alt: "", class: "collection-row-icon" }),
+    h("div", { class: "collection-row-info" },
+      h("span", { class: "collection-row-name", text: c.name }),
+      h("span", { class: "collection-row-meta", text: `${count} cards${created}` })),
+    h("div", { class: "collection-row-actions" }, view, exportLink, remove));
 }
 
 async function loadCollections() {
@@ -225,7 +210,8 @@ async function loadCollections() {
 
     if (data.collections.length === 0) {
       container.replaceChildren(h("p", {
-        class: "settings-note", text: "No collections yet — process a ManaBox CSV to add one.",
+        class: "home-empty",
+        text: "No collections yet. Import a ManaBox CSV to start.",
       }));
       return;
     }
@@ -236,19 +222,61 @@ async function loadCollections() {
 }
 
 // ---------------------------------------------------------------------------
+// Recent decks
+// ---------------------------------------------------------------------------
+
+async function loadFormats() {
+  if (formatNames.size) return;
+  try {
+    const data = await decksApi.getFormats();
+    formatNames = new Map((data.formats || []).map((f) => [f.key, f.name]));
+  } catch (error) {
+    // The tiles show the format key instead.
+  }
+}
+
+async function loadDecks() {
+  const request = ++decksRequest;
+  const container = $("home-decks");
+
+  try {
+    const [data] = await Promise.all([decksApi.listDecks(), loadFormats()]);
+    if (request !== decksRequest) return;
+    const recent = (data.decks || []).slice(0, RECENT_DECKS);
+
+    if (recent.length === 0) {
+      container.replaceChildren(h("p", {
+        class: "home-empty",
+        text: "No decks yet. Forge one, or create one in Decks.",
+      }));
+      return;
+    }
+    container.replaceChildren(...recent.map((deck) => deckTile(deck, {
+      compact: true,
+      onOpen: () => navigate(`#deck/${encodeURIComponent(deck.id)}`),
+      formatName: (key) => formatNames.get(key) || key || "",
+    })));
+  } catch (error) {
+    if (request !== decksRequest) return;
+    container.replaceChildren(h("p", {
+      class: "home-empty", text: `Could not load the decks: ${error.message}`,
+    }));
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Entry
 // ---------------------------------------------------------------------------
 
 function init() {
   $("download-cache").addEventListener("click", downloadCache);
-  $("clear-cache").addEventListener("click", clearCache);
-  $("quick-process").addEventListener("click", () => navigate("#import"));
 }
 
-/** Show the screen: refresh the archive status and the collection list. */
+/** Show the screen: refresh the card data status, the collections, and the decks. */
 export function open() {
   checkCacheStatus();
   loadCollections();
+  loadDecks();
 }
 
 init();

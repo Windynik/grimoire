@@ -44,79 +44,8 @@
 
 #decks-view .decks-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 1.1rem;
-}
-
-#decks-view .deck-tile {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    overflow: hidden;
-    transition: transform var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
-}
-
-#decks-view .deck-tile:hover,
-#decks-view .deck-tile:focus-within {
-    transform: translateY(-3px);
-    border-color: var(--violet);
-}
-
-#decks-view .deck-art {
-    aspect-ratio: 16 / 9;
-    background: linear-gradient(135deg, var(--surface-2), var(--surface));
-    overflow: hidden;
-}
-
-#decks-view .deck-art img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    object-position: center 22%;
-    display: block;
-}
-
-#decks-view .deck-body {
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-    padding: 0.9rem 1rem 1rem;
-}
-
-#decks-view .deck-title {
-    margin: 0;
-    font-family: var(--font-display);
-    font-size: 1.1rem;
-    letter-spacing: 0.04em;
-}
-
-#decks-view .deck-name {
-    all: unset;
-    cursor: pointer;
-    color: var(--gold);
-    overflow-wrap: anywhere;
-}
-
-#decks-view .deck-name:focus-visible {
-    outline: 2px solid var(--violet);
-    outline-offset: 2px;
-}
-
-#decks-view .deck-commander,
-#decks-view .deck-meta {
-    color: var(--text-dim);
-    font-size: 0.85rem;
-    overflow-wrap: anywhere;
-}
-
-#decks-view .deck-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    margin-top: 0.6rem;
 }
 
 /* Deck editor */
@@ -1475,15 +1404,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-    #decks-view .deck-tile {
-        transition: none;
-    }
-
-    #decks-view .deck-tile:hover,
-    #decks-view .deck-tile:focus-within {
-        transform: none;
-    }
-
     #decks-view .deck-row.is-new,
     #decks-view .deck-row-count.is-bumped,
     #decks-view .deck-commander-card.is-new {

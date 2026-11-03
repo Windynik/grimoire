@@ -15,6 +15,8 @@
     <link rel="stylesheet" href="/styles.css">
     <link rel="stylesheet" href="/css/forge.css">
     <link rel="stylesheet" href="/css/decks.css">
+    <link rel="stylesheet" href="/css/tile.css">
+    <link rel="stylesheet" href="/css/home.css">
 </head>
 <body>
     <!-- Atmospheric background layers -->
@@ -48,32 +50,32 @@
             <div class="container">
                 <!-- Home View -->
                 <div id="home-view" class="view">
-                    <section class="card">
-                        <h2>The Archive</h2>
-                        <div class="status-indicator" id="status-indicator">
-                            <span class="status-dot"></span>
-                            <span class="status-text">Checking&hellip;</span>
+                    <header class="home-head">
+                        <h1 class="home-title">Home</h1>
+                        <p class="home-lede">Your cards, your collections, and your decks, all kept on this machine.</p>
+                    </header>
+
+                    <section class="home-section home-quick" aria-label="Quick actions">
+                        <a class="btn btn-primary" id="home-import" href="#import">Import CSV</a>
+                        <a class="btn btn-secondary" id="home-forge" href="#forge">Forge a deck</a>
+                        <a class="btn btn-secondary" id="home-browse" href="#collection">Browse</a>
+                    </section>
+
+                    <section class="home-section" aria-labelledby="home-data-title">
+                        <h2 class="home-section-title" id="home-data-title">Card data</h2>
+                        <div class="home-data">
+                            <p class="home-status">
+                                <span class="status-dot" aria-hidden="true"></span>
+                                <span class="status-text" id="home-status-text">Checking&hellip;</span>
+                            </p>
+                            <dl class="home-facts">
+                                <div><dt>Cards</dt><dd id="card-count">&mdash;</dd></div>
+                                <div><dt>Size</dt><dd id="cache-size">&mdash;</dd></div>
+                                <div><dt>Last update</dt><dd id="last-updated">&mdash;</dd></div>
+                            </dl>
+                            <button type="button" id="download-cache" class="btn btn-secondary">Download card data</button>
                         </div>
-                        <div class="stats">
-                            <div class="stat">
-                                <span class="stat-label">Cards Available</span>
-                                <span class="stat-value" id="card-count">&mdash;</span>
-                            </div>
-                            <div class="stat">
-                                <span class="stat-label">Archive Size</span>
-                                <span class="stat-value" id="cache-size">&mdash;</span>
-                            </div>
-                            <div class="stat">
-                                <span class="stat-label">Last Updated</span>
-                                <span class="stat-value" id="last-updated">&mdash;</span>
-                            </div>
-                        </div>
-                        <div class="actions">
-                            <button id="download-cache" class="btn btn-primary">Download Bulk Data</button>
-                            <button id="quick-process" class="btn btn-secondary" disabled>Process CSV</button>
-                            <button id="clear-cache" class="btn btn-danger">Clear Cache</button>
-                        </div>
-                        <div id="download-progress" class="progress-container" style="display: none;">
+                        <div id="download-progress" class="home-progress" hidden>
                             <div class="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-label="Download progress">
                                 <div class="progress-fill" id="download-progress-fill"></div>
                             </div>
@@ -81,11 +83,20 @@
                         </div>
                     </section>
 
-                    <section class="card">
-                        <h2>Your Collections</h2>
-                        <div id="dashboard-collections">
-                            <p class="settings-note">No collections yet — process a ManaBox CSV to add one.</p>
+                    <section class="home-section" aria-labelledby="home-collections-title">
+                        <div class="home-section-head">
+                            <h2 class="home-section-title" id="home-collections-title">Collections</h2>
+                            <a class="btn btn-secondary btn-compact" id="home-collections-import" href="#import">Import CSV</a>
                         </div>
+                        <div id="dashboard-collections" class="home-collections"></div>
+                    </section>
+
+                    <section class="home-section" aria-labelledby="home-decks-title">
+                        <div class="home-section-head">
+                            <h2 class="home-section-title" id="home-decks-title">Recent decks</h2>
+                            <a class="home-link" href="#decks">All decks</a>
+                        </div>
+                        <div id="home-decks" class="home-decks"></div>
                     </section>
                 </div>
 

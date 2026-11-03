@@ -8,6 +8,7 @@ import { confirmDialog, openDialog } from "../shared/modal.js";
 import { showToast } from "../shared/toast.js";
 import { navigate } from "../app/router.js";
 import * as api from "./api.js";
+import { deckTile } from "./tile.js";
 import { closeEditor as unmountEditor, openEditor as mountEditor } from "./editor.js";
 
 const $ = (id) => document.getElementById(id);
@@ -28,12 +29,6 @@ function formatName(key) {
   return found ? found.name : key || "";
 }
 
-function formatDate(value) {
-  const date = new Date(value);
-  if (!value || Number.isNaN(date.getTime())) return "";
-  return date.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
-}
-
 async function loadLookups() {
   const [formats, collections] = await Promise.all([
     api.getFormats().catch(() => ({ formats: [] })),
@@ -48,47 +43,15 @@ async function loadLookups() {
 // Deck list
 // ---------------------------------------------------------------------------
 
-function deckTile(deck) {
-  const art = h("div", { class: "deck-art", "aria-hidden": "true" });
-  if (deck.image_url) {
-    art.append(h("img", { src: deck.image_url, alt: "", loading: "lazy" }));
-  } else {
-    art.classList.add("deck-art-empty");
-  }
-  const meta = [formatName(deck.format), plural(deck.count || 0, "card")];
-  const updated = formatDate(deck.updated);
-  if (updated) meta.push(`Updated ${updated}`);
-
-  const open = h("button", {
-    type: "button", class: "btn btn-primary btn-compact",
-    onclick: () => openEditor(deck.id),
-  }, "Open");
-  const duplicate = h("button", {
-    type: "button", class: "btn btn-secondary btn-compact",
-    onclick: () => duplicateDeck(deck),
-  }, "Duplicate");
-  const remove = h("button", {
-    type: "button", class: "btn btn-danger btn-compact",
-    onclick: () => deleteDeck(deck),
-  }, "Delete");
-
-  const title = h("button", {
-    type: "button", class: "deck-name", onclick: () => openEditor(deck.id),
-  });
-  title.textContent = deck.name;
-  const body = h("div", { class: "deck-body" },
-    h("h3", { class: "deck-title" }, title),
-    deck.commander
-      ? h("p", { class: "deck-commander", text: deck.commander.name || deck.commander }) : null,
-    h("p", { class: "deck-meta", text: meta.join(" · ") }),
-    h("div", { class: "deck-actions" }, open, duplicate, remove));
-  return h("article", { class: "deck-tile" }, art, body);
-}
-
 function renderList() {
   const grid = $("decks-grid");
   grid.textContent = "";
-  state.decks.forEach((deck) => grid.append(deckTile(deck)));
+  state.decks.forEach((deck) => grid.append(deckTile(deck, {
+    onOpen: () => openEditor(deck.id),
+    onDuplicate: () => duplicateDeck(deck),
+    onDelete: () => deleteDeck(deck),
+    formatName,
+  })));
   $("decks-empty").hidden = state.decks.length > 0;
 }
 

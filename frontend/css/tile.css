@@ -1,0 +1,106 @@
+/* The deck tile. Decks uses the full tile. Home uses the compact tile. */
+
+.deck-tile {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    transition: transform var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+
+.deck-tile:hover,
+.deck-tile:focus-within {
+    transform: translateY(-3px);
+    border-color: var(--violet);
+}
+
+.deck-art {
+    aspect-ratio: 16 / 9;
+    background: linear-gradient(135deg, var(--surface-2), var(--surface));
+    overflow: hidden;
+}
+
+.deck-art img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 22%;
+    display: block;
+}
+
+.deck-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.9rem 1rem 1rem;
+}
+
+.deck-title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 1.1rem;
+    letter-spacing: 0.04em;
+}
+
+.deck-name {
+    all: unset;
+    cursor: pointer;
+    color: var(--gold);
+    overflow-wrap: anywhere;
+}
+
+.deck-name:focus-visible {
+    outline: 2px solid var(--violet);
+    outline-offset: 2px;
+}
+
+.deck-commander,
+.deck-meta {
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    overflow-wrap: anywhere;
+}
+
+/* Three buttons share one row. The width rule beats the phone rule in base.css. */
+.deck-actions {
+    display: flex;
+    gap: 0.4rem;
+    margin-top: 0.6rem;
+}
+
+.deck-actions .btn {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+    padding: 0.5rem 0.6rem;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+}
+
+/* The compact tile is one button. */
+.deck-tile-compact {
+    appearance: none;
+    padding: 0;
+    font: inherit;
+    text-align: left;
+    color: inherit;
+    cursor: pointer;
+}
+
+.deck-tile-compact:focus-visible {
+    outline: 2px solid var(--violet);
+    outline-offset: 2px;
+}
+
+.deck-tile-compact .deck-body {
+    padding: 0.7rem 0.85rem 0.8rem;
+}
+
+.deck-tile-compact .deck-title {
+    color: var(--gold);
+    font-size: 1rem;
+    overflow-wrap: anywhere;
+}

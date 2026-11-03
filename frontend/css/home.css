@@ -1,0 +1,237 @@
+/* The Home screen. Scoped under #home-view. */
+
+#home-view .home-head {
+    margin-bottom: 1.5rem;
+}
+
+#home-view .home-title {
+    font-family: var(--font-display);
+    font-size: 1.9rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: var(--gold);
+    margin-bottom: 0.3rem;
+}
+
+#home-view .home-lede {
+    color: var(--text-dim);
+    font-size: 0.92rem;
+}
+
+/* Each section enters with a short stagger. The reduced-motion rule in tokens.css turns it off. */
+#home-view.active .home-head,
+#home-view.active .home-section {
+    animation: home-in var(--dur-base) var(--ease-out) both;
+}
+
+#home-view.active .home-section:nth-of-type(1) { animation-delay: calc(var(--dur-fast) * 0.4); }
+#home-view.active .home-section:nth-of-type(2) { animation-delay: calc(var(--dur-fast) * 0.8); }
+#home-view.active .home-section:nth-of-type(3) { animation-delay: calc(var(--dur-fast) * 1.2); }
+#home-view.active .home-section:nth-of-type(4) { animation-delay: calc(var(--dur-fast) * 1.6); }
+
+@keyframes home-in {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+#home-view .home-section {
+    margin-bottom: 1.5rem;
+}
+
+#home-view .home-section:not(.home-quick) {
+    padding: 1.25rem 1.4rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+}
+
+#home-view .home-section-title {
+    font-family: var(--font-display);
+    font-size: 1.2rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--gold-bright);
+    margin: 0 0 0.9rem;
+}
+
+#home-view .home-section-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem 1rem;
+    margin-bottom: 0.9rem;
+}
+
+#home-view .home-section-head .home-section-title {
+    margin: 0;
+}
+
+#home-view .home-link {
+    color: var(--gold);
+    font-size: 0.85rem;
+    text-decoration: none;
+    border-bottom: 1px solid var(--gold-dim);
+}
+
+#home-view .home-link:hover,
+#home-view .home-link:focus-visible {
+    color: var(--gold-bright);
+}
+
+#home-view .home-empty {
+    color: var(--text-dim);
+    font-size: 0.92rem;
+}
+
+/* Quick actions */
+#home-view .home-quick {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+#home-view .btn {
+    display: inline-block;
+    text-align: center;
+    text-decoration: none;
+}
+
+/* Card data */
+#home-view .home-data {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1rem 2rem;
+}
+
+#home-view .home-status {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    flex: 1 1 260px;
+    font-weight: 600;
+}
+
+#home-view .status-dot {
+    flex: none;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: var(--error);
+    box-shadow: 0 0 12px var(--error);
+    animation: home-pulse calc(var(--dur-slow) * 3.5) var(--ease-in-out) infinite;
+}
+
+#home-view .status-dot.ready {
+    background: var(--success);
+    box-shadow: 0 0 12px var(--success);
+}
+
+@keyframes home-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.45; }
+}
+
+#home-view .home-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 2rem;
+    margin: 0;
+}
+
+#home-view .home-facts dt {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+}
+
+#home-view .home-facts dd {
+    margin: 0.15rem 0 0;
+    font-family: var(--font-mono);
+    font-size: 1.05rem;
+    color: var(--gold-bright);
+}
+
+#home-view .home-progress {
+    margin-top: 1rem;
+}
+
+#home-view .home-progress .progress-text {
+    margin-top: 0.4rem;
+}
+
+/* Collections */
+#home-view .collection-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem 1rem;
+    padding: 0.8rem 1rem;
+    margin-bottom: 0.6rem;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+}
+
+#home-view .collection-row:last-child {
+    margin-bottom: 0;
+}
+
+#home-view .collection-row-icon {
+    width: 26px;
+    height: 26px;
+}
+
+#home-view .collection-row-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    flex: 1 1 180px;
+    min-width: 0;
+}
+
+#home-view .collection-row-name {
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
+#home-view .collection-row-meta {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+}
+
+#home-view .collection-row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+#home-view .collection-row-actions .btn {
+    width: auto;
+    padding: 0.5rem 0.9rem;
+}
+
+/* Recent decks */
+#home-view .home-decks {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+@media (max-width: 768px) {
+    #home-view .home-section:not(.home-quick) {
+        padding: 1rem;
+    }
+
+    #home-view .home-quick .btn {
+        flex: 1 1 auto;
+        width: auto;
+    }
+
+    #home-view .home-data > .btn {
+        width: 100%;
+    }
+}
