@@ -195,3 +195,74 @@ def test_collection_export_legacy_without_rows_gives_409(export_env):
 def test_collection_export_bad_and_unknown_ids(export_env):
     assert client.get("/api/collection/NOT_VALID!/export").status_code == 400
     assert client.get("/api/collection/ffff-0000/export").status_code == 404
+
+
+def sse_events(response):
+    """Parse the `data:` lines of an event stream into a list of dicts."""
+    return [json.loads(line[len("data: "):])
+            for line in response.text.splitlines() if line.startswith("data: ")]
+
+
+@pytest.fixture
+def stream_env(overrides, tmp_path):
+    store, bulk = overrides
+    processor = CSVProcessor(progress_dir=str(tmp_path / "progress"))
+    app.dependency_overrides[get_csv_processor] = lambda: processor
+    return store, bulk
+
+
+def make_csv(matched, unknown=0, empty=0):
+    lines = ["Name,Scryfall ID"]
+    lines += [f"Card{i},id-{i}" for i in range(matched)]
+    lines += [f"Ghost{i},nope-{i}" for i in range(unknown)]
+    lines += [f"Blank{i}," for i in range(empty)]
+    return "\n".join(lines) + "\n"
+
+
+def test_process_stream_reports_progress_and_result(stream_env):
+    store, bulk = stream_env
+    bulk.cards.update({f"id-{i}": index_card(f"Card{i}", "1.00") for i in range(23)})
+    csv_text = make_csv(23, unknown=1, empty=1)
+    events = sse_events(client.post(
+        "/api/process/stream", files={"file": ("mine.csv", csv_text)}))
+    progress = [e for e in events if e["type"] == "progress"]
+    assert [e["current"] for e in progress] == [10, 20, 25]
+    assert progress[-1]["total"] == 25
+    done = events[-1]
+    assert done["type"] == "done"
+    assert set(done["result"]) == {"job_id", "status", "total_processed",
+                                   "success_count", "error_count", "errors"}
+    assert done["result"]["success_count"] == 23
+    assert {e["error"] for e in done["result"]["errors"]} == {
+        "not_found", "missing_scryfall_id"}
+    assert store.get_collection(done["result"]["job_id"]) is not None
+
+
+def test_process_stream_bad_csv_ends_with_error(stream_env):
+    events = sse_events(client.post(
+        "/api/process/stream", files={"file": ("x.csv", "Name\nBolt\n")}))
+    assert events[-1] == {"type": "error",
+                          "detail": "CSV must contain 'Scryfall ID' column"}
+
+
+def test_process_stream_bad_encoding_ends_with_error(stream_env):
+    events = sse_events(client.post(
+        "/api/process/stream", files={"file": ("x.csv", b"\xff\xfe\x00bad")}))
+    assert events[-1]["type"] == "error"
+
+
+def test_process_stream_without_bulk_data_is_400(overrides):
+    store, bulk = overrides
+    bulk.cards = {}
+    assert client.post("/api/process/stream",
+                       files={"file": ("x.csv", "a")}).status_code == 400
+
+
+def test_process_stream_5000_rows(stream_env):
+    store, bulk = stream_env
+    bulk.cards.update({f"id-{i}": index_card(f"Card{i}", "1.00") for i in range(4850)})
+    events = sse_events(client.post(
+        "/api/process/stream",
+        files={"file": ("big.csv", make_csv(4850, unknown=150))}))
+    assert len([e for e in events if e["type"] == "progress"]) == 500
+    assert events[-1]["result"]["error_count"] == 150

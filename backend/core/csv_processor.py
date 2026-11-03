@@ -128,7 +128,19 @@ class CSVProcessor:
         progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
         job_id: Optional[str] = None
     ) -> ProcessResult:
+        """Process CSV and enrich with card data (async wrapper)."""
+        return self.process_csv_sync(csv_content, bulk_data, progress_callback, job_id)
+
+    def process_csv_sync(
+        self,
+        csv_content: str,
+        bulk_data: Dict[str, dict],
+        progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
+        job_id: Optional[str] = None
+    ) -> ProcessResult:
         """Process CSV and enrich with card data.
+
+        This blocks. Run it in a worker thread when the caller is async.
 
         Args:
             csv_content: CSV file content as string

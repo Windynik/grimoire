@@ -250,6 +250,91 @@ async def process_csv(
     return result
 
 
+@router.post("/process/stream")
+async def process_csv_stream(
+    file: UploadFile = File(...),
+    bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager),
+    csv_processor: CSVProcessor = Depends(get_csv_processor),
+    store: CollectionStore = Depends(get_collection_store),
+):
+    """Upload and process a CSV file. Stream progress as server-sent events."""
+    bulk_data = await bulk_data_manager.load_bulk_data()
+
+    if not bulk_data:
+        raise HTTPException(
+            status_code=400,
+            detail="Bulk data not available. Please download cache first."
+        )
+
+    content = await file.read()
+    filename = file.filename or ""
+
+    def sse(payload: dict) -> str:
+        return f"data: {json.dumps(payload)}\n\n"
+
+    async def generate():
+        try:
+            csv_content = content.decode('utf-8')
+        except UnicodeDecodeError:
+            yield sse({"type": "error", "detail": "File must be UTF-8 encoded text"})
+            return
+
+        loop = asyncio.get_running_loop()
+        queue: asyncio.Queue = asyncio.Queue()
+
+        def on_progress(info: dict):
+            loop.call_soon_threadsafe(queue.put_nowait, {"type": "progress", **info})
+
+        worker = asyncio.ensure_future(asyncio.to_thread(
+            csv_processor.process_csv_sync, csv_content, bulk_data, on_progress))
+        worker.add_done_callback(
+            lambda _: loop.call_soon_threadsafe(queue.put_nowait, None))
+
+        last_current = None
+        total = None
+        while True:
+            item = await queue.get()
+            if item is None:
+                break
+            last_current, total = item["current"], item["total"]
+            yield sse(item)
+
+        try:
+            result = worker.result()
+        except Exception as exc:
+            yield sse({"type": "error", "detail": str(exc) or "Processing failed"})
+            return
+
+        if result.status == "error":
+            detail = (result.errors[0].get("error") if result.errors else None)
+            yield sse({"type": "error", "detail": detail or "Processing failed"})
+            return
+
+        if last_current != result.total_processed:
+            yield sse({"type": "progress", "current": result.total_processed,
+                       "total": result.total_processed, "current_card": "",
+                       "errors": result.error_count})
+
+        if hasattr(result, '_enriched_rows'):
+            store.store_collection(
+                result.job_id, result._enriched_rows, bulk_data,
+                source_name=filename,
+                original_headers=getattr(result, '_original_headers', None),
+                original_rows=getattr(result, '_original_rows', None),
+            )
+
+        yield sse({"type": "done", "result": {
+            "job_id": result.job_id,
+            "status": result.status,
+            "total_processed": result.total_processed,
+            "success_count": result.success_count,
+            "error_count": result.error_count,
+            "errors": result.errors,
+        }})
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
+
+
 @router.get("/download/{job_id}")
 async def download_result(job_id: str):
     """Download processed CSV file."""
