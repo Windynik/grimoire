@@ -8,7 +8,7 @@
 import * as api from "./api.js";
 import { h } from "../shared/dom.js";
 import { reducedMotion } from "../shared/motion.js";
-import { pickModel } from "../shared/models.js";
+import { ENGINE_ONLY, chooseModel, readSettings } from "../shared/settings.js";
 import { agentResultFits, snapshotDeck } from "./model.js";
 
 const MAX_LENGTH = 500;
@@ -124,7 +124,9 @@ export function renderAgent(root, state) {
   setEnabled();
 
   api.getAiStatus().then((ai) => {
-    model = pickModel(ai);
+    // Engine-only means no model: the notice shows and the panel sends no request.
+    const chosen = chooseModel(ai, readSettings().model);
+    model = chosen === ENGINE_ONLY ? null : chosen;
   }, () => {
     model = null;
   }).then(setEnabled);

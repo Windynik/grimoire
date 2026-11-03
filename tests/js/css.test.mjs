@@ -237,6 +237,14 @@ test("tokens.css has the reduced-motion fallback", () => {
   assert.doesNotMatch(base.text, /prefers-reduced-motion/, "the global rule stays in tokens.css");
 });
 
+test("reduced motion stills the hover and press transforms", () => {
+  const css = tokensCss();
+  for (const selector of [".btn:active:not(:disabled)", ".btn-primary:hover:not(:disabled)", ".mana:hover"]) {
+    assert.ok(css.includes(selector), `tokens.css stills ${selector}`);
+  }
+  assert.match(css, /transform:\s*none\s*!important/);
+});
+
 function jsFiles(dir) {
   const out = [];
   for (const name of readdirSync(dir)) {

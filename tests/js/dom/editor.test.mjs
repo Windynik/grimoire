@@ -101,6 +101,58 @@ test("an agent result applies, saves, and undoes in one step", async () => {
   assert.deepEqual(names(puts.at(-1).sections.main), ["Card A"]);
 });
 
+test("the agent sends the saved model", async () => {
+  window.localStorage.setItem("grimoire.settings", JSON.stringify({ model: "other:1b" }));
+  try {
+    await openEditor({
+      "GET /api/ai/status": () => ({ json: { ...AI_UP, models: ["qwen3.5:9b", "other:1b"], default_model: "qwen3.5:9b" } }),
+      "POST /api/decks/d1/agent": () => ({ json: { reply: "Fine.", swaps: [], cuts: [], sections: deckRecord().sections } }),
+    });
+    click(document.querySelector('[data-editor="side-tab"][data-side="agent"]'));
+    const input = document.querySelector(".agent-input");
+    await app.until(() => !input.disabled);
+    input.value = "Any change?";
+    click(document.querySelector(".agent-send"));
+    await app.until(() => app.fetchLog.some((req) => req.path === "/api/decks/d1/agent"));
+    const request = app.fetchLog.find((req) => req.path === "/api/decks/d1/agent");
+    assert.equal(request.body.model, "other:1b");
+  } finally {
+    window.localStorage.removeItem("grimoire.settings");
+  }
+});
+
+test("engine-only mode shows the notice and sends no request", async () => {
+  window.localStorage.setItem("grimoire.settings", JSON.stringify({ model: "none" }));
+  try {
+    let asked = 0;
+    await openEditor({ "GET /api/ai/status": () => { asked += 1; return { json: AI_UP }; } });
+    click(document.querySelector('[data-editor="side-tab"][data-side="agent"]'));
+    const notice = document.querySelector(".agent-notice");
+    await app.until(() => asked > 0);
+    await app.settle();
+    assert.equal(notice.hidden, false);
+    assert.equal(document.querySelector(".agent-input").disabled, true);
+    assert.ok(!app.fetchLog.some((req) => req.path === "/api/decks/d1/agent"));
+  } finally {
+    window.localStorage.removeItem("grimoire.settings");
+  }
+});
+
+test("without the recommended model the agent shows the notice", async () => {
+  let asked = 0;
+  await openEditor({
+    "GET /api/ai/status": () => {
+      asked += 1;
+      return { json: { ...AI_UP, models: ["heavy:70b"], default_model: "heavy:70b" } };
+    },
+  });
+  click(document.querySelector('[data-editor="side-tab"][data-side="agent"]'));
+  await app.until(() => asked > 0);
+  await app.settle();
+  assert.equal(document.querySelector(".agent-notice").hidden, false);
+  assert.equal(document.querySelector(".agent-input").disabled, true);
+});
+
 test("a search result adds to the main section", async () => {
   await openEditor({
     "GET /api/cards/search": () => ({

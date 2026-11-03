@@ -177,3 +177,39 @@ test("Import another returns to Upload and clears the input", async () => {
   assert.ok(visible("#import-upload"));
   assert.ok(!visible("#import-summary"));
 });
+
+test("the first wait reads Reading the card data", async () => {
+  const stream = openStream();
+  await setup({ stream });
+  choose("mine.csv");
+  await app.until(() => visible("#import-progress"));
+  assert.match(text("#import-row-text"), /Reading the card data/);
+  assert.doesNotMatch(text("#import-row-text"), /Row 0 of 0/);
+
+  stream.send(progress(5, 25, "Sol Ring"));
+  await app.until(() => /Row 5 of 25/.test(text("#import-row-text")));
+  stream.send(done([]));
+  stream.end();
+  await app.until(() => visible("#import-summary"));
+});
+
+test("a connection reset after the last chunk keeps the summary", async () => {
+  let controller;
+  const body = new ReadableStream({ start(c) { controller = c; } });
+  await setup({ stream: { body, headers: { "content-type": "text/event-stream" } } });
+  choose("mine.csv");
+  await app.until(() => visible("#import-progress"));
+  controller.enqueue(sse(done([])));
+  await app.until(() => visible("#import-summary"));
+  const log = console.error;
+  console.error = () => {}; // The import code logs the reset.
+  try {
+    controller.error(new Error("reset"));
+    await app.settle();
+    await app.settle();
+  } finally {
+    console.error = log;
+  }
+  assert.ok(visible("#import-summary"), "the summary stays");
+  assert.deepEqual(toasts(), []);
+});

@@ -28,7 +28,7 @@ python main.py
 The app runs at **http://localhost:8133**.
 
 1. **Download card data** — on *Home*, press *Download card data* (about 100 MB, one time).
-2. **Import your collection** — open *Collection*, press *Import*, and drop in your ManaBox export. The `examples/` folder has a sample file.
+2. **Import your collection** — open *Collection*, press *Import CSV*, and drop in your ManaBox export. The `examples/` folder has a sample file.
 3. **Browse** — use the *Collection* viewer to explore your cards with images, prices, and filters.
 4. **Forge a deck** — open *Forge*, pick a format (and optionally a commander), and start the forge.
 
@@ -37,7 +37,7 @@ The app runs at **http://localhost:8133**.
 The top bar has five screens. Each screen has its own address, such as `#home` or `#collection`.
 
 - **Home** — shows the card data status, your collections, and your recent decks. You can download the card data here.
-- **Collection** — the viewer for your cards or for all cards in the archive. It has name search, sorting, a shuffle button, and filters for card type, color, rarity, foil, format legality, and color identity. A card flips to show its other face. The *Import* button opens the importer. The importer shows live progress and a summary of the rows it could not match. It also exports the enhanced CSV.
+- **Collection** — the viewer for your cards or for all cards in the archive. It has name search, sorting, a shuffle button, and filters for card type, color (by color identity), rarity, foil, and format legality. A card flips to show its other face. The *Import CSV* button opens the importer. The importer shows live progress and a summary of the rows it could not match. It also exports the enhanced CSV.
 - **Forge** — builds a deck from the cards you own (see below).
 - **Decks** — lists your saved decks and opens the editor (see below).
 - **Settings** — shows the Ollama status, picks the model (Automatic, Engine only, or one installed model), sets how often the forge asks you a question, and clears the card data.

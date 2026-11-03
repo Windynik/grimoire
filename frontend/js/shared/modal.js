@@ -30,14 +30,22 @@ function closer(dialog, before, done) {
 }
 
 // Escape and a click on the backdrop close the dialog. The body wraps all content,
-// so a click that lands on the dialog itself is a backdrop click.
+// so a click that lands on the dialog itself is a backdrop click. The press must
+// start on the backdrop too: a drag that selects text in a field and ends on the
+// backdrop must not close the dialog.
 function wireDismiss(dialog, close) {
+  let pressedOnDialog = false;
+  dialog.addEventListener("pointerdown", (event) => {
+    pressedOnDialog = event.target === dialog;
+  });
   dialog.addEventListener("cancel", (event) => {
     event.preventDefault();
     close(null);
   });
   dialog.addEventListener("click", (event) => {
-    if (event.target === dialog) close(null);
+    const backdropClick = event.target === dialog && pressedOnDialog;
+    pressedOnDialog = false;
+    if (backdropClick) close(null);
   });
 }
 

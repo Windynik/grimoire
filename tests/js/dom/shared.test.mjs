@@ -87,6 +87,25 @@ test("openDialog resolves null on Escape and returns focus", async () => {
   opener.remove();
 });
 
+test("a drag from a field to the backdrop keeps the dialog open", async () => {
+  const result = modal.openDialog({
+    title: "Paste", content: document.createElement("textarea"), submitLabel: "Go",
+  });
+  const dialog = document.querySelector("dialog.dialog");
+  const field = dialog.querySelector("textarea");
+  const fire = (target, type) => target.dispatchEvent(
+    new app.window.MouseEvent(type, { bubbles: true, cancelable: true }));
+
+  fire(field, "pointerdown");
+  fire(dialog, "click");
+  assert.ok(dialog.isConnected, "a press in the field must not close the dialog");
+
+  fire(dialog, "pointerdown");
+  fire(dialog, "click");
+  assert.equal(await result, null);
+  assert.equal(dialog.isConnected, false);
+});
+
 test("openDialog keeps the dialog open when onSubmit throws", async () => {
   let calls = 0;
   const result = modal.openDialog({

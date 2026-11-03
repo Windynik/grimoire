@@ -137,6 +137,29 @@ test("the Decks link from an open editor shows the list", async () => {
   assert.deepEqual(current(), ["decks"]);
 });
 
+test("the window scrolls to the top on a new hash only", async () => {
+  link("home").click();
+  await app.until(() => view("home").classList.contains("active"));
+  const calls = [];
+  window.scrollTo = (...args) => calls.push(args);
+  link("collection").click();
+  await app.until(() => view("collection").classList.contains("active"));
+  assert.deepEqual(calls, [[0, 0]]);
+
+  // The same hash again (a click on the open screen's link) keeps the scroll.
+  link("collection").click();
+  await app.settle();
+  await app.settle();
+  assert.equal(calls.length, 1);
+
+  // A hash change inside one screen (Decks grid to editor) scrolls to the top.
+  window.location.hash = "#decks";
+  await app.until(() => view("decks").classList.contains("active"));
+  window.location.hash = "#deck/d1";
+  await app.until(() => !document.getElementById("deck-editor").hidden);
+  assert.equal(calls.length, 3);
+});
+
 test("the old header whimsy is gone", () => {
   for (const selector of ["#header-orb", ".pip", ".mana-strip", ".tagline", "#consult-grimoire"]) {
     assert.equal(document.querySelector(selector), null, selector);

@@ -74,4 +74,11 @@
         transition-delay: 0s !important;
         scroll-behavior: auto !important;
     }
+
+    /* Hover and press states that move or scale stay still. */
+    .btn:active:not(:disabled),
+    .btn-primary:hover:not(:disabled),
+    .mana:hover {
+        transform: none !important;
+    }
 }

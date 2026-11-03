@@ -140,7 +140,7 @@ async function deleteCollection(c) {
   if (!ok) return;
 
   try {
-    const res = await fetch(`${API_BASE}/collection/${c.job_id}`, { method: "DELETE" });
+    const res = await fetch(`${API_BASE}/collection/${encodeURIComponent(c.job_id)}`, { method: "DELETE" });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
     // Forget it everywhere. The viewer reloads when its source changes.

@@ -162,7 +162,7 @@ async function loadMoreCards() {
     params.set("foil", viewer.foil);
   }
   const url = viewer.jobId
-    ? `${API_BASE}/collection/${viewer.jobId}/search?${params}`
+    ? `${API_BASE}/collection/${encodeURIComponent(viewer.jobId)}/search?${params}`
     : `${API_BASE}/cards/search?${params}`;
 
   try {
@@ -218,6 +218,7 @@ function formatName() {
 }
 
 function updateViewerContext() {
+  if (viewer.shuffled) return; // The random-hand line stays.
   if (viewer.total === null) return;
   const scope = viewer.jobId ? "your collection" : "the Scryfall archive";
   const total = viewer.total ?? 0;
@@ -241,7 +242,7 @@ function updateViewerContext() {
 
 async function shuffleCards() {
   const url = viewer.jobId
-    ? `${API_BASE}/collection/${viewer.jobId}/random?limit=30`
+    ? `${API_BASE}/collection/${encodeURIComponent(viewer.jobId)}/random?limit=30`
     : `${API_BASE}/cards/random?limit=30`;
 
   try {

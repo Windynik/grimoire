@@ -13,6 +13,7 @@ const DECK_HASH = /^#deck\/([A-Za-z0-9_-]+)$/;
 
 const screens = new Map();
 let shown = null; // the screen on view now
+let lastHash = null; // the last hash that ran
 let carried = null; // { hash, state } from navigate(), for one open() call
 let queue = Promise.resolve();
 let started = false;
@@ -87,6 +88,9 @@ async function run() {
   }
   shown = screen;
   showView(screen);
+  // A new hash opens its view at the top, not at the old scroll position.
+  if (hash !== lastHash) window.scrollTo(0, 0);
+  lastHash = hash;
   const entry = screens.get(screen);
   if (!entry || typeof entry.open !== "function") return;
   // The router does not wait for open(): a slow screen must not block the nav.

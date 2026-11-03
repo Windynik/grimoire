@@ -45,7 +45,8 @@ function showProgress(event) {
   const percent = total > 0 ? Math.min(100, Math.round((current / total) * 100)) : 0;
   $("import-progress-fill").style.transform = `scaleX(${total > 0 ? Math.min(1, current / total) : 0})`;
   $("import-progress").querySelector(".progress-bar").setAttribute("aria-valuenow", percent);
-  $("import-row-text").textContent = `Row ${current} of ${total}`;
+  // The server loads the card index first, so the total is 0 for a few seconds.
+  $("import-row-text").textContent = total > 0 ? `Row ${current} of ${total}` : "Reading the card data…";
   $("import-card-name").textContent = event.current_card || " ";
   $("import-unmatched-count").textContent = `${event.errors || 0} unmatched`;
 }
@@ -86,6 +87,7 @@ async function handleFile(file) {
   }
 
   busy = true;
+  let finished = false;
   showProgress({ current: 0, total: 0 });
   showState("progress");
 
@@ -106,7 +108,6 @@ async function handleFile(file) {
       return;
     }
 
-    let finished = false;
     await readSSE(response, (event) => {
       if (finished) return;
       if (event.type === "progress") {
@@ -122,7 +123,8 @@ async function handleFile(file) {
     if (!finished) fail(STOPPED);
   } catch (error) {
     console.error("Import error:", error);
-    fail(STOPPED);
+    // A reset after the last chunk must not wipe the summary.
+    if (!finished) fail(STOPPED);
   } finally {
     busy = false;
   }

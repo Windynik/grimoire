@@ -119,3 +119,32 @@ test("a card opens its detail", async () => {
   await app.until(() => document.querySelector("dialog[open] .card-detail-name"));
   assert.equal(text("dialog[open] .card-detail-name"), "Lightning Bolt");
 });
+
+test("reopening after a shuffle keeps the random-hand line", async () => {
+  await setup();
+  app.route("GET /api/collection/job1/random", () => ({ json: { cards: CARDS } }));
+  document.getElementById("viewer-shuffle").click();
+  await app.until(() => /random hand/.test(text("#viewer-context")));
+  open();
+  await app.until(() => app.fetchLog.some((r) => r.path === "/api/forge/formats"));
+  await app.settle();
+  assert.match(text("#viewer-context"), /random hand/);
+  assert.doesNotMatch(text("#viewer-context"), /Showing/);
+});
+
+test("job ids are encoded in the viewer URLs", async () => {
+  const odd = "job/1 x";
+  window.localStorage.clear();
+  window.localStorage.setItem("viewerSource", odd);
+  app.route("GET /api/collections", () => ({ json: { collections: [{ ...BOX, job_id: odd }] } }));
+  app.route(`GET /api/collection/${encodeURIComponent(odd)}/search`, () => ({ json: { cards: CARDS, total: 2 } }));
+  app.route(`GET /api/collection/${encodeURIComponent(odd)}/random`, () => ({ json: { cards: CARDS } }));
+  app.fetchLog.length = 0;
+  open();
+  await app.until(() => document.querySelector("#card-grid .card-item"));
+  document.getElementById("viewer-shuffle").click();
+  await app.until(() => app.fetchLog.some((r) => /\/random$/.test(r.path)));
+  const paths = app.fetchLog.filter((r) => /\/(search|random)$/.test(r.path)).map((r) => r.path);
+  assert.ok(paths.length >= 2);
+  for (const path of paths) assert.ok(path.startsWith("/api/collection/job%2F1%20x/"), path);
+});
