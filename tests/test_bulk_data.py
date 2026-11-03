@@ -109,3 +109,9 @@ def test_compact_card_keeps_collector_number():
     card = compact_card(raw_card("a", "Bolt", collector_number="141"))
     assert card["collector_number"] == "141"
     assert compact_card(raw_card("b", "Shock"))["collector_number"] == ""
+
+
+def test_compact_card_keeps_set_name():
+    card = compact_card(raw_card("a", "Bolt", set_name="Limited Edition Alpha"))
+    assert card["set_name"] == "Limited Edition Alpha"
+    assert compact_card(raw_card("b", "Shock"))["set_name"] == ""

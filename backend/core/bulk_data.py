@@ -58,6 +58,7 @@ def compact_card(card: dict) -> dict:
         "back_image_url": (back_uris or {}).get("normal", ""),
         "rarity": card.get("rarity", ""),
         "set": card.get("set", ""),
+        "set_name": card.get("set_name", ""),
         "collector_number": card.get("collector_number", ""),
         "layout": card.get("layout", ""),
         "cmc": card.get("cmc", 0),
