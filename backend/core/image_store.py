@@ -8,6 +8,7 @@ import asyncio
 import os
 import re
 import tempfile
+import time
 from pathlib import Path
 from typing import AsyncIterator, Dict, List, Optional, Tuple
 
@@ -21,9 +22,16 @@ MAX_BYTES = 2 * 1024 * 1024
 ALLOWED_TYPES = ("image/jpeg", "image/png")
 USER_AGENT = "Grimoire/1.0 (local card viewer)"
 TIMEOUT_SECONDS = 20
+CONNECT_TIMEOUT_SECONDS = 3
+OFFLINE_SECONDS = 30
+MAX_CONNECTIONS = 12
 ON_DEMAND_LIMIT = 8
 BACKGROUND_LIMIT = 4
 PROGRESS_EVERY = 10
+
+
+def is_valid_id(scryfall_id) -> bool:
+    return isinstance(scryfall_id, str) and ID_PATTERN.fullmatch(scryfall_id) is not None
 
 
 class ImageError(Exception):
@@ -33,17 +41,21 @@ class ImageError(Exception):
 class ImageStore:
     """Disk store for card images, with a download lane for each kind of caller."""
 
-    def __init__(self, root: Optional[Path] = None, transport=None):
+    def __init__(self, root: Optional[Path] = None, transport=None, clock=None):
         self.root = Path(root) if root is not None else cache_path("images")
         self.transport = transport
         self._inflight: Dict[Tuple[str, str], "asyncio.Task"] = {}
         self._semaphores: Dict[str, asyncio.Semaphore] = {}
         self._loop = None
         self._prefetching = False
+        self._clock = clock or time.monotonic
+        self._offline_until = 0.0
+        self._client: Optional[httpx.AsyncClient] = None
+        self._client_loop = None
 
     def path_for(self, scryfall_id: str, face: str) -> Path:
         """Return the file path of an image. Raise ValueError for a bad id or face."""
-        if not isinstance(scryfall_id, str) or not ID_PATTERN.match(scryfall_id):
+        if not is_valid_id(scryfall_id):
             raise ValueError("Invalid Scryfall id")
         if face not in FACES:
             raise ValueError("Invalid face")
@@ -89,6 +101,8 @@ class ImageStore:
         loop = asyncio.get_running_loop()
         task = self._inflight.get(key)
         if task is None or task.get_loop() is not loop:
+            if self._clock() < self._offline_until:
+                raise ImageError("The image server is not reachable")
             task = loop.create_task(self._download(key, path, url, background))
             self._inflight[key] = task
             task.add_done_callback(lambda t, k=key: self._forget(k, t))
@@ -110,26 +124,45 @@ class ImageStore:
         self._write(path, body)
         return path
 
+    def _get_client(self) -> httpx.AsyncClient:
+        """Return the shared client of the running loop. Create it when needed."""
+        loop = asyncio.get_running_loop()
+        if self._client is None or self._client_loop is not loop:
+            self._client = httpx.AsyncClient(
+                timeout=httpx.Timeout(TIMEOUT_SECONDS, connect=CONNECT_TIMEOUT_SECONDS),
+                headers={"User-Agent": USER_AGENT},
+                transport=self.transport,
+                limits=httpx.Limits(max_connections=MAX_CONNECTIONS),
+                follow_redirects=True)
+            self._client_loop = loop
+        return self._client
+
+    async def aclose(self) -> None:
+        """Close the shared client."""
+        client, self._client = self._client, None
+        if client is not None and self._client_loop is asyncio.get_running_loop():
+            await client.aclose()
+
     async def _get_body(self, url: str) -> bytes:
-        headers = {"User-Agent": USER_AGENT}
         try:
-            async with httpx.AsyncClient(timeout=TIMEOUT_SECONDS, headers=headers,
-                                         transport=self.transport,
-                                         follow_redirects=True) as client:
-                async with client.stream("GET", url) as response:
-                    if response.status_code != 200:
-                        raise ImageError("Bad status %s" % response.status_code)
-                    kind = response.headers.get("content-type", "").split(";")[0].strip().lower()
-                    if kind not in ALLOWED_TYPES:
-                        raise ImageError("Bad content type")
-                    declared = response.headers.get("content-length", "")
-                    if declared.isdigit() and int(declared) > MAX_BYTES:
+            async with self._get_client().stream("GET", url) as response:
+                if response.status_code != 200:
+                    raise ImageError("Bad status %s" % response.status_code)
+                kind = response.headers.get("content-type", "").split(";")[0].strip().lower()
+                if kind not in ALLOWED_TYPES:
+                    raise ImageError("Bad content type")
+                declared = response.headers.get("content-length", "")
+                if declared.isdigit() and int(declared) > MAX_BYTES:
+                    raise ImageError("Image is too large")
+                body = bytearray()
+                async for chunk in response.aiter_bytes():
+                    body.extend(chunk)
+                    if len(body) > MAX_BYTES:
                         raise ImageError("Image is too large")
-                    body = bytearray()
-                    async for chunk in response.aiter_bytes():
-                        body.extend(chunk)
-                        if len(body) > MAX_BYTES:
-                            raise ImageError("Image is too large")
+        except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
+            # Fail fast for a while. Each wait would hold a browser connection.
+            self._offline_until = self._clock() + OFFLINE_SECONDS
+            raise ImageError("Download failed: %s" % exc.__class__.__name__) from exc
         except httpx.HTTPError as exc:
             raise ImageError("Download failed: %s" % exc.__class__.__name__) from exc
         if not body:
@@ -138,17 +171,22 @@ class ImageStore:
 
     def _write(self, path: Path, body: bytes) -> None:
         """Write the file in one atomic step."""
-        path.parent.mkdir(parents=True, exist_ok=True)
-        fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
+        tmp = None
         try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
             with os.fdopen(fd, "wb") as handle:
                 handle.write(body)
             os.replace(tmp, path)
         except OSError as exc:
             raise ImageError("Could not store the image") from exc
         finally:
-            if os.path.exists(tmp):
+            if tmp and os.path.exists(tmp):
                 os.unlink(tmp)
+
+    @property
+    def prefetch_running(self) -> bool:
+        return self._prefetching
 
     def begin_prefetch(self) -> bool:
         """Claim the single prefetch run. Return False when one already runs."""
@@ -208,7 +246,7 @@ def priority_targets(collections, decks, index: dict) -> List[Tuple[str, str, st
     for ids in groups:
         for face, field in (("front", "image_url"), ("back", "back_image_url")):
             for sid in ids:
-                if not sid or (sid, face) in seen:
+                if not is_valid_id(sid) or (sid, face) in seen:
                     continue
                 card = index.get(sid)
                 url = card.get(field) if card else ""

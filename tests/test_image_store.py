@@ -40,7 +40,7 @@ def test_path_layout(tmp_path):
 
 @pytest.mark.parametrize("sid,face", [
     ("../etc/passwd", "front"), ("AAAAAAAA-0000-0000-0000-000000000001", "front"),
-    ("short", "back"), (A, "side"), (A, "../front"),
+    ("short", "back"), (A, "side"), (A, "../front"), (A + "\n", "front"),
 ])
 def test_bad_id_or_face_raises(tmp_path, sid, face):
     with pytest.raises(ValueError):
@@ -189,6 +189,72 @@ async def test_on_demand_joins_a_background_download(tmp_path):
     assert len(calls) == 1
 
 
+@pytest.mark.asyncio
+async def test_shared_client_and_aclose(tmp_path):
+    store = make_store(tmp_path, jpeg_handler([]))
+    await store.fetch(A, "front", URL % "a")
+    first = store._client
+    await store.fetch(B, "front", URL % "b")
+    assert store._client is first
+    await store.aclose()
+    assert first.is_closed and store._client is None
+    await store.aclose()  # safe to repeat
+
+
+@pytest.mark.asyncio
+async def test_connect_timeout_fails_fast_then_recovers(tmp_path):
+    clock = {"now": 100.0}
+    calls = []
+
+    def handler(request):
+        calls.append(1)
+        if len(calls) == 1:
+            raise httpx.ConnectTimeout("black hole")
+        return httpx.Response(200, content=JPEG, headers={"content-type": "image/jpeg"})
+
+    store = ImageStore(root=tmp_path / "images", transport=httpx.MockTransport(handler),
+                       clock=lambda: clock["now"])
+    with pytest.raises(ImageError):
+        await store.fetch(A, "front", URL % "a")
+    with pytest.raises(ImageError):
+        await store.fetch(B, "front", URL % "b")
+    assert len(calls) == 1  # the second fetch made no request
+    clock["now"] += 31
+    assert (await store.fetch(B, "front", URL % "b")).is_file()
+    assert len(calls) == 2
+    await store.aclose()
+
+
+@pytest.mark.asyncio
+async def test_offline_window_still_serves_stored_files(tmp_path):
+    def handler(request):
+        raise httpx.ConnectError("down")
+
+    store = make_store(tmp_path, handler)
+    path = store.path_for(A, "front")
+    path.parent.mkdir(parents=True)
+    path.write_bytes(JPEG)
+    with pytest.raises(ImageError):
+        await store.fetch(B, "front", URL % "b")
+    assert await store.fetch(A, "front", URL % "a") == path
+    await store.aclose()
+
+
+def test_connect_timeout_is_short():
+    import backend.core.image_store as mod
+    assert mod.CONNECT_TIMEOUT_SECONDS == 3 and mod.TIMEOUT_SECONDS == 20
+
+
+@pytest.mark.asyncio
+async def test_write_error_becomes_image_error(tmp_path):
+    blocker = tmp_path / "images"
+    blocker.write_text("a file, not a directory")
+    store = ImageStore(root=blocker, transport=httpx.MockTransport(jpeg_handler([])))
+    with pytest.raises(ImageError):
+        await store.fetch(A, "front", URL % "a")
+    await store.aclose()
+
+
 # ---- priority ----
 
 class FakeCollections:
@@ -268,6 +334,13 @@ def test_front_before_back_within_group_and_no_duplicates():
     assert [(t[0], t[1]) for t in result] == [
         (A, "front"), (B, "front"), (A, "back"), (B, "back"), (C, "front")]
     assert len(result) == len(set((t[0], t[1]) for t in result))
+
+
+def test_malformed_ids_are_filtered():
+    index = {A: card(A), "bad-id": card("x"), A + "\n": card("y")}
+    decks = FakeDecks([deck("d", main=["bad-id", A + "\n", A])])
+    cols = FakeCollections([("c", [{"scryfall_id": "oops", "quantity": 1, "name": "n"}])])
+    assert ids_of(priority_targets(cols, decks, index)) == [A]
 
 
 def test_skips_unknown_ids_missing_urls_and_basic_lands():

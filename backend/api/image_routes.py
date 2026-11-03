@@ -1,3 +1,4 @@
+import asyncio
 import json
 from typing import Dict
 
@@ -35,9 +36,13 @@ async def image_status(
 ):
     """Count the stored images and the images of owned cards."""
     index = await bulk_data_manager.load_bulk_data()
-    targets = priority_targets(collections, decks, index)
-    cached = sum(1 for sid, face, _ in targets if store.has(sid, face))
-    return {**store.stats(), "owned_total": len(targets), "owned_cached": cached}
+
+    def count():
+        targets = priority_targets(collections, decks, index)
+        cached = sum(1 for sid, face, _ in targets if store.has(sid, face))
+        return {**store.stats(), "owned_total": len(targets), "owned_cached": cached}
+
+    return await asyncio.to_thread(count)
 
 
 @router.post("/images/prefetch")
@@ -48,17 +53,20 @@ async def prefetch_images(
     decks: DeckStore = Depends(get_deck_store),
 ):
     """Download the images of owned cards in the background. Stream the progress."""
-    if not store.begin_prefetch():
+    if store.prefetch_running:
         return JSONResponse(status_code=409,
                             content={"detail": "A download is already running."})
-    try:
-        index = await bulk_data_manager.load_bulk_data()
-        targets = priority_targets(collections, decks, index)
-    except BaseException:
-        store.end_prefetch()
-        raise
+    index = await bulk_data_manager.load_bulk_data()
+    targets = await asyncio.to_thread(priority_targets, collections, decks, index)
 
     async def generate():
+        # Claim the run here, not in the route. A response that is dropped before
+        # the body starts never runs this code, so the claim cannot leak.
+        if not store.begin_prefetch():
+            event = {"type": "done", "done": 0, "total": 0, "failed": 0, "skipped": 0,
+                     "busy": True}
+            yield "data: %s\n\n" % json.dumps(event)
+            return
         events = prefetch_events(store, targets)
         try:
             async for event in events:

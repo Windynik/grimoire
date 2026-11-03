@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 import uvicorn
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -5,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.api.routes import router
 from backend.api.forge_routes import router as forge_router
 from backend.api.deck_routes import router as deck_router
+from backend.api.dependencies import get_image_store
 from backend.api.image_routes import router as image_router
 from pathlib import Path
 
@@ -23,12 +26,19 @@ class RevalidatedStaticFiles(StaticFiles):
         return response
 
 
+@asynccontextmanager
+async def lifespan(_app):
+    yield
+    await get_image_store().aclose()
+
+
 # Create FastAPI app
 app = FastAPI(
     title="Grimoire",
     description="Offline MTG companion: enrich ManaBox exports with Scryfall data, "
                 "browse your collection, and forge decks from cards you own",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan,
 )
 
 # CORS middleware (localhost only)

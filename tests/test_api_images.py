@@ -110,13 +110,49 @@ def test_prefetch_events_and_skips(setup):
     assert len(calls) == 2
 
 
-def test_second_prefetch_gets_409_while_one_runs(setup):
+@pytest.mark.asyncio
+async def test_second_prefetch_gets_409_while_a_real_run_is_active(tmp_path):
+    gate = asyncio.Event()
+    started = asyncio.Event()
+
+    async def handler(request):
+        started.set()
+        await gate.wait()
+        return httpx.Response(200, content=JPEG, headers={"content-type": "image/jpeg"})
+
+    store = ImageStore(root=tmp_path / "images", transport=httpx.MockTransport(handler))
+    index = {A: card(A)}
+    app.dependency_overrides[get_image_store] = lambda: store
+    app.dependency_overrides[get_bulk_data_manager] = lambda: FakeBulk(index)
+    app.dependency_overrides[get_deck_store] = lambda: FakeDecks([deck("d", main=[A])])
+    app.dependency_overrides[get_collection_store] = lambda: FakeCollections([])
+    try:
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://t") as client:
+            first = asyncio.ensure_future(client.post("/api/images/prefetch"))
+            await asyncio.wait_for(started.wait(), 2)
+            second = await client.post("/api/images/prefetch")
+            assert second.status_code == 409
+            assert second.json() == {"detail": "A download is already running."}
+            gate.set()
+            response = await first
+        assert events_of(response)[-1]["done"] == 1
+        assert not store.prefetch_running
+        await store.aclose()
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_dropped_response_does_not_leak_the_guard(setup):
+    from backend.api.image_routes import prefetch_images
     store, _, _ = setup
-    assert store.begin_prefetch()
+    index = {A: card(A)}
+    response = await prefetch_images(
+        store=store, bulk_data_manager=FakeBulk(index),
+        collections=FakeCollections([]), decks=FakeDecks([deck("d", main=[A])]))
+    assert response.status_code == 200
+    del response  # dropped before the body started
+    assert not store.prefetch_running
     with TestClient(app) as client:
-        response = client.post("/api/images/prefetch")
-        assert response.status_code == 409
-        assert response.json() == {"detail": "A download is already running."}
-        store.end_prefetch()
-        assert client.post("/api/images/prefetch").status_code == 200
-        assert store.begin_prefetch()  # the guard was released after the stream
+        assert events_of(client.post("/api/images/prefetch"))[-1]["type"] == "done"
