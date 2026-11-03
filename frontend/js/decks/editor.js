@@ -7,6 +7,8 @@
 import * as api from "./api.js";
 import { applyOp, History, SaveQueue, sameDeck, SECTIONS } from "./model.js";
 import { h, safeManaCost } from "../shared/dom.js";
+import { showCardDetail } from "../shared/card.js";
+import { showToast } from "../shared/toast.js";
 import { renderAgent } from "./agent.js";
 import { renderExplanation } from "../forge/feed.js";
 import { renderExportMenu } from "./exportmenu.js";
@@ -26,10 +28,6 @@ const STATUS_TEXT = {
 };
 
 let session = null;
-
-function toast(message, type) {
-  if (typeof window.showToast === "function") window.showToast(message, type);
-}
 
 function readGroupMode() {
   try {
@@ -249,7 +247,7 @@ function createSession(host, deckId, options) {
 
   queue.onError = (error) => {
     if (closed) {
-      toast(`Could not save the deck: ${error.message}`, "error");
+      showToast(`Could not save the deck: ${error.message}`, "error");
       return;
     }
     // A 4xx answer does not change on a retry.
@@ -283,16 +281,14 @@ function createSession(host, deckId, options) {
 
   function showCard(card) {
     const info = (state.analysis.cards || {})[card.scryfall_id || `basic:${card.name}`] || {};
-    if (window.grimoireCard && window.grimoireCard.showCardDetail) {
-      window.grimoireCard.showCardDetail({
-        name: card.name,
-        image_url: card.image_url || "",
-        mana_cost: safeManaCost(card.mana_cost),
-        type_line: card.type_line || "",
-        price: card.price || 0,
-        quantity: info.owned || 0,
-      });
-    }
+    showCardDetail({
+      name: card.name,
+      image_url: card.image_url || "",
+      mana_cost: safeManaCost(card.mana_cost),
+      type_line: card.type_line || "",
+      price: card.price || 0,
+      quantity: info.owned || 0,
+    });
   }
 
   function render() {
@@ -434,7 +430,7 @@ function createSession(host, deckId, options) {
       state.forge = { backbone: record.backbone || null, explanation: record.explanation || "" };
       history.push(state);
       renderAgent(view.agent, state);
-      renderExportMenu(view.exportMenu, deckId, { beforeExport: saveBeforeExport, toast });
+      renderExportMenu(view.exportMenu, deckId, { beforeExport: saveBeforeExport, toast: showToast });
       view.name.value = deck.name;
       fillCollections(collections.collections);
       setStatus("saved");

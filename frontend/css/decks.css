@@ -1,4 +1,4 @@
-/* Decks view and its dialogs. Scoped under #decks-view and .decks-dialog. */
+/* Decks view and its dialogs. Scoped under #decks-view. */
 
 #decks-view .decks-list[hidden],
 #decks-view .deck-editor[hidden],
@@ -117,84 +117,6 @@
     flex-wrap: wrap;
     gap: 0.5rem;
     margin-top: 0.6rem;
-}
-
-/* Dialogs */
-.decks-dialog {
-    width: min(520px, calc(100vw - 2rem));
-    max-height: calc(100vh - 2rem);
-    padding: 1.5rem;
-    color: var(--text);
-    background: var(--surface);
-    border: 1px solid var(--border-bright);
-    border-radius: var(--radius-lg);
-    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.7);
-}
-
-.decks-dialog::backdrop {
-    background: rgba(5, 4, 2, 0.8);
-}
-
-.decks-dialog .decks-form {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
-
-.decks-dialog .decks-dialog-title {
-    font-family: var(--font-display);
-    font-size: 1.4rem;
-    letter-spacing: 0.05em;
-    color: var(--gold);
-}
-
-.decks-dialog .decks-field {
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-    font-size: 0.85rem;
-    color: var(--text-dim);
-}
-
-.decks-dialog input,
-.decks-dialog select,
-.decks-dialog textarea {
-    width: 100%;
-    padding: 0.55rem 0.7rem;
-    font: inherit;
-    font-size: 0.95rem;
-    color: var(--text);
-    background: var(--surface-2);
-    border: 1px solid var(--border-bright);
-    border-radius: var(--radius-sm);
-}
-
-.decks-dialog textarea {
-    font-family: var(--font-mono);
-    font-size: 0.85rem;
-    resize: vertical;
-}
-
-.decks-dialog input:focus-visible,
-.decks-dialog select:focus-visible,
-.decks-dialog textarea:focus-visible {
-    outline: 2px solid var(--violet);
-    outline-offset: 1px;
-}
-
-.decks-dialog .decks-dialog-error {
-    color: var(--error);
-    font-size: 0.9rem;
-}
-
-.decks-dialog .decks-dialog-error[hidden] {
-    display: none;
-}
-
-.decks-dialog .decks-dialog-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 0.6rem;
 }
 
 /* Deck editor */

@@ -3,6 +3,9 @@
 // Deck names, card names and server text go in with textContent only.
 
 import { h } from "../shared/dom.js";
+import { plural } from "../shared/format.js";
+import { confirmDialog, openDialog } from "../shared/modal.js";
+import { showToast } from "../shared/toast.js";
 import * as api from "./api.js";
 // Defines window.grimoireEditor before the first hash route opens a deck.
 import "./editor.js";
@@ -19,10 +22,6 @@ const state = {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function toast(message, type) {
-  if (typeof window.showToast === "function") window.showToast(message, type);
-}
-
 function formatName(key) {
   const found = state.formats.find((f) => f.key === key);
   return found ? found.name : key || "";
@@ -32,10 +31,6 @@ function formatDate(value) {
   const date = new Date(value);
   if (!value || Number.isNaN(date.getTime())) return "";
   return date.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
-}
-
-function plural(count, word) {
-  return `${count} ${word}${count === 1 ? "" : "s"}`;
 }
 
 async function loadLookups() {
@@ -124,21 +119,26 @@ async function loadList() {
 async function duplicateDeck(deck) {
   try {
     await api.duplicateDeck(deck.id);
-    toast(`Duplicated ${deck.name}`, "success");
+    showToast(`Duplicated ${deck.name}`, "success");
     await loadList();
   } catch (error) {
-    toast(`Could not duplicate the deck: ${error.message}`, "error");
+    showToast(`Could not duplicate the deck: ${error.message}`, "error");
   }
 }
 
 async function deleteDeck(deck) {
-  if (!confirm(`Delete the deck "${deck.name}"? This cannot be undone.`)) return;
+  const ok = await confirmDialog({
+    title: "Delete deck",
+    message: `Delete the deck "${deck.name}"? This cannot be undone.`,
+    confirmLabel: "Delete deck",
+  });
+  if (!ok) return;
   try {
     await api.deleteDeck(deck.id);
-    toast(`Deleted ${deck.name}`, "success");
+    showToast(`Deleted ${deck.name}`, "success");
     await loadList();
   } catch (error) {
-    toast(`Could not delete the deck: ${error.message}`, "error");
+    showToast(`Could not delete the deck: ${error.message}`, "error");
   }
 }
 
@@ -153,13 +153,13 @@ function selectOf(id, options) {
 }
 
 function field(label, control) {
-  return h("label", { class: "decks-field" }, h("span", { text: label }), control);
+  return h("label", { class: "dialog-field" }, h("span", { text: label }), control);
 }
 
-function openDialog({ title, submitLabel, extra, onSubmit }) {
+// The new deck and import dialogs share these fields. onSubmit gets the field values.
+function deckDialog({ title, submitLabel, defaultName, withText, onSubmit }) {
   const name = h("input", {
-    type: "text", id: "decks-dialog-name", maxlength: "120", required: true,
-    value: extra.defaultName,
+    type: "text", id: "decks-dialog-name", maxlength: "120", required: true, value: defaultName,
   });
   const formatKey = state.formats.some((f) => f.key === "commander") ? "commander"
     : (state.formats[0] || {}).key;
@@ -169,56 +169,31 @@ function openDialog({ title, submitLabel, extra, onSubmit }) {
     state.collections.map((c) => [c.job_id, `${c.name} (${Number(c.card_count).toLocaleString()})`]),
   ));
   if (state.collections.length) collection.value = state.collections[0].job_id;
-  const text = extra.withText
+  const text = withText
     ? h("textarea", {
       id: "decks-dialog-text", rows: "10", maxlength: "50000", required: true,
       placeholder: "1 Sol Ring\n1 Command Tower\n...",
     })
     : null;
-  const error = h("p", { class: "decks-dialog-error", role: "alert", hidden: true });
-  const submit = h("button", { type: "submit", class: "btn btn-primary" }, submitLabel);
-  const cancel = h("button", { type: "button", class: "btn btn-secondary" }, "Cancel");
-  const form = h("form", { class: "decks-form", method: "dialog" },
-    h("h2", { class: "decks-dialog-title", text: title }),
-    text ? field("Decklist", text) : null,
-    field("Name", name), field("Format", format), field("Collection", collection),
-    error, h("div", { class: "decks-dialog-actions" }, cancel, submit));
-  const dialog = h("dialog", { class: "decks-dialog" }, form);
-  document.body.append(dialog);
-  const close = () => {
-    dialog.close();
-    dialog.remove();
-  };
-  cancel.addEventListener("click", close);
-  dialog.addEventListener("cancel", (event) => {
-    event.preventDefault();
-    close();
+  return openDialog({
+    title,
+    submitLabel,
+    content: [
+      text ? field("Decklist", text) : null,
+      field("Name", name), field("Format", format), field("Collection", collection),
+    ],
+    onSubmit: () => onSubmit({
+      name: name.value.trim() || defaultName,
+      format: format.value,
+      collection_job_id: collection.value || null,
+      text: text ? text.value : undefined,
+    }),
   });
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    submit.disabled = true;
-    error.hidden = true;
-    try {
-      await onSubmit({
-        name: name.value.trim() || extra.defaultName,
-        format: format.value,
-        collection_job_id: collection.value || null,
-        text: text ? text.value : undefined,
-      });
-      close();
-    } catch (err) {
-      error.textContent = err.message;
-      error.hidden = false;
-      submit.disabled = false;
-    }
-  });
-  dialog.showModal();
-  (text || name).focus();
 }
 
 function newDeckDialog() {
-  openDialog({
-    title: "New deck", submitLabel: "Create deck", extra: { defaultName: "New deck" },
+  deckDialog({
+    title: "New deck", submitLabel: "Create deck", defaultName: "New deck",
     onSubmit: async ({ name, format, collection_job_id }) => {
       const deck = await api.createDeck({ name, format, collection_job_id });
       openEditor(deck.id, { isNew: true });
@@ -227,18 +202,18 @@ function newDeckDialog() {
 }
 
 function importDialog() {
-  openDialog({
+  deckDialog({
     title: "Import decklist", submitLabel: "Import",
-    extra: { defaultName: "Imported deck", withText: true },
+    defaultName: "Imported deck", withText: true,
     onSubmit: async ({ text, name, format, collection_job_id }) => {
       const deck = await api.importDeck({ text, name, format, collection_job_id });
       const unknown = deck.unknown || [];
       if (unknown.length) {
         const shown = unknown.slice(0, 8).join(", ");
         const more = unknown.length > 8 ? ` and ${unknown.length - 8} more` : "";
-        toast(`Imported. ${plural(unknown.length, "card")} not found: ${shown}${more}`, "info");
+        showToast(`Imported. ${plural(unknown.length, "card")} not found: ${shown}${more}`, "info");
       } else {
-        toast("Imported the decklist", "success");
+        showToast("Imported the decklist", "success");
       }
       openEditor(deck.id, { imported: true, unknown });
     },

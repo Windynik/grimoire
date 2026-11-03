@@ -3,6 +3,8 @@
 // Text goes in with textContent only. Mana costs go through the MANA_UNSAFE
 // filter before parseManaSymbols, which is the one path that sets innerHTML.
 
+import { parseManaSymbols } from "./mana.js";
+
 // Characters a mana cost can hold: "{2}{W/U}{½} // {X}". parseManaSymbols puts
 // symbol text into a title attribute, so quotes and markup must not reach it.
 const MANA_UNSAFE = /[^{}A-Za-z0-9/ ½∞]/g;
@@ -48,10 +50,8 @@ export function safeManaCost(cost) {
 export function manaNode(cost, className) {
   const span = document.createElement("span");
   if (className) span.className = className;
-  const parse = window.grimoireMana && window.grimoireMana.parseManaSymbols;
   if (!cost) return span;
   const clean = safeManaCost(cost);
-  if (typeof parse === "function") span.innerHTML = parse(clean);
-  else span.textContent = clean;
+  span.innerHTML = parseManaSymbols(clean);
   return span;
 }

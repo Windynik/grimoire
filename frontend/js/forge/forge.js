@@ -9,6 +9,7 @@ import { ForgeStage } from "./stage.js";
 import { ThoughtFeed } from "./feed.js";
 import { Timeline, STAGE_NAMES } from "./timeline.js";
 import { animate } from "../shared/motion.js";
+import { showToast } from "../shared/toast.js";
 
 const AI_OFF_MESSAGE = "Local AI is off. The engine still builds the deck. "
   + "Install Ollama and run `ollama pull qwen3.5:9b` for deeper decks.";
@@ -55,10 +56,6 @@ function option(value, label) {
   el.value = value;
   el.textContent = label;
   return el;
-}
-
-function toast(message, type) {
-  if (typeof window.showToast === "function") window.showToast(message, type);
 }
 
 function currentFormat() {
@@ -504,7 +501,7 @@ class ForgeRun {
 
   async answer(questionId, index) {
     const reply = await api.answer(state.forgeId, questionId, index);
-    if (reply && reply.accepted === false) toast("The forge already moved on from that question.", "info");
+    if (reply && reply.accepted === false) showToast("The forge already moved on from that question.", "info");
   }
 
   onAnswered(d) {
@@ -621,7 +618,7 @@ async function showResult(deckId, deckName) {
       window.grimoireDecks.openEditor(deckId, { from: "forge" });
     } catch (e) {
       console.error("Could not open the editor:", e);
-      toast(`${deckName ? `"${deckName}"` : "The deck"} is saved. Open it in the Decks tab.`, "info");
+      showToast(`${deckName ? `"${deckName}"` : "The deck"} is saved. Open it in the Decks tab.`, "info");
     }
     showSetup();
   } finally {
@@ -672,7 +669,7 @@ async function showSavedDeck(forgeId, deckId) {
   if (state.forgeId !== forgeId) return;
   if (!deck) {
     showSetup();
-    toast("That forge is no longer running.", "error");
+    showToast("That forge is no longer running.", "error");
     open();
     return;
   }
@@ -715,7 +712,7 @@ function attach(forgeId, opts = {}) {
           return;
         }
         showSetup();
-        toast("That forge is no longer running.", "error");
+        showToast("That forge is no longer running.", "error");
         open();
       }, CLOSED_GRACE_MS);
     },
@@ -759,7 +756,7 @@ async function submit(event) {
   try {
     await startForge(params());
   } catch (e) {
-    toast(e.message, "error");
+    showToast(e.message, "error");
   } finally {
     button.disabled = false;
   }
@@ -773,7 +770,7 @@ async function cancelForge() {
     try {
       await api.cancel(state.forgeId);
     } catch (e) {
-      if (e.status !== 404) toast(e.message, "error");
+      if (e.status !== 404) showToast(e.message, "error");
     }
   }
   showSetup();
@@ -820,7 +817,7 @@ async function open() {
     await applyFormat();
   } catch (e) {
     console.error("Error loading the forge setup:", e);
-    toast("Could not load the forge setup", "error");
+    showToast("Could not load the forge setup", "error");
   }
 }
 

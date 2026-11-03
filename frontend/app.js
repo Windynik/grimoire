@@ -1,6 +1,12 @@
 // Scryfall Collection Enhancer — frontend application
 
 import { reducedMotion } from "./js/shared/motion.js";
+import { cardRow, cardTile, showCardDetail } from "./js/shared/card.js";
+import { debounce, formatDate } from "./js/shared/format.js";
+import { confirmDialog } from "./js/shared/modal.js";
+import { enhanceSelects, syncSelect } from "./js/shared/select.js";
+import { readSSE } from "./js/shared/sse.js";
+import { showToast } from "./js/shared/toast.js";
 
 const API_BASE = "/api";
 
@@ -37,130 +43,8 @@ function boot() {
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
 else boot();
 
-// This file is a module, so its functions are not globals. The other modules call this one.
-window.showToast = showToast;
-
-// ---------------------------------------------------------------------------
-// Custom dropdowns — progressive enhancement over the native selects.
-// The native select stays in the DOM (hidden) as the source of truth, so all
-// existing change handlers keep working untouched.
-// ---------------------------------------------------------------------------
-
-function enhanceSelects() {
-  document
-    .querySelectorAll("select.filter-select, select.sort-select")
-    .forEach(enhanceSelect);
-}
-
-function enhanceSelect(select) {
-  const wrap = document.createElement("div");
-  wrap.className = "dropdown";
-  select.parentNode.insertBefore(wrap, select);
-  wrap.appendChild(select);
-
-  const toggle = document.createElement("button");
-  toggle.type = "button";
-  toggle.className = "dropdown-toggle";
-  toggle.setAttribute("aria-haspopup", "listbox");
-  toggle.setAttribute("aria-expanded", "false");
-  wrap.appendChild(toggle);
-
-  const menu = document.createElement("ul");
-  menu.className = "dropdown-menu";
-  menu.setAttribute("role", "listbox");
-  menu.hidden = true;
-  wrap.appendChild(menu);
-
-  let focusedIndex = -1;
-
-  function options() {
-    return [...menu.querySelectorAll(".dropdown-option")];
-  }
-
-  function sync() {
-    const opt = select.options[select.selectedIndex];
-    toggle.textContent = opt ? opt.textContent : "—";
-    toggle.classList.toggle("active", Boolean(select.value));
-    wrap.hidden = select.hidden;
-    options().forEach((li) => {
-      li.classList.toggle("selected", li.dataset.value === select.value);
-      li.setAttribute("aria-selected", String(li.dataset.value === select.value));
-    });
-  }
-
-  function rebuild() {
-    menu.innerHTML = "";
-    [...select.options].forEach((opt) => {
-      const li = document.createElement("li");
-      li.className = "dropdown-option";
-      li.dataset.value = opt.value;
-      li.textContent = opt.textContent;
-      li.setAttribute("role", "option");
-      li.addEventListener("click", () => {
-        select.value = opt.value;
-        select.dispatchEvent(new Event("change"));
-        close();
-        toggle.focus();
-      });
-      menu.appendChild(li);
-    });
-    sync();
-  }
-
-  function open() {
-    menu.hidden = false;
-    wrap.classList.add("open");
-    toggle.setAttribute("aria-expanded", "true");
-    focusedIndex = options().findIndex((li) => li.classList.contains("selected"));
-    highlight(focusedIndex);
-  }
-
-  function close() {
-    menu.hidden = true;
-    wrap.classList.remove("open");
-    toggle.setAttribute("aria-expanded", "false");
-  }
-
-  function highlight(index) {
-    options().forEach((li, i) => li.classList.toggle("focused", i === index));
-    if (index >= 0) options()[index]?.scrollIntoView({ block: "nearest" });
-  }
-
-  toggle.addEventListener("click", () => (menu.hidden ? open() : close()));
-
-  toggle.addEventListener("keydown", (e) => {
-    const opts = options();
-    if (e.key === "Escape") {
-      close();
-    } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-      e.preventDefault();
-      if (menu.hidden) open();
-      const delta = e.key === "ArrowDown" ? 1 : -1;
-      focusedIndex = Math.max(0, Math.min(opts.length - 1, focusedIndex + delta));
-      highlight(focusedIndex);
-    } else if ((e.key === "Enter" || e.key === " ") && !menu.hidden && focusedIndex >= 0) {
-      e.preventDefault();
-      opts[focusedIndex].click();
-    }
-  });
-
-  document.addEventListener("click", (e) => {
-    if (!wrap.contains(e.target)) close();
-  });
-
-  select.addEventListener("change", sync);
-
-  // Mirror dynamic option lists (commander picker) and hidden toggling (foil)
-  new MutationObserver((mutations) => {
-    for (const m of mutations) {
-      if (m.type === "childList") rebuild();
-      else sync();
-    }
-  }).observe(select, { childList: true, attributes: true, attributeFilter: ["hidden"] });
-
-  select._syncDropdown = sync;
-  rebuild();
-}
+// The deck screens (ES modules) switch tabs through this. Task 7 replaces it with the router.
+window.grimoireNav = { activateTab };
 
 // ---------------------------------------------------------------------------
 // Whimsy — the grimoire bits
@@ -220,7 +104,7 @@ function setupWhimsy() {
       viewer.color = pip.dataset.color;
       const colorSelect = document.getElementById("filter-color");
       colorSelect.value = pip.dataset.color;
-      colorSelect._syncDropdown?.();
+      syncSelect(colorSelect);
       updateFilterClearButton();
 
       activateTab("viewer");
@@ -279,33 +163,6 @@ function esc(value) {
   const div = document.createElement("div");
   div.textContent = value == null ? "" : String(value);
   return div.innerHTML;
-}
-
-function showToast(message, type = "info") {
-  const container = document.getElementById("toast-container");
-  const toast = document.createElement("div");
-  toast.className = `toast ${type}`;
-  toast.textContent = message;
-  container.appendChild(toast);
-  setTimeout(() => toast.remove(), 4000);
-}
-
-function formatDate(dateString) {
-  if (!dateString) return "—";
-  const date = new Date(dateString);
-  return date.toLocaleDateString() + " " + date.toLocaleTimeString();
-}
-
-function formatPrice(price) {
-  return price ? `$${parseFloat(price).toFixed(2)}` : "—";
-}
-
-function debounce(func, wait) {
-  let timeout;
-  return function (...args) {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => func.apply(this, args), wait);
-  };
 }
 
 // ---------------------------------------------------------------------------
@@ -412,7 +269,12 @@ async function loadDashboardCollections() {
 
       row.querySelector(".collection-del").addEventListener("click", async (e) => {
         e.stopPropagation();
-        if (!confirm(`Delete “${c.name}” (${c.card_count} cards)? This cannot be undone.`)) return;
+        const ok = await confirmDialog({
+          title: "Delete collection",
+          message: `Delete “${c.name}” (${c.card_count} cards)? This cannot be undone.`,
+          confirmLabel: "Delete",
+        });
+        if (!ok) return;
 
         try {
           const res = await fetch(`${API_BASE}/collection/${c.job_id}`, { method: "DELETE" });
@@ -517,54 +379,27 @@ async function downloadCache() {
   try {
     const response = await fetch(`${API_BASE}/cache/download`, { method: "POST" });
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-
-      if (value) {
-        buffer += decoder.decode(value, { stream: true });
-
-        // Process complete SSE messages (terminated by \n\n)
-        const messages = buffer.split("\n\n");
-        buffer = messages.pop() || "";
-
-        for (const message of messages) {
-          for (const line of message.split("\n")) {
-            if (!line.startsWith("data: ")) continue;
-            try {
-              const data = JSON.parse(line.substring(6));
-
-              if (data.percentage !== undefined) {
-                progressFill.style.transform = `scaleX(${data.percentage / 100})`;
-                progressText.textContent = `${data.percentage}%`;
-                const progressBar = document.querySelector("#download-progress .progress-bar");
-                if (progressBar) {
-                  progressBar.setAttribute("aria-valuenow", data.percentage);
-                }
-              }
-
-              if (data.status === "complete") {
-                showToast("Bulk data downloaded successfully!", "success");
-                await checkCacheStatus();
-                progressContainer.style.display = "none";
-              }
-
-              if (data.error) {
-                showToast(data.error, "error");
-                progressContainer.style.display = "none";
-              }
-            } catch (e) {
-              console.error("Error parsing SSE data:", e, line);
-            }
-          }
+    await readSSE(response, async (data) => {
+      if (data.percentage !== undefined) {
+        progressFill.style.transform = `scaleX(${data.percentage / 100})`;
+        progressText.textContent = `${data.percentage}%`;
+        const progressBar = document.querySelector("#download-progress .progress-bar");
+        if (progressBar) {
+          progressBar.setAttribute("aria-valuenow", data.percentage);
         }
       }
 
-      if (done) break;
-    }
+      if (data.status === "complete") {
+        showToast("Bulk data downloaded successfully!", "success");
+        await checkCacheStatus();
+        progressContainer.style.display = "none";
+      }
+
+      if (data.error) {
+        showToast(data.error, "error");
+        progressContainer.style.display = "none";
+      }
+    });
   } catch (error) {
     console.error("Download error:", error);
     showToast("Error downloading bulk data: " + error.message, "error");
@@ -573,7 +408,12 @@ async function downloadCache() {
 }
 
 async function clearCache() {
-  if (!confirm("Are you sure you want to clear the cache?")) return;
+  const ok = await confirmDialog({
+    title: "Clear the cache",
+    message: "Are you sure you want to clear the cache?",
+    confirmLabel: "Clear cache",
+  });
+  if (!ok) return;
 
   try {
     const response = await fetch(`${API_BASE}/cache`, { method: "DELETE" });
@@ -592,7 +432,12 @@ async function clearCache() {
 
 function setupSettings() {
   document.getElementById("clear-all-data").addEventListener("click", async () => {
-    if (!confirm("Clear the bulk data cache and forget your last collection?")) return;
+    const ok = await confirmDialog({
+      title: "Clear all data",
+      message: "Clear the bulk data cache and forget your last collection?",
+      confirmLabel: "Clear all data",
+    });
+    if (!ok) return;
 
     try {
       await fetch(`${API_BASE}/cache`, { method: "DELETE" });
@@ -750,7 +595,6 @@ function viewerHasFilters() {
 
 function setupCollectionViewer() {
   const searchInput = document.getElementById("viewer-search");
-  const modal = document.getElementById("card-modal");
 
   searchInput.addEventListener(
     "input",
@@ -801,7 +645,7 @@ function setupCollectionViewer() {
       viewer[key] = "";
       const select = document.getElementById(id);
       select.value = "";
-      select._syncDropdown?.();
+      syncSelect(select);
     });
     updateFilterClearButton();
     resetViewer();
@@ -830,18 +674,6 @@ function setupCollectionViewer() {
     },
     { rootMargin: "600px" },
   ).observe(sentinel);
-
-  document.querySelector(".modal-close").addEventListener("click", closeModal);
-  modal.addEventListener("click", (e) => {
-    if (e.target === modal) closeModal();
-  });
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && modal.classList.contains("active")) closeModal();
-  });
-}
-
-function closeModal() {
-  document.getElementById("card-modal").classList.remove("active");
 }
 
 function setViewerContext(message) {
@@ -864,11 +696,11 @@ function syncFoilFilter(jobId) {
   // Foil only exists for owned cards, so hide that filter in browse mode
   const foilSelect = document.getElementById("filter-foil");
   foilSelect.hidden = !jobId;
-  foilSelect._syncDropdown?.();
+  syncSelect(foilSelect);
   if (!jobId && viewer.foil) {
     viewer.foil = "";
     foilSelect.value = "";
-    foilSelect._syncDropdown?.();
+    syncSelect(foilSelect);
     updateFilterClearButton();
   }
 }
@@ -893,7 +725,7 @@ async function loadCollectionSources(activeJobId) {
     const hasActive = activeJobId &&
       [...select.options].some((o) => o.value === activeJobId);
     select.value = hasActive ? activeJobId : "";
-    select._syncDropdown?.();
+    syncSelect(select);
   } catch (error) {
     console.error("Error loading collections:", error);
   }
@@ -1072,181 +904,10 @@ function appendCards(cards) {
   const listFrag = document.createDocumentFragment();
 
   cards.forEach((card, i) => {
-    gridFrag.appendChild(createCardEl(card, i));
-    listFrag.appendChild(createListRow(card, i));
+    gridFrag.appendChild(cardTile(card, i));
+    listFrag.appendChild(cardRow(card, i));
   });
 
   grid.appendChild(gridFrag);
   list.appendChild(listFrag);
-}
-
-function activateOnEnter(el, card) {
-  el.addEventListener("click", () => showCardDetail(card));
-  el.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      showCardDetail(card);
-    }
-  });
-}
-
-function createCardEl(card, index) {
-  const cardEl = document.createElement("div");
-  cardEl.className = "card-item";
-  cardEl.tabIndex = 0;
-  cardEl.setAttribute("role", "button");
-  cardEl.setAttribute("aria-label", card.name || "Card");
-  // Stagger each batch's entrance
-  cardEl.style.animationDelay = `${Math.min(index * 0.03, 0.45)}s`;
-
-  const ownedBadge =
-    card.owned && card.quantity > 0
-      ? `<div class="owned-badge">Owned &times; ${esc(card.quantity)}</div>`
-      : "";
-
-  const hasImage = card.image_url && card.image_url.trim() !== "";
-  const imageHtml = hasImage
-    ? `<img src="${esc(card.image_url)}" alt="${esc(card.name)}" loading="lazy">`
-    : `<div class="card-placeholder">
-         <img src="/favicon.svg" alt="" class="placeholder-icon">
-         <p class="placeholder-text">No Image</p>
-       </div>`;
-
-  cardEl.innerHTML = `
-    <div class="card-image-wrapper ${hasImage ? "" : "no-image"}">
-      ${ownedBadge}
-      ${imageHtml}
-      <div class="card-hover-preview">
-        <p><strong>Type</strong> ${esc(card.type_line || "—")}</p>
-        <p><strong>Mana</strong> ${parseManaSymbols(card.mana_cost)}</p>
-        <p><strong>Text</strong> ${card.oracle_text ? renderOracleText(card.oracle_text) : "—"}</p>
-      </div>
-    </div>
-    <div class="card-info">
-      <p class="card-name">${esc(card.name)}</p>
-      <p class="card-price">${esc(formatPrice(card.price))}</p>
-    </div>`;
-
-  activateOnEnter(cardEl, card);
-  return cardEl;
-}
-
-function createListRow(card, index) {
-  const row = document.createElement("div");
-  row.className = "list-row";
-  row.tabIndex = 0;
-  row.setAttribute("role", "button");
-  row.setAttribute("aria-label", card.name || "Card");
-  row.style.animationDelay = `${Math.min(index * 0.02, 0.3)}s`;
-
-  const hasImage = card.image_url && card.image_url.trim() !== "";
-  const thumbHtml = hasImage
-    ? `<img src="${esc(card.image_url)}" alt="" class="list-thumb" loading="lazy">`
-    : `<div class="list-thumb-placeholder"><img src="/favicon.svg" alt=""></div>`;
-
-  const qtyHtml =
-    card.owned && card.quantity > 0
-      ? `<span class="list-qty">&times; ${esc(card.quantity)}</span>`
-      : "<span></span>";
-
-  row.innerHTML = `
-    ${thumbHtml}
-    <div class="list-main">
-      <p class="list-name">${esc(card.name)}</p>
-      <p class="list-type">${esc(card.type_line || "—")}</p>
-    </div>
-    ${qtyHtml}
-    <span class="list-price">${esc(formatPrice(card.price))}</span>`;
-
-  activateOnEnter(row, card);
-  return row;
-}
-
-// Symbols we have sprites for; anything else falls back to a text badge
-const MANA_SPRITES = {
-  w: "sw", u: "su", b: "sb", r: "sr", g: "sg",
-  c: "sc", x: "sx", t: "st",
-};
-for (let i = 0; i <= 20; i++) MANA_SPRITES[String(i)] = `s${i}`;
-
-// Render one "{...}" token (e.g. "T", "G", "2", "W/U", "W/P", "E") as an icon
-function manaSymbol(symbol) {
-  const label = esc(`{${symbol.toUpperCase()}}`);
-  const cls = MANA_SPRITES[symbol.toLowerCase()];
-  if (cls) {
-    return `<i class="mana ${cls}" title="${label}"></i>`;
-  }
-  // Hybrid, Phyrexian, energy, snow, etc. — no sprite, so use a styled badge
-  return `<span class="mana-text" title="${label}">${esc(symbol.toUpperCase())}</span>`;
-}
-
-// Convert "{2}{U}{B}" into mana sprite icons
-function parseManaSymbols(manaCost) {
-  if (!manaCost) return '<span class="mana-none">—</span>';
-  return manaCost.replace(/\{([^}]+)\}/g, (_match, symbol) => manaSymbol(symbol));
-}
-
-// The forge result view (an ES module) reuses the mana parser.
-window.grimoireMana = { parseManaSymbols };
-// The deck screens (ES modules) switch tabs and open the card detail modal.
-window.grimoireNav = { activateTab };
-window.grimoireCard = { showCardDetail };
-
-// Escape oracle text for safety, then turn its "{...}" tokens into icons.
-// Escaping first is safe: it never introduces braces, so the token regex still
-// only matches the original Scryfall symbols.
-function renderOracleText(text) {
-  if (!text) return "";
-  return esc(text).replace(/\{([^}]+)\}/g, (_match, symbol) => manaSymbol(symbol));
-}
-
-function showCardDetail(card) {
-  const modal = document.getElementById("card-modal");
-  const details = document.getElementById("modal-card-details");
-
-  const hasImage = card.image_url && card.image_url.trim() !== "";
-  const imageHtml = hasImage
-    ? `<img src="${esc(card.image_url)}" alt="${esc(card.name)}" class="modal-card-image">`
-    : `<div class="modal-card-placeholder">
-         <img src="/favicon.svg" alt="" class="placeholder-icon-large">
-         <p class="placeholder-text">No Image Available</p>
-       </div>`;
-
-  const priceStat = card.price
-    ? `<div class="stat-pill"><span class="stat-pill-label">Price</span><span class="stat-pill-value price-value">${esc(formatPrice(card.price))}</span></div>`
-    : "";
-
-  const quantityStat =
-    card.quantity > 0
-      ? `<div class="stat-pill"><span class="stat-pill-label">Owned</span><span class="stat-pill-value owned-value">${esc(card.quantity)}&times;</span></div>`
-      : "";
-
-  const manaHtml = card.mana_cost
-    ? `<span class="modal-mana">${parseManaSymbols(card.mana_cost)}</span>`
-    : "";
-
-  details.innerHTML = `
-    <div class="modal-card">
-      <div class="modal-card-art">${imageHtml}</div>
-      <div class="modal-card-body">
-        <h2 class="card-detail-name">${esc(card.name)}</h2>
-        <div class="modal-subhead">
-          ${manaHtml}
-          <span class="modal-type">${esc(card.type_line || "—")}</span>
-        </div>
-        ${
-          card.oracle_text
-            ? `<div class="oracle-text">${renderOracleText(card.oracle_text)}</div>`
-            : `<p class="modal-no-text">No rules text.</p>`
-        }
-        ${
-          priceStat || quantityStat
-            ? `<div class="modal-stats">${priceStat}${quantityStat}</div>`
-            : ""
-        }
-      </div>
-    </div>`;
-
-  modal.classList.add("active");
-  document.querySelector(".modal-close").focus();
 }
