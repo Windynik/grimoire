@@ -9,6 +9,7 @@ from backend.api.forge_routes import router as forge_router
 from backend.api.deck_routes import router as deck_router
 from backend.api.dependencies import get_image_store
 from backend.api.image_routes import router as image_router
+from backend.api.collection_routes import router as collection_router
 from pathlib import Path
 
 
@@ -55,6 +56,7 @@ app.include_router(router)
 app.include_router(forge_router)
 app.include_router(deck_router)
 app.include_router(image_router)
+app.include_router(collection_router)
 
 # Serve frontend static files last (catch-all)
 frontend_path = Path(__file__).parent / "frontend"

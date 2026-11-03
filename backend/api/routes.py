@@ -14,6 +14,7 @@ from backend.api.dependencies import (
     get_ollama_client,
 )
 from backend.core.bulk_data import NON_GAME_LAYOUTS, BulkDataManager
+from backend.core.collection_query import archive_matches, parse_query
 from backend.core.collection_store import CollectionStore
 from backend.core.paths import cache_path
 from backend.core.prices import best_price  # noqa: F401  (re-exported)
@@ -479,56 +480,6 @@ def check_format(fmt_key: str) -> None:
         raise HTTPException(status_code=400, detail="Unknown format: " + fmt_key)
 
 
-@router.get("/collection/{job_id}/search")
-async def search_collection(
-    job_id: str,
-    q: str = "",
-    limit: int = 60,
-    offset: int = 0,
-    sort: str = "",
-    card_type: str = "",
-    color: str = "",
-    rarity: str = "",
-    foil: str = "",
-    format: str = "",
-    store: CollectionStore = Depends(get_collection_store),
-    bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager),
-):
-    """Search/browse a collection with pagination and filters."""
-    results = store.get_collection(job_id)
-    if results is None:
-        raise HTTPException(status_code=404, detail="Collection not found")
-    check_format(format)
-    index = await bulk_data_manager.load_bulk_data()
-    if format:
-        results = [
-            c for c in results
-            if c.get("scryfall_id") in index
-            and legal_in(index[c["scryfall_id"]], format)
-        ]
-    if q:
-        query_lower = q.lower()
-        results = [c for c in results if query_lower in (c.get("name") or "").lower()]
-
-    if card_type or color or rarity or foil:
-        results = [
-            card for card in results
-            if matches_filters(
-                card, card_type, color, rarity, foil,
-                identity=(index.get(card.get("scryfall_id")) or {}).get("color_identity"),
-            )
-        ]
-
-    mark_owned(results)
-    sort_cards(results, sort)
-
-    limit = max(1, min(limit, 200))
-    offset = max(0, offset)
-    page = hydrate(results[offset:offset + limit], index)
-
-    return {"cards": page, "total": len(results), "offset": offset, "limit": limit}
-
-
 @router.get("/collection/{job_id}/random")
 async def get_random_cards(
     job_id: str,
@@ -574,12 +525,12 @@ async def search_all_cards(
         )
 
     check_format(format)
-    query_lower = q.lower()
+    query = parse_query(q)
     matches = [
         (card_id, card_info)
         for card_id, card_info in bulk_data.items()
         if card_info.get("layout") not in NON_GAME_LAYOUTS
-        and (not query_lower or query_lower in card_info.get("name", "").lower())
+        and archive_matches(card_info, query)
         and matches_filters(card_info, card_type, color, rarity, "",
                            identity=card_info.get("color_identity"))
         and (not format or legal_in(card_info, format))
