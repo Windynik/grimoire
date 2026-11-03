@@ -1,0 +1,11 @@
+{
+  "name": "grimoire",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/js/*.test.mjs tests/js/dom/*.test.mjs"
+  },
+  "devDependencies": {
+    "jsdom": "25.0.1"
+  }
+}

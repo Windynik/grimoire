@@ -125,7 +125,8 @@ examples/           Sample ManaBox export for testing
 ```bash
 pip install -r requirements.txt
 pytest tests/ -v        # run the Python test suite
-node --test tests/js/*.test.mjs   # run the JavaScript tests
+npm install             # once, for the jsdom test dependency
+npm test                # run the JavaScript tests
 python main.py          # run the server
 ```
 

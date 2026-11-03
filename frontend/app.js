@@ -18,7 +18,7 @@ const views = {
 
 const REDUCED_MOTION = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-document.addEventListener("DOMContentLoaded", () => {
+function boot() {
   setupNavigation();
   setupCacheManagement();
   setupFileUpload();
@@ -28,7 +28,15 @@ document.addEventListener("DOMContentLoaded", () => {
   spawnMotes();
   enhanceSelects();
   setupWhimsy();
-});
+  // Tests wait for this flag. Boot sets it last.
+  document.documentElement.dataset.ready = "true";
+}
+
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+else boot();
+
+// This file is a module, so its functions are not globals. The other modules call this one.
+window.showToast = showToast;
 
 // ---------------------------------------------------------------------------
 // Custom dropdowns — progressive enhancement over the native selects.
