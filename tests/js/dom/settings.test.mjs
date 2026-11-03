@@ -12,12 +12,36 @@ let app;
 let document;
 let window;
 let open;
+let imageSyncState;
+let startImageSync;
+let bootPosts = 0;
+
+// The images are missing at boot, so main.js starts one download. The test holds it open.
+const encoder = new TextEncoder();
+let held = null;
+function holdRun() {
+  let controller;
+  const body = new ReadableStream({ start(c) { controller = c; } });
+  held = {
+    send(event) { controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`)); },
+    end() { try { controller.close(); } catch (e) { /* already closed */ } },
+  };
+  return { status: 200, body, headers: { "content-type": "text/event-stream" } };
+}
+const STATUS_MISSING = { count: 2, bytes: 3145728, owned_total: 10, owned_small: 4, owned_normal: 2 };
+let imageStatus = STATUS_MISSING;
 
 before(async () => {
-  app = await loadApp({});
+  app = await loadApp({
+    routes: {
+      "GET /api/images/status": () => ({ json: imageStatus }),
+      "POST /api/images/prefetch": () => { bootPosts += 1; return holdRun(); },
+    },
+  });
   document = app.document;
   window = app.window;
   ({ open } = await import("../../../frontend/js/settings/settings.js"));
+  ({ imageSyncState, startImageSync } = await import("../../../frontend/js/shared/imagesync.js"));
 });
 
 async function goTo(hash, screen) {
@@ -28,7 +52,9 @@ async function goTo(hash, screen) {
 }
 
 // Set the stubs and the storage this test needs, then open Settings.
-async function setup({ ai = AI_UP, saved = null } = {}) {
+async function setup({ ai = AI_UP, saved = null, status = STATUS_MISSING, keepRun = false } = {}) {
+  if (!keepRun) await idle();
+  imageStatus = status;
   app.route("GET /api/ai/status", () => ({ json: ai }));
   app.route("DELETE /api/cache", () => ({ json: { ok: true } }));
   window.localStorage.clear();
@@ -39,6 +65,13 @@ async function setup({ ai = AI_UP, saved = null } = {}) {
   await app.settle();
 }
 
+// End the held run, if any, and wait for the sync to go idle.
+async function idle() {
+  if (held) held.end();
+  held = null;
+  await app.until(() => !imageSyncState().running);
+}
+
 const $ = (id) => document.getElementById(id);
 const stored = () => JSON.parse(window.localStorage.getItem(KEY) || "{}");
 const optionTexts = (id) => [...$(id).options].map((o) => o.textContent);
@@ -47,6 +80,30 @@ const choose = (id, value) => {
   $(id).dispatchEvent(new window.Event("change", { bubbles: true }));
 };
 const toasts = () => [...document.querySelectorAll("#toast-container .toast")].map((t) => t.textContent);
+
+test("main starts one download at boot and Settings shows its live progress", async () => {
+  assert.equal(bootPosts, 1);
+  await setup({ keepRun: true });
+  assert.equal($("settings-images-now").disabled, true);
+  assert.equal($("settings-images-now").textContent, "Downloading\u2026");
+  held.send({ type: "progress", phase: "small", done: 3, total: 10, failed: 0 });
+  await app.until(() => $("settings-images-text").textContent === "Downloading thumbnails: 3 of 10");
+  assert.equal($("settings-images-fill").style.transform, "scaleX(0.3)");
+  assert.equal($("settings-images-progress").hidden, false);
+  held.send({ type: "progress", phase: "normal", done: 6, total: 10, failed: 0 });
+  await app.until(() => $("settings-images-text").textContent === "Downloading full images: 6 of 10");
+  assert.equal($("settings-images-fill").style.transform, "scaleX(0.6)");
+  // The run ends. The status is read again.
+  imageStatus = { count: 20, bytes: 10485760, owned_total: 10, owned_small: 10, owned_normal: 10 };
+  held.send({ type: "done", phase: "normal", done: 10, total: 10, failed: 0, skipped: 0 });
+  held.end();
+  held = null;
+  await app.until(() => $("settings-images-text").textContent === "All images for your cards are on this Mac.");
+  assert.equal($("settings-images-now").disabled, false);
+  assert.equal($("settings-images-now").textContent, "Download now");
+  assert.equal($("settings-images-progress").hidden, true);
+  await app.until(() => /Thumbnails: 10 of 10\./.test($("settings-images-status").textContent));
+});
 
 test("choosing a model saves it", async () => {
   await setup();
@@ -215,4 +272,82 @@ test("the forge takes a model saved in Settings after the owner touched it", asy
   window.location.hash = "#forge";
   await app.until(() => $("forge-view").classList.contains("active"));
   await app.until(() => $("forge-model").value === "llama3:8b");
+});
+
+test("the status line shows thumbnails, full images, and megabytes", async () => {
+  await setup();
+  await app.until(() => $("settings-images-status").textContent !== "");
+  assert.equal($("settings-images-status").textContent,
+    "Thumbnails: 4 of 10. Full images: 2 of 10. (3.0 MB on this Mac)");
+});
+
+test("the Card images section follows Card data and the switch defaults on", async () => {
+  await setup();
+  const titles = [...document.querySelectorAll("#settings-body h3")].map((n) => n.textContent);
+  assert.deepEqual(titles.slice(0, 4), ["Local AI", "Questions", "Card data", "Card images"]);
+  assert.equal($("settings-auto-images").checked, true);
+  assert.equal($("settings-auto-images").getAttribute("role"), "switch");
+  assert.equal($("settings-auto-images").disabled, false);
+  assert.match($("settings-view").textContent, /Download images for my cards in the background/);
+});
+
+test("the switch saves autoImages and toasts Saved", async () => {
+  await setup({ saved: { model: "", askMode: "countdown", autoImages: true }, status: { ...STATUS_MISSING, owned_small: 10, owned_normal: 10 } });
+  $("settings-auto-images").checked = false;
+  $("settings-auto-images").dispatchEvent(new window.Event("change", { bubbles: true }));
+  assert.equal(stored().autoImages, false);
+  assert.ok(toasts().includes("Saved"));
+});
+
+test("turning the switch on starts a download when images are missing", async () => {
+  await setup({ saved: { model: "", askMode: "countdown", autoImages: false } });
+  assert.equal($("settings-auto-images").checked, false);
+  const before = app.fetchLog.filter((r) => r.method === "POST").length;
+  $("settings-auto-images").checked = true;
+  $("settings-auto-images").dispatchEvent(new window.Event("change", { bubbles: true }));
+  assert.equal(stored().autoImages, true);
+  await app.until(() => app.fetchLog.filter((r) => r.method === "POST").length === before + 1);
+  await app.until(() => imageSyncState().running);
+});
+
+test("failed images show the failure text", async () => {
+  await setup();
+  $("settings-images-now").click();
+  await app.until(() => imageSyncState().running);
+  held.send({ type: "done", phase: "normal", done: 10, total: 10, failed: 3, skipped: 0 });
+  held.end();
+  held = null;
+  await app.until(() => $("settings-images-text").textContent === "3 images could not be downloaded. Try again later.");
+  assert.equal($("settings-images-now").disabled, false);
+});
+
+test("Download now starts a run", async () => {
+  await setup();
+  const before = app.fetchLog.filter((r) => r.method === "POST").length;
+  $("settings-images-now").click();
+  await app.until(() => imageSyncState().running);
+  assert.equal(app.fetchLog.filter((r) => r.method === "POST").length, before + 1);
+  assert.equal($("settings-images-now").disabled, true);
+});
+
+test("a 409 from Download now shows the busy toast", async () => {
+  await setup();
+  app.route("POST /api/images/prefetch", () => ({ status: 409, json: { detail: "A download is already running." } }));
+  document.getElementById("toast-container").textContent = "";
+  $("settings-images-now").click();
+  await app.until(() => toasts().includes("A download is already running."));
+  assert.equal(imageSyncState().error, "busy");
+  assert.equal(imageSyncState().running, false);
+  assert.equal($("settings-images-now").disabled, false);
+  app.route("POST /api/images/prefetch", () => { bootPosts += 1; return holdRun(); });
+});
+
+test("startImageSync returns the running run and never opens a second stream", async () => {
+  await setup();
+  const before = app.fetchLog.filter((r) => r.method === "POST").length;
+  const first = startImageSync();
+  const second = startImageSync();
+  assert.equal(first, second);
+  await app.until(() => imageSyncState().running);
+  assert.equal(app.fetchLog.filter((r) => r.method === "POST").length, before + 1);
 });

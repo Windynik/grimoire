@@ -1,10 +1,11 @@
-// Settings screen: the local AI model, the question mode, card data, and About.
+// Settings screen: the local AI model, the question mode, card data, card images, and About.
 //
 // Each change saves at once and shows a "Saved" toast. The forge reads the
 // saved values when its setup opens.
 
 import { h } from "../shared/dom.js";
 import { del, getJSON } from "../shared/http.js";
+import { autoStartImageSync, imageSyncState, onImageSync, startImageSync } from "../shared/imagesync.js";
 import { isRecommended } from "../shared/models.js";
 import { confirmDialog } from "../shared/modal.js";
 import {
@@ -20,7 +21,11 @@ const ASK_LABELS = {
 };
 
 let ui = null;
+let images = null;
 let checking = 0;
+let imageChecking = 0;
+let wasRunning = false;
+let endText = "";
 
 function option(value, label) {
   return h("option", { value, text: label });
@@ -51,6 +56,75 @@ async function clearCardData() {
     showToast("Card data cleared", "success");
   } catch (e) {
     showToast("Could not clear the card data", "error");
+  }
+}
+
+function imagesGroup() {
+  const auto = h("input", { id: "settings-auto-images", type: "checkbox", role: "switch" });
+  const fill = h("div", { id: "settings-images-fill", class: "progress-fill" });
+  const bar = h("div", { id: "settings-images-progress", class: "progress-bar", hidden: true }, fill);
+  const text = h("p", { id: "settings-images-text", class: "settings-status", role: "status" });
+  const status = h("p", { id: "settings-images-status", class: "settings-status" });
+  const now = h("button", {
+    id: "settings-images-now", type: "button", class: "btn btn-secondary", text: "Download now",
+    onclick: downloadNow,
+  });
+  auto.checked = readSettings().autoImages;
+  auto.addEventListener("change", () => {
+    saved({ autoImages: auto.checked });
+    if (auto.checked) autoStartImageSync();
+  });
+  images = { auto, fill, bar, text, status, now };
+  return group("Card images",
+    h("label", { class: "settings-switch settings-switch-on" },
+      auto,
+      h("span", { class: "settings-switch-label", text: "Download images for my cards in the background" })),
+    status, bar, text,
+    h("div", { class: "settings-actions" }, now));
+}
+
+async function downloadNow() {
+  await startImageSync();
+  if (imageSyncState().error === "busy") showToast("A download is already running.", "error");
+}
+
+function megabytes(bytes) {
+  return (bytes / 1048576).toFixed(1);
+}
+
+async function refreshImages() {
+  const request = ++imageChecking;
+  let s;
+  try {
+    s = await getJSON("/images/status");
+  } catch (e) {
+    return;
+  }
+  if (request !== imageChecking || !images) return;
+  images.status.textContent =
+    `Thumbnails: ${s.owned_small} of ${s.owned_total}. Full images: ${s.owned_normal} of ${s.owned_total}. (${megabytes(s.bytes)} MB on this Mac)`;
+}
+
+function renderImages(sync) {
+  if (!images) return;
+  if (wasRunning && !sync.running) {
+    if (sync.error === "busy") endText = "";
+    else if (sync.failed > 0) endText = `${sync.failed} ${sync.failed === 1 ? "image" : "images"} could not be downloaded. Try again later.`;
+    else if (sync.error) endText = "The image download stopped. Try again later.";
+    else endText = "All images for your cards are on this Mac.";
+    refreshImages();
+  }
+  if (sync.running) endText = "";
+  wasRunning = sync.running;
+  images.bar.hidden = !sync.running;
+  images.fill.style.transform = `scaleX(${sync.total > 0 ? Math.min(1, sync.done / sync.total) : 0})`;
+  images.now.disabled = sync.running;
+  images.now.textContent = sync.running ? "Downloading\u2026" : "Download now";
+  if (sync.running) {
+    const what = sync.phase === "small" ? "thumbnails" : "full images";
+    images.text.textContent = `Downloading ${what}: ${sync.done} of ${sync.total}`;
+  } else {
+    images.text.textContent = endText;
   }
 }
 
@@ -85,6 +159,7 @@ function build() {
         id: "settings-clear-cache", type: "button", class: "btn btn-danger", text: "Clear card data",
         onclick: clearCardData,
       })),
+    imagesGroup(),
     group("Online research",
       h("label", { class: "settings-switch" },
         research,
@@ -97,6 +172,8 @@ function build() {
         h("a", { href: "https://scryfall.com", target: "_blank", rel: "noopener noreferrer", text: "Scryfall" }))),
   );
   ask.value = readSettings().askMode;
+  onImageSync(renderImages);
+  renderImages(imageSyncState());
   return { model, note, status, ask };
 }
 
@@ -148,6 +225,9 @@ async function refresh() {
 export async function open() {
   if (!ui) ui = build();
   ui.ask.value = readSettings().askMode;
+  images.auto.checked = readSettings().autoImages;
+  renderImages(imageSyncState());
+  refreshImages();
   await refresh();
 }
 

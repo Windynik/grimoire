@@ -10,6 +10,7 @@ import * as importScreen from "../collection/import.js";
 import * as forge from "../forge/forge.js";
 import * as decks from "../decks/decks.js";
 import * as settings from "../settings/settings.js";
+import { autoStartImageSync } from "../shared/imagesync.js";
 
 register("home", home);
 register("collection", collection);
@@ -24,3 +25,6 @@ await start();
 
 // Tests wait for this flag. It is set after the first route ran.
 document.documentElement.dataset.ready = "true";
+
+// Fetch the card images in the background. Boot does not wait for it.
+autoStartImageSync();

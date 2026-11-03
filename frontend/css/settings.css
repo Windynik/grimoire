@@ -98,6 +98,19 @@
     cursor: not-allowed;
 }
 
+#settings-view .settings-switch-on {
+    opacity: 1;
+    cursor: pointer;
+}
+
+#settings-view .settings-switch-on input {
+    cursor: pointer;
+}
+
+#settings-view .progress-bar {
+    margin: 0;
+}
+
 #settings-view .settings-badge {
     font-size: 0.7rem;
     font-weight: 600;

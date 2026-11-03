@@ -24,12 +24,12 @@ test("the constants have the agreed values", () => {
   assert.equal(SETTINGS_KEY, "grimoire.settings");
   assert.equal(ENGINE_ONLY, "none");
   assert.deepEqual(ASK_MODES, ["countdown", "wait", "never"]);
-  assert.deepEqual(DEFAULTS, { model: "", askMode: "countdown" });
+  assert.deepEqual(DEFAULTS, { model: "", askMode: "countdown", autoImages: true });
 });
 
 test("readSettings falls back per field", () => {
   const storage = fakeStorage({ [SETTINGS_KEY]: JSON.stringify({ model: "x", askMode: "bogus" }) });
-  assert.deepEqual(readSettings(storage), { model: "x", askMode: "countdown" });
+  assert.deepEqual(readSettings(storage), { model: "x", askMode: "countdown", autoImages: true });
 });
 
 test("readSettings gives the defaults for bad JSON and an empty storage", () => {
@@ -45,12 +45,23 @@ test("readSettings survives a throwing storage", () => {
 test("writeSettings merges a patch and returns the settings", () => {
   const storage = fakeStorage({ [SETTINGS_KEY]: JSON.stringify({ model: "x", askMode: "wait" }) });
   const result = writeSettings({ askMode: "never" }, storage);
-  assert.deepEqual(result, { model: "x", askMode: "never" });
-  assert.deepEqual(JSON.parse(storage.data[SETTINGS_KEY]), { model: "x", askMode: "never" });
+  assert.deepEqual(result, { model: "x", askMode: "never", autoImages: true });
+  assert.deepEqual(JSON.parse(storage.data[SETTINGS_KEY]), { model: "x", askMode: "never", autoImages: true });
 });
 
 test("writeSettings ignores a throwing storage", () => {
-  assert.deepEqual(writeSettings({ model: "y" }, throwing), { model: "y", askMode: "countdown" });
+  assert.deepEqual(writeSettings({ model: "y" }, throwing), { model: "y", askMode: "countdown", autoImages: true });
+});
+
+test("autoImages reads, writes, and falls back per field", () => {
+  const off = fakeStorage({ [SETTINGS_KEY]: JSON.stringify({ autoImages: false }) });
+  assert.equal(readSettings(off).autoImages, false);
+  const bad = fakeStorage({ [SETTINGS_KEY]: JSON.stringify({ model: "x", autoImages: "no" }) });
+  assert.deepEqual(readSettings(bad), { model: "x", askMode: "countdown", autoImages: true });
+  const storage = fakeStorage();
+  assert.equal(writeSettings({ autoImages: false }, storage).autoImages, false);
+  assert.equal(JSON.parse(storage.data[SETTINGS_KEY]).autoImages, false);
+  assert.equal(readSettings(storage).autoImages, false);
 });
 
 test("chooseModel keeps an installed model", () => {

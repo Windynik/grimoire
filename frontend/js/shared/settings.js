@@ -1,4 +1,4 @@
-// The saved settings: the model and the question mode. They live in localStorage.
+// The saved settings: the model, the question mode, and the background image download. They live in localStorage.
 //
 // A blocked or full storage does not stop the app: a read gives the defaults,
 // and a write does nothing.
@@ -10,7 +10,7 @@ export const SETTINGS_KEY = "grimoire.settings";
 export const ENGINE_ONLY = "none";
 export const ASK_MODES = ["countdown", "wait", "never"];
 /** model "" means automatic. */
-export const DEFAULTS = { model: "", askMode: "countdown" };
+export const DEFAULTS = { model: "", askMode: "countdown", autoImages: true };
 
 function parse(storage) {
   try {
@@ -27,6 +27,7 @@ export function readSettings(storage = localStorage) {
   return {
     model: typeof data.model === "string" ? data.model : DEFAULTS.model,
     askMode: ASK_MODES.includes(data.askMode) ? data.askMode : DEFAULTS.askMode,
+    autoImages: typeof data.autoImages === "boolean" ? data.autoImages : DEFAULTS.autoImages,
   };
 }
 

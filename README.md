@@ -65,7 +65,7 @@ The top bar has five screens. Each screen has its own address, such as `#home` o
 - **Collection** is the viewer for your cards or for all cards in the archive. A card flips to show its other face. The *Import CSV* button opens the importer. The importer shows live progress and a summary of the rows it could not match.
 - **Forge** builds a deck from the cards you own (see below).
 - **Decks** lists your saved decks and opens the editor (see below).
-- **Settings** shows the Ollama status, picks the model (Automatic, Engine only, or one installed model), sets how often the forge asks you a question, and clears the card data.
+- **Settings** shows the Ollama status, picks the model (Automatic, Engine only, or one installed model), sets how often the forge asks you a question, clears the card data, and shows the card images on this Mac. The app downloads the images of your cards in the background when it starts. A switch turns this off, and a button starts a download at any time.
 
 ### The Deck Forge
 
