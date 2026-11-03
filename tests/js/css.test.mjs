@@ -12,7 +12,7 @@ const stripCss = (text) => text.replace(/\/\*[\s\S]*?\*\//g, "");
 const stripHtml = (text) => text.replace(/<!--[\s\S]*?-->/g, "");
 
 function cssFiles() {
-  const files = [join(FRONTEND, "styles.css")];
+  const files = [];
   for (const name of readdirSync(CSS_DIR).sort()) {
     if (name.endsWith(".css")) files.push(join(CSS_DIR, name));
   }
@@ -92,7 +92,7 @@ test("retired fonts are gone", () => {
 test("index.html loads the stylesheets in token order", () => {
   const sheets = [...indexHtml().matchAll(/<link rel="stylesheet" href="([^"]+)"/g)].map((m) => m[1]);
   assert.deepEqual(sheets, [
-    "/css/tokens.css", "/css/base.css", "/css/shell.css", "/styles.css", "/css/forge.css", "/css/decks.css",
+    "/css/tokens.css", "/css/base.css", "/css/shell.css", "/css/forge.css", "/css/decks.css",
     "/css/tile.css", "/css/home.css", "/css/collection.css", "/css/settings.css",
   ]);
 });
@@ -233,8 +233,8 @@ test("tokens.css has the reduced-motion fallback", () => {
   for (const name of ["animation-duration", "animation-iteration-count", "transition-duration"]) {
     assert.ok(props.includes(name), name);
   }
-  const styles = cssFiles().find((f) => f.name === "styles.css");
-  assert.doesNotMatch(styles.text, /prefers-reduced-motion/, "the global rule moved out of styles.css");
+  const base = cssFiles().find((f) => f.name === "css/base.css");
+  assert.doesNotMatch(base.text, /prefers-reduced-motion/, "the global rule stays in tokens.css");
 });
 
 function jsFiles(dir) {

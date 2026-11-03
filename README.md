@@ -13,7 +13,7 @@ own — all running locally, no internet required after the first download.
 - 🛠️ **Deck Forge** — an agent builds decks from *only the cards you own*, for every supported format: Commander, Brawl, Standard Brawl, Standard, Pioneer, Modern, Legacy, Vintage, Pauper, and Casual. It reads the full rules text of each card. It builds a synergy graph, picks a backbone plan, builds a legal deck with a real mana base, and reviews the result
 - 🤖 **Optional local AI** — if [Ollama](https://ollama.com) is running, a local model ranks the strategies, judges borderline swaps, and writes the explanation. No cloud, no API keys. Everything stays on your machine. Choose the model "Engine only" to run without Ollama
 - 📦 **Offline capable** — works without internet after the initial bulk data download
-- 🎨 **Polished web UI** — real-time progress streaming, drag-and-drop upload, mana symbol rendering
+- 🎨 **Polished web UI** — live progress, drag-and-drop import, mana symbols, and motion that respects the reduced-motion setting
 
 ## Quick Start
 
@@ -27,10 +27,20 @@ python main.py
 
 The app runs at **http://localhost:8133**.
 
-1. **Download bulk data** — click *Download Cache* on the dashboard (~100 MB, one-time).
-2. **Process your collection** — go to *Process CSV*, drop in your ManaBox export, and download the enhanced CSV.
-3. **Browse** — open the *Viewer* tab to explore your collection with images, prices, and filters.
-4. **Forge a deck** — open *Deck Forge*, pick a format (and optionally a commander), and start the forge.
+1. **Download card data** — on *Home*, press *Download card data* (about 100 MB, one time).
+2. **Import your collection** — open *Collection*, press *Import*, and drop in your ManaBox export. The `examples/` folder has a sample file.
+3. **Browse** — use the *Collection* viewer to explore your cards with images, prices, and filters.
+4. **Forge a deck** — open *Forge*, pick a format (and optionally a commander), and start the forge.
+
+### Screens
+
+The top bar has five screens. Each screen has its own address, such as `#home` or `#collection`.
+
+- **Home** — shows the card data status, your collections, and your recent decks. You can download the card data here.
+- **Collection** — the viewer for your cards or for all cards in the archive. It has name search, sorting, a shuffle button, and filters for card type, color, rarity, foil, format legality, and color identity. A card flips to show its other face. The *Import* button opens the importer. The importer shows live progress and a summary of the rows it could not match. It also exports the enhanced CSV.
+- **Forge** — builds a deck from the cards you own (see below).
+- **Decks** — lists your saved decks and opens the editor (see below).
+- **Settings** — shows the Ollama status, picks the model (Automatic, Engine only, or one installed model), sets how often the forge asks you a question, and clears the card data.
 
 ### Deck Forge stages
 
@@ -48,7 +58,7 @@ When the forge ends, the editor opens on the new deck.
 
 ### Decks and the editor
 
-The *Decks* tab lists your saved decks. Each deck belongs to one format.
+The *Decks* screen lists your saved decks. Each deck belongs to one format.
 
 - **Create:** press *New deck*, then pick a name, a format, and a collection. The forge also saves each deck it builds.
 - **Import:** press *Import decklist*, then paste a decklist. Plain text and Arena formats both work. The editor flags cards you do not own.
@@ -60,7 +70,7 @@ The *Decks* tab lists your saved decks. Each deck belongs to one format.
 
 ### Collection export
 
-Each collection row on the dashboard has an *Export CSV* button. It downloads the enhanced CSV at any time. Collections stored before this feature may need a re-import. In that case the app shows a message.
+Each collection row on *Home* has an *Export CSV* button. It downloads the enhanced CSV at any time. Collections stored before this feature may need a re-import. In that case the app shows a message.
 
 ### Optional: local AI
 
@@ -108,14 +118,25 @@ backend/            FastAPI application
                     analysis, text import/export, editor agent
   data/playbook.json  Format rules and card-role patterns
   models/           Pydantic schemas
-frontend/           Vanilla JS single-page app (no build step)
+frontend/           Vanilla JS single-page app (ES modules, no build step)
+  index.html        The page shell and the editor template
+  js/app/           Entry point, hash router, and shell (top bar and nav)
+  js/home/          Home screen
+  js/collection/    Collection viewer and importer
   js/forge/         Deck Forge screens (setup, stage, feed, timeline)
-  js/decks/         Saved decks: dashboard, editor, agent panel, export menu
-  js/shared/        DOM, HTTP, and model helpers used by several screens
-  css/forge.css     Deck Forge styles
-  css/decks.css     Saved deck and editor styles
+  js/decks/         Saved decks: list, editor, agent panel, export menu
+  js/settings/      Settings screen
+  js/shared/        DOM, HTTP, SSE, mana, modal, toast, motion, and
+                    settings helpers used by several screens
+  css/tokens.css    Colors, fonts, spacing, and motion tokens
+  css/base.css      Shared controls, modals, toasts, and mana symbols
+  css/shell.css     Atmosphere, top bar, nav, page frame, and footer
+  css/tile.css      Shared tile style
+  css/home.css, collection.css, forge.css, decks.css, settings.css
+                    One style file per screen
 scripts/forge_eval.py  Hidden-deck evaluation for the forge
-tests/              Pytest suite
+scripts/make_sandbox.py  Builds a safe copy of the cache for manual checks
+tests/              Pytest suite (tests/js has the JavaScript tests)
 cardvalue.py        Standalone legacy script (per-card Scryfall API lookups)
 examples/           Sample ManaBox export for testing
 ```
@@ -124,10 +145,15 @@ examples/           Sample ManaBox export for testing
 
 ```bash
 pip install -r requirements.txt
-pytest tests/ -v        # run the Python test suite
-npm install             # once, for the jsdom test dependency
-npm test                # run the JavaScript tests
 python main.py          # run the server
+```
+
+Run the tests:
+
+```bash
+npm install             # once, for the jsdom test dependency
+npm test                # JavaScript tests (logic, CSS lint, and DOM tests in jsdom)
+python -m pytest -q     # Python tests
 ```
 
 ### Test data
