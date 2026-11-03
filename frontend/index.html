@@ -162,7 +162,10 @@
                         <div class="vault-intro">
                             <div class="vault-over-row">
                                 <p class="vault-over" id="vault-over">The Vault</p>
-                                <a class="vault-import" id="collection-import" href="#import">Import CSV</a>
+                                <div class="vault-actions">
+                                    <a class="vault-import" id="collection-import" href="#import">Import CSV</a>
+                                    <a class="vault-import vault-export" id="collection-export" href="#collection" title="Download this collection as a CSV" hidden>Export CSV</a>
+                                </div>
                             </div>
                             <div class="vault-title-row">
                                 <div class="vault-switch">
@@ -212,15 +215,16 @@
                                         <button type="button" data-view="list" aria-pressed="false">List</button>
                                     </div>
                                     <div class="vault-seg vault-size" id="vault-size" role="group" aria-label="Card size">
-                                        <button type="button" data-size="S" aria-pressed="false" title="Small cards">S</button>
-                                        <button type="button" data-size="M" aria-pressed="true" title="Medium cards">M</button>
-                                        <button type="button" data-size="L" aria-pressed="false" title="Large cards">L</button>
+                                        <button type="button" data-size="S" aria-pressed="false" aria-label="Small cards" title="Small cards">S</button>
+                                        <button type="button" data-size="M" aria-pressed="true" aria-label="Medium cards" title="Medium cards">M</button>
+                                        <button type="button" data-size="L" aria-pressed="false" aria-label="Large cards" title="Large cards">L</button>
                                     </div>
                                 </div>
                             </div>
                             <div class="vault-grid" id="vault-grid" aria-label="Card grid"></div>
-                            <div class="vault-list" id="vault-list" role="list" aria-label="Card list" hidden></div>
+                            <div class="vault-list" id="vault-list" hidden></div>
                             <div class="vault-empty" id="vault-empty" hidden></div>
+                            <p class="vault-more-error" id="vault-more-error" role="status" hidden>Couldn&rsquo;t load more &middot; <button type="button">Try again</button></p>
                             <div id="scroll-sentinel" class="scroll-sentinel" aria-hidden="true">
                                 <span class="loading-rune"></span>
                             </div>

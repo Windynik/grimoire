@@ -13,6 +13,7 @@ import {
 } from "../shared/session.js";
 import { readSSE } from "../shared/sse.js";
 import { showToast } from "../shared/toast.js";
+import { exportCollection } from "../shared/export.js";
 
 const API_BASE = "/api";
 const RECENT_DECKS = 4;
@@ -103,33 +104,6 @@ async function downloadCache() {
 // ---------------------------------------------------------------------------
 // Collections
 // ---------------------------------------------------------------------------
-
-// Fetch the collection CSV and save it. A failed export shows the server's reason.
-async function exportCollection(c) {
-  try {
-    const res = await fetch(`${API_BASE}/collection/${encodeURIComponent(c.job_id)}/export`);
-    if (!res.ok) {
-      let detail = `Export failed (HTTP ${res.status})`;
-      try {
-        const body = await res.json();
-        if (body && typeof body.detail === "string") detail = body.detail;
-      } catch (e) {
-        // The body is not JSON: keep the status text.
-      }
-      showToast(detail, "error");
-      return;
-    }
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const link = h("a", { href: url, download: `${c.name || "collection"}.csv` });
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  } catch (error) {
-    showToast("Error exporting collection", "error");
-  }
-}
 
 async function deleteCollection(c) {
   const ok = await confirmDialog({

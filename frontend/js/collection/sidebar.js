@@ -79,9 +79,7 @@ export function renderFacets(root, model) {
 
   // Keep the focus on the same control across the rebuild.
   const active = root.contains(document.activeElement) ? document.activeElement : null;
-  const focusKey = active && active.dataset
-    ? (active.dataset.clear ? `clear:${active.dataset.clear}` : `${active.dataset.facet}:${active.dataset.value}`)
-    : null;
+  const focus = active && active.dataset ? { ...active.dataset } : null;
 
   const sections = [];
 
@@ -212,11 +210,24 @@ export function renderFacets(root, model) {
 
   root.replaceChildren(...sections);
 
-  if (focusKey) {
-    const [facet, value] = focusKey.split(":");
-    const target = facet === "clear"
-      ? root.querySelector(`[data-clear="${value}"]`)
-      : [...root.querySelectorAll(".vault-opt")].find((el) => el.dataset.facet === facet && el.dataset.value === value);
+  if (focus) {
+    const target = refocusTarget(root, focus);
     if (target) target.focus();
   }
+}
+
+// The control that takes the focus back after a rebuild. A "clear" that is
+// gone (its facet has no selection now) gives the focus to the first option
+// of that facet.
+function refocusTarget(root, focus) {
+  const options = [...root.querySelectorAll(".vault-opt")];
+  if (focus.more) return root.querySelector(`[data-more="${focus.more}"]`);
+  if (focus.clear) {
+    return root.querySelector(`[data-clear="${focus.clear}"]`)
+      || options.find((el) => el.dataset.facet === focus.clear) || null;
+  }
+  if (focus.facet) {
+    return options.find((el) => el.dataset.facet === focus.facet && el.dataset.value === focus.value) || null;
+  }
+  return null;
 }

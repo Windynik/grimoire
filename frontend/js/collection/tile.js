@@ -6,7 +6,7 @@
 
 import { h, manaNode } from "../shared/dom.js";
 import { cardImg } from "../shared/images.js";
-import { formatPrice } from "../shared/format.js";
+import { formatCardPrice } from "./numbers.js";
 import { reducedMotion } from "../shared/motion.js";
 
 const MAX_TILT = 9; // degrees at the edge of the face
@@ -41,7 +41,7 @@ function label(card, copies, price) {
   if (card.foil) parts.push("foil");
   if (copies > 1) parts.push(`${copies} copies`);
   if (card.new) parts.push("new");
-  if (price) parts.push(formatPrice(price));
+  if (price) parts.push(formatCardPrice(price));
   return parts.join(", ");
 }
 
@@ -75,7 +75,7 @@ export function vaultTile(card, { index, onOpen } = {}) {
   const caption = h("div", { class: "vault-cap" },
     h("span", { class: "vault-name", text: String(card.name || "") }),
     card.new ? h("span", { class: "vault-new", "aria-hidden": "true", text: "NEW" }) : null,
-    h("span", { class: "vault-price", text: formatPrice(price) }));
+    h("span", { class: "vault-price", text: formatCardPrice(price) }));
   const cost = manaNode(card.mana_cost, "vault-cost");
   cost.setAttribute("aria-hidden", "true");
 

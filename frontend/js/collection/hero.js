@@ -5,9 +5,11 @@
 
 import { h } from "../shared/dom.js";
 import { cardImg } from "../shared/images.js";
-import { formatPrice } from "../shared/format.js";
 import { DURATION, reducedMotion } from "../shared/motion.js";
 import { attachTilt, vaultTile } from "./tile.js";
+import {
+  formatCardPrice, formatCount, formatMoney, longDate, shortDate,
+} from "./numbers.js";
 
 export const COLOR_NAMES = {
   W: "White", U: "Blue", B: "Black", R: "Red", G: "Green", C: "Colorless", M: "Multicolor",
@@ -15,36 +17,7 @@ export const COLOR_NAMES = {
 const ORB_ORDER = ["W", "U", "B", "R", "G", "C", "M"];
 const COUNTED_KEY = "grimoire.vault.counted";
 
-// ---- formats ---------------------------------------------------------------
-
-/** "1,002" for a count. */
-export function formatCount(value) {
-  return Math.round(Number(value) || 0).toLocaleString("en-US");
-}
-
-/** "$1,234.50" for a sum of money. */
-export function formatMoney(value) {
-  const number = Number(value) || 0;
-  return `$${number.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
-function dateOf(iso) {
-  if (!iso) return null;
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-/** "19 July 2026", or "" when there is no valid date. */
-export function longDate(iso) {
-  const date = dateOf(iso);
-  return date ? date.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : "";
-}
-
-/** "4 Jun 2026", or "" when there is no valid date. */
-export function shortDate(iso) {
-  const date = dateOf(iso);
-  return date ? date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "";
-}
+export { formatCount, formatMoney, longDate, shortDate };
 
 // ---- the switcher ----------------------------------------------------------
 
@@ -233,8 +206,8 @@ export function renderFan(root, shelves, onOpen) {
   root.classList.toggle("is-still", reducedMotion());
   const cards = placed.map(({ card, k, spot }, i) => {
     const price = Number(card.price) || 0;
-    const tag = spot ? "✦ Today's spotlight" : (k === 0 ? "✦ Most valuable" : formatPrice(price));
-    const label = [String(card.name || ""), spot ? "today's spotlight" : null, price ? formatPrice(price) : null]
+    const tag = spot ? "✦ Today's spotlight" : (k === 0 ? "✦ Most valuable" : formatCardPrice(price));
+    const label = [String(card.name || ""), spot ? "today's spotlight" : null, price ? formatCardPrice(price) : null]
       .filter(Boolean).join(", ");
     const el = h("button", {
       type: "button", class: `vault-fan-card${k === 0 ? " is-spot" : ""}`, "aria-label": label,

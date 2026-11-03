@@ -60,7 +60,10 @@ function trackBarHeight() {
     if (bar.offsetHeight) document.documentElement.style.setProperty("--shell-h", `${bar.offsetHeight}px`);
   };
   set();
-  window.addEventListener("resize", set);
+  // The bar can change height without a window resize (the nav wraps, a font
+  // loads). A ResizeObserver catches that; the resize event is the fallback.
+  if (typeof ResizeObserver === "function") new ResizeObserver(set).observe(bar);
+  else window.addEventListener("resize", set);
 }
 
 /** Build the drifting motes (none under reduced motion), bind the nav, and publish the bar height. */

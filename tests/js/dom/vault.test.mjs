@@ -611,3 +611,248 @@ test("on a phone the Filters button opens the sidebar as a sheet", async () => {
   key($("#vault-side"), "Escape");
   assert.ok(!$("#vault-side").classList.contains("is-sheet-open"));
 });
+
+// ---- fix round 1 -----------------------------------------------------------
+
+function deferred() {
+  let resolve;
+  const promise = new Promise((r) => { resolve = r; });
+  return { promise, resolve };
+}
+
+test("a failed collection list shows Try again and forgets nothing", async () => {
+  window.localStorage.clear();
+  window.sessionStorage.setItem(COUNTED, "1");
+  window.localStorage.setItem("viewerSource", "job1");
+  window.localStorage.setItem("lastJobId", "job1");
+  app.route("GET /api/collections", () => ({ status: 500, json: { detail: "down" } }));
+  app.fetchLog.length = 0;
+  await open();
+  assert.equal(view().dataset.vault, "error");
+  assert.equal($("#vault-empty").hidden, false);
+  assert.match(text("#vault-empty"), /collections did not load/i);
+  assert.equal(window.localStorage.getItem("viewerSource"), "job1");
+  assert.equal(window.localStorage.getItem("lastJobId"), "job1");
+  assert.equal(searches("/api/cards/search").length, 0, "no fallback to the archive");
+  // The list answers again: Try again opens the chosen collection.
+  await openVault({ storage: { viewerSource: "job1", lastJobId: "job1" } }); // installs the routes
+  app.route("GET /api/collections", () => ({ status: 500, json: { detail: "down" } }));
+  await open();
+  app.route("GET /api/collections", () => ({ json: { collections: COLLECTIONS } }));
+  app.fetchLog.length = 0;
+  $("#vault-empty .vault-retry").click();
+  await app.until(() => view().dataset.vault === "ready");
+  assert.ok(searches("/api/collection/job1/search").length > 0);
+});
+
+test("a failed next page shows a retry row and keeps the scroll going", async () => {
+  let fail = true;
+  const logged = [];
+  const original = console.error;
+  console.error = (...args) => logged.push(args);
+  try {
+    await openVault({
+      search: (req) => {
+        const offset = Number(req.query.get("offset"));
+        if (offset && fail) return { status: 500, json: { detail: "boom" } };
+        return page(cards(offset ? 40 : 60, offset), 100, { offset });
+      },
+    });
+    window.__intersect();
+    await app.until(() => !$("#vault-more-error").hidden);
+    assert.match(text("#vault-more-error"), /Couldn.t load more/);
+    assert.equal(logged.length, 1);
+    assert.equal(tiles().length, 60);
+    // No new request until Try again.
+    const before = searches("/api/collection/job1/search").length;
+    window.__intersect();
+    await app.settle();
+    assert.equal(searches("/api/collection/job1/search").length, before);
+    fail = false;
+    $("#vault-more-error button").click();
+    await app.until(() => tiles().length === 100);
+    assert.equal($("#vault-more-error").hidden, true);
+  } finally {
+    console.error = original;
+  }
+});
+
+test("a slow first page of an old filter does not replace a newer result", async () => {
+  const slow = deferred();
+  await openVault({
+    search: (req) => (req.query.get("rarity") === "rare" ? slow.promise : page(cards(2))),
+  });
+  facetOpt("rarity", "rare").click(); // slow request
+  await app.until(() => lastSearch()?.query.get("rarity") === "rare");
+  facetOpt("rarity", "rare").click(); // off again: a fast request
+  await app.until(() => !lastSearch().query.has("rarity"));
+  await app.until(() => tiles().length === 2);
+  slow.resolve(page(cards(5, 10)));
+  await app.settle();
+  assert.equal(tiles().length, 2);
+  assert.equal(tiles()[0].getAttribute("aria-label").split(",")[0], "Card 0");
+});
+
+test("a next page of an old query that comes after a reload is dropped", async () => {
+  const slow = deferred();
+  await openVault({
+    search: (req) => {
+      const offset = Number(req.query.get("offset"));
+      if (offset) return slow.promise;
+      if (req.query.has("rarity")) return page(cards(3, 200), 3);
+      return page(cards(60), 100);
+    },
+  });
+  window.__intersect();
+  await app.until(() => lastSearch()?.query.get("offset") === "60");
+  facetOpt("rarity", "mythic").click();
+  await app.until(() => tiles().length === 3);
+  slow.resolve(page(cards(40, 60), 100, { offset: 60 }));
+  await app.settle();
+  assert.equal(tiles().length, 3);
+});
+
+test("under reduced motion the counters show the final values at once", async () => {
+  const original = window.matchMedia;
+  window.matchMedia = (query) => ({ ...original(query), matches: /reduced-motion/.test(query) });
+  try {
+    await openVault({ counted: false });
+    assert.equal(text('.vault-ledger-item[data-key="foils"] .vault-ledger-value'), "37");
+    assert.equal(text('.vault-ledger-item[data-key="value"] .vault-ledger-value'), "$1,234.50");
+    assert.ok($("#vault-fan").classList.contains("is-still"));
+  } finally {
+    window.matchMedia = original;
+  }
+});
+
+test("the sidebar keeps the focus on more and moves it after a clear", async () => {
+  const many = { neo: 9, m21: 8, dmu: 7, one: 6, mom: 5, woe: 4, lci: 3, mkm: 2, otj: 1, blb: 1 };
+  await openVault({ search: () => page(cards(3), 3, { facets: facets({ set: many }) }) });
+  const more = $('.vault-facet[data-facet="set"] .vault-facet-more');
+  assert.equal(more.textContent, "2 more");
+  more.focus();
+  more.click();
+  assert.equal(document.activeElement.dataset.more, "set");
+  assert.equal(document.activeElement.textContent, "fewer");
+  assert.equal($$('.vault-facet[data-facet="set"] [data-value]').length, 10);
+
+  facetOpt("rarity", "rare").click();
+  await app.until(() => lastSearch()?.query.get("rarity") === "rare");
+  const clear = $('.vault-facet[data-facet="rarity"] .vault-facet-clear');
+  clear.focus();
+  clear.click();
+  assert.equal(document.activeElement, facetOpt("rarity", "mythic"), "the first option takes the focus");
+});
+
+test("the list header sits outside the list and uses pressed buttons", async () => {
+  await openVault({ storage: { viewerSource: "job1", [STATE("job1")]: JSON.stringify({ view: "list" }) } });
+  const body = $("#vault-list [role=list]");
+  assert.ok(body);
+  assert.equal($("#vault-list").getAttribute("role"), null);
+  assert.equal(body.querySelector(".vault-row-head"), null);
+  assert.equal($$("#vault-list [role=listitem]").length, 3);
+  assert.equal($$("#vault-list [aria-sort]").length, 0);
+  const price = $('#vault-list .vault-row-head [data-sort="price"]');
+  assert.equal(price.getAttribute("aria-pressed"), "true");
+  assert.match(price.textContent, /sorted descending/);
+  assert.equal($('#vault-list .vault-row-head [data-sort="name"]').getAttribute("aria-pressed"), "false");
+});
+
+test("the size buttons name the card size", async () => {
+  await openVault();
+  assert.deepEqual($$("#vault-size [data-size]").map((b) => b.getAttribute("aria-label")),
+    ["Small cards", "Medium cards", "Large cards"]);
+});
+
+test("the phone sheet takes the focus, keeps Tab inside, and gives it back", async () => {
+  await openVault();
+  const button = $("#vault-filters-btn");
+  button.focus();
+  button.click();
+  const side = $("#vault-side");
+  assert.ok(side.contains(document.activeElement), "the focus moves into the sheet");
+  const focusables = [...side.querySelectorAll("button, input, select, a[href]")]
+    .filter((el) => !el.closest("[hidden]") && !el.disabled);
+  const last = focusables.at(-1);
+  last.focus();
+  key(last, "Tab");
+  assert.equal(document.activeElement, focusables[0]);
+  key(focusables[0], "Tab", { shiftKey: true });
+  assert.equal(document.activeElement, last);
+  key(side, "Escape");
+  assert.equal(document.activeElement, button);
+  button.click();
+  $("#vault-sheet-done").click();
+  assert.equal(document.activeElement, button);
+});
+
+test("the hero stays while the same source loads again", async () => {
+  await openVault();
+  const slow = deferred();
+  app.route("GET /api/collection/job1/insights", () => slow.promise);
+  app.fetchLog.length = 0;
+  const opening = open();
+  await app.until(() => app.fetchLog.some((r) => r.path === "/api/collection/job1/insights"));
+  assert.equal($("#vault-hero").hidden, false);
+  assert.equal($("#vault-fan").hidden, false);
+  assert.equal($$("#vault-fan .vault-fan-card").length, 5);
+  slow.resolve({ json: INSIGHTS });
+  await opening;
+  // Another source hides the hero of the old one.
+  window.localStorage.setItem("viewerSource", "archive");
+  await open();
+  assert.equal($("#vault-hero").hidden, true);
+});
+
+test("prices on the screen use thousands separators", async () => {
+  await openVault({
+    storage: { viewerSource: "job1", [STATE("job1")]: JSON.stringify({ view: "list" }) },
+    search: () => page([card(1, { price: 1234.5 })], 1),
+    shelves: { ...SHELVES, valuable: [card(101, { name: "Big", price: 2500 }), ...SHELVES.valuable.slice(1)] },
+  });
+  assert.equal(text("#vault-list .vault-row .vault-row-price"), "$1,234.50");
+  const big = $$("#vault-fan .vault-fan-card").find((el) => /^Big/.test(el.getAttribute("aria-label")));
+  assert.equal(big.querySelector(".vault-fan-tag").textContent, "$2,500.00");
+  $('#vault-view [data-view="grid"]').click();
+  assert.equal(text("#vault-grid .vault-price"), "$1,234.50");
+});
+
+test("Export CSV downloads the collection and is hidden in the archive", async () => {
+  const clicks = [];
+  const original = window.HTMLAnchorElement.prototype.click;
+  window.HTMLAnchorElement.prototype.click = function spy() { clicks.push(this.getAttribute("download")); };
+  try {
+    await openVault();
+    app.route("GET /api/collection/job1/export", () => ({ body: "name\nBolt\n", headers: { "content-type": "text/csv" } }));
+    const link = $("#collection-export");
+    assert.equal(link.hidden, false);
+    link.dispatchEvent(new window.MouseEvent("click", { bubbles: true, cancelable: true }));
+    await app.until(() => clicks.length === 1);
+    assert.ok(app.fetchLog.some((r) => r.path === "/api/collection/job1/export"));
+    assert.equal(clicks[0], "ManaBox Collection.csv");
+  } finally {
+    window.HTMLAnchorElement.prototype.click = original;
+  }
+  await openVault({ storage: { viewerSource: "archive" } });
+  assert.equal($("#collection-export").hidden, true);
+});
+
+test("a failed export shows the server's reason", async () => {
+  await openVault();
+  app.route("GET /api/collection/job1/export", () => ({ status: 409, json: { detail: "Import the CSV again to export it." } }));
+  $("#collection-export").click();
+  await app.until(() => /Import the CSV again/.test(text("#toast-container")));
+});
+
+test("a 404 search for a listed collection opens the next one and forgets nothing", async () => {
+  await openVault({
+    storage: { viewerSource: "job1", lastJobId: "job1" },
+  });
+  app.route("GET /api/collection/job1/search", () => ({ status: 404, json: { detail: "Collection not found" } }));
+  app.fetchLog.length = 0;
+  await open();
+  await app.until(() => view().dataset.vault === "ready" && text("#vault-title-text") === "Newer box");
+  assert.ok(searches("/api/collection/job2/search").length > 0);
+  assert.equal(window.localStorage.getItem("viewerSource"), "job1");
+  assert.equal(window.localStorage.getItem("lastJobId"), "job1");
+});

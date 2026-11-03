@@ -8,10 +8,9 @@
 //
 // Server text goes in with textContent only (h()).
 
-import { h, manaNode } from "../shared/dom.js";
-import { cardImg } from "../shared/images.js";
-import { formatPrice } from "../shared/format.js";
+import { h } from "../shared/dom.js";
 import { getJSON } from "../shared/http.js";
+import { exportCollection } from "../shared/export.js";
 import { reducedMotion } from "../shared/motion.js";
 import { showCardDetail } from "../shared/card.js";
 import {
@@ -23,9 +22,14 @@ import {
   ARCHIVE_SORTS, SIZES, SORTS, defaultState, loadState, normalizeState, saveState,
 } from "./state.js";
 import {
-  COLOR_NAMES, formatCount, formatMoney, renderFan, renderHero, renderShelves, renderSwitcher, syncOrbs,
+  COLOR_NAMES, renderFan, renderHero, renderShelves, renderSwitcher, syncOrbs,
 } from "./hero.js";
+import { formatCount, formatMoney } from "./numbers.js";
 import { formatName, renderFacets, setName } from "./sidebar.js";
+import { onListKey, renderList, listRow } from "./list.js";
+import {
+  editable, focusables, onGridKey, onShelfKey, trapTab,
+} from "./keys.js";
 
 const PAGE = 60;
 const SEARCH_DELAY = 250; // ms of quiet before a typed search runs
@@ -60,6 +64,9 @@ const screen = {
   loading: false,
   shelves: null,
   allSets: false,
+  heroSource: undefined, // the source whose hero shows now
+  moreFailed: false, // the last next-page request failed
+  skip: new Set(), // collections whose search answered 404 in this open()
 };
 let searchTimer = 0;
 
@@ -187,6 +194,8 @@ async function reload() {
   const gen = screen.gen;
   screen.loading = true;
   screen.done = false;
+  screen.moreFailed = false;
+  ui.moreError.hidden = true;
   ui.sentinel.classList.add("loading");
   try {
     const data = await fetchPage(0);
@@ -205,11 +214,16 @@ async function reload() {
     if (token !== screen.token || gen !== screen.gen) return;
     screen.done = true;
     if (error.status === 404 && !screen.archive) {
-      // The collection is gone: forget it and open the next one.
-      const gone = screen.source;
-      screen.collections = screen.collections.filter((c) => c.job_id !== gone);
-      if (viewerSource() === gone) setViewerSource(null);
-      if (activeCollection() === gone) setActiveCollection(null);
+      // The collection did not answer: read the list again. The session
+      // forgets the id only when that list leaves it out.
+      screen.skip.add(screen.source);
+      const fresh = await loadCollections();
+      if (gen !== screen.gen) return;
+      if (!fresh) {
+        showOpenError();
+        return;
+      }
+      screen.collections = fresh;
       await switchTo(resolveSource());
       return;
     }
@@ -225,7 +239,7 @@ async function reload() {
 
 /** Load the next page (infinite scroll). */
 async function loadMore() {
-  if (screen.loading || screen.done || !visible()) return;
+  if (screen.loading || screen.done || screen.moreFailed || !visible()) return;
   const token = screen.token;
   screen.loading = true;
   ui.sentinel.classList.add("loading");
@@ -241,13 +255,22 @@ async function loadMore() {
     renderResults(list, { first: false });
   } catch (error) {
     if (token !== screen.token) return;
-    screen.done = true;
+    // Keep the scroll going: the owner can ask again.
+    console.error("The next page of the vault did not load:", error);
+    screen.moreFailed = true;
+    ui.moreError.hidden = false;
   } finally {
     if (token === screen.token) {
       screen.loading = false;
       ui.sentinel.classList.remove("loading");
     }
   }
+}
+
+function retryMore() {
+  screen.moreFailed = false;
+  ui.moreError.hidden = true;
+  loadMore();
 }
 
 function setStatus(status) {
@@ -282,61 +305,12 @@ function openFrom(card) {
   openCard(screen.cards, screen.cards.indexOf(card));
 }
 
-function listRow(card) {
-  const qty = Number(card.quantity) || 0;
-  const price = typeof card.price === "number" ? card.price : parseFloat(card.price) || 0;
-  const rarity = String(card.rarity || "").toLowerCase();
-  const row = h("div", {
-    class: `vault-row${card.foil ? " is-foil" : ""}`, role: "listitem", tabindex: "0",
-    "aria-label": [card.name, card.foil ? "foil" : null, qty > 1 ? `${qty} copies` : null, price ? formatPrice(price) : null]
-      .filter(Boolean).join(", "),
-  },
-  cardImg(card, { className: "vault-row-thumb", size: "small" }),
-  h("span", { class: "vault-row-name", text: String(card.name || "") }),
-  manaNode(card.mana_cost, "vault-row-cost"),
-  h("span", { class: "vault-row-type", text: String(card.type_line || "") }),
-  h("span", { class: "vault-row-set", text: String(card.set || "").toUpperCase(), title: card.set_name || null }),
-  h("span", { class: "vault-row-rarity", title: rarity || null },
-    h("i", { class: `vault-gem vault-gem-${rarity || "none"}`, "aria-hidden": "true" })),
-  h("span", { class: "vault-row-qty", text: qty > 0 ? `×${qty}` : "" }),
-  h("span", { class: "vault-row-foil", text: card.foil ? "Foil" : "" }),
-  h("span", { class: "vault-row-price", text: formatPrice(price) }));
-  row.addEventListener("click", () => openFrom(card));
-  row.addEventListener("keydown", (event) => {
-    if (event.target !== row || event.repeat) return;
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      openFrom(card);
-    }
+function drawList(list) {
+  ui.listBody = renderList(ui.list, list, {
+    sort: screen.state.sort, sorts: screen.archive ? ARCHIVE_SORTS : SORTS, onOpen: openFrom,
+    onSort: (sort) => update((s) => { s.sort = sort; }),
   });
-  return row;
-}
-
-function listHead() {
-  const sorts = screen.archive ? ARCHIVE_SORTS : SORTS;
-  const col = (name, sort, className) => {
-    const current = screen.state.sort;
-    const active = sort && (current === sort || (sort === "price" && current === "price_asc"));
-    if (!sort || !sorts.includes(sort)) return h("span", { class: className, text: name });
-    const ariaSort = active ? (current === "price" ? "descending" : "ascending") : null;
-    return h("button", {
-      type: "button", class: `${className} vault-row-sort${active ? " is-on" : ""}`, "data-sort": sort,
-      "aria-sort": ariaSort, text: name,
-      onclick: () => update((s) => {
-        s.sort = sort === "price" && s.sort === "price" ? "price_asc" : sort;
-      }),
-    });
-  };
-  return h("div", { class: "vault-row-head", role: "presentation" },
-    h("span", { class: "vault-row-thumb" }),
-    col("Name", "name", "vault-row-name"),
-    col("Cost", "mv", "vault-row-cost"),
-    col("Type", null, "vault-row-type"),
-    col("Set", "set", "vault-row-set"),
-    col("Rarity", "rarity", "vault-row-rarity"),
-    col("Qty", null, "vault-row-qty"),
-    col("Finish", null, "vault-row-foil"),
-    col("Price", "price", "vault-row-price"));
+  ui.list.classList.toggle("is-archive", screen.archive);
 }
 
 function renderResults(list, { first }) {
@@ -344,8 +318,12 @@ function renderResults(list, { first }) {
   if (first) {
     // Only the first page of a new result rises in.
     ui.grid.replaceChildren(...(grid ? list.map((card, index) => vaultTile(card, { index, onOpen: openFrom })) : []));
-    ui.list.replaceChildren(...(grid ? [] : [listHead(), ...list.map(listRow)]));
-    ui.list.classList.toggle("is-archive", screen.archive);
+    if (grid) {
+      ui.list.replaceChildren();
+      ui.listBody = null;
+    } else {
+      drawList(list);
+    }
     renderCount();
     renderChips();
     renderSidebar();
@@ -353,8 +331,8 @@ function renderResults(list, { first }) {
     renderEmpty();
   } else if (grid) {
     ui.grid.append(...list.map((card) => vaultTile(card, { onOpen: openFrom })));
-  } else {
-    ui.list.append(...list.map(listRow));
+  } else if (ui.listBody) {
+    ui.listBody.append(...list.map((card) => listRow(card, openFrom)));
   }
 }
 
@@ -366,10 +344,7 @@ function redrawView() {
   if (grid && ui.grid.childElementCount !== screen.cards.length) {
     ui.grid.replaceChildren(...screen.cards.map((card) => vaultTile(card, { onOpen: openFrom })));
   }
-  if (!grid) {
-    ui.list.replaceChildren(listHead(), ...screen.cards.map(listRow));
-    ui.list.classList.toggle("is-archive", screen.archive);
-  }
+  if (!grid) drawList(screen.cards);
   if (!screen.cards.length) ui.list.hidden = true;
 }
 
@@ -480,7 +455,17 @@ function showError(error) {
   ui.empty.replaceChildren(
     h("p", { class: "vault-empty-title", text: "The vault did not open." }),
     h("p", { class: "vault-empty-hint", text: (error && error.message) || "The server did not answer." }),
-    h("button", { type: "button", class: "btn btn-secondary", text: "Try again", onclick: () => reload() }));
+    h("button", { type: "button", class: "btn btn-secondary vault-retry", text: "Try again", onclick: () => reload() }));
+}
+
+/** The collection list did not load: show Try again, and forget no saved choice. */
+function showOpenError() {
+  showError(null);
+  ui.empty.replaceChildren(
+    h("p", { class: "vault-empty-title", text: "Your collections did not load." }),
+    h("p", { class: "vault-empty-hint", text: "The server did not answer. Your saved choice of collection stays." }),
+    h("button", { type: "button", class: "btn btn-secondary vault-retry", text: "Try again", onclick: () => open() }));
+  setStatus("error");
 }
 
 // ---- chips -----------------------------------------------------------------
@@ -572,10 +557,15 @@ function renderChrome() {
   ui.titleText.textContent = archive ? "All cards" : String((current && current.name) || "Collection");
   ui.search.placeholder = archive ? "Search every card…" : "Search your vault…";
   renderSwitcher(ui.menu, screen.collections, screen.source, pick);
-  ui.hero.hidden = true;
-  ui.fan.hidden = true;
-  ui.shelves.hidden = true;
-  ui.shelves.replaceChildren();
+  ui.exportLink.hidden = archive;
+  // The hero of the same source stays while it loads again.
+  if (screen.heroSource !== screen.source) {
+    screen.heroSource = undefined;
+    ui.hero.hidden = true;
+    ui.fan.hidden = true;
+    ui.shelves.hidden = true;
+    ui.shelves.replaceChildren();
+  }
 }
 
 async function loadHero(gen) {
@@ -589,6 +579,7 @@ async function loadHero(gen) {
       selected: screen.state.colors, onOrb: orbClick,
     });
     ui.hero.hidden = false;
+    screen.heroSource = id;
   }
   if (shelves.status === "fulfilled") {
     screen.shelves = shelves.value || {};
@@ -599,6 +590,7 @@ async function loadHero(gen) {
     renderShelves(ui.shelves, screen.shelves, { onOpen: openCard, onSeeAll: seeAll });
     renderShelvesVisibility();
     renderSidebar();
+    screen.heroSource = id;
   }
 }
 
@@ -656,90 +648,34 @@ function sheetOpen() {
   return ui.side.classList.contains("is-sheet-open");
 }
 
+/** Open the phone sheet and move the focus into it (to the Done button). */
 function openSheet() {
   ui.side.classList.add("is-sheet-open");
   ui.scrim.hidden = false;
   ui.filtersBtn.setAttribute("aria-expanded", "true");
   document.body.classList.add("vault-sheet-lock");
+  const first = focusables(ui.side)[0];
+  if (first) first.focus();
 }
 
-function closeSheet() {
+/** Close the phone sheet. returnFocus gives the focus back to the Filters button. */
+function closeSheet(returnFocus = true) {
   if (!sheetOpen()) return;
   ui.side.classList.remove("is-sheet-open");
   ui.scrim.hidden = true;
   ui.filtersBtn.setAttribute("aria-expanded", "false");
   document.body.classList.remove("vault-sheet-lock");
+  if (returnFocus) ui.filtersBtn.focus();
 }
 
 // ---- keyboard ----------------------------------------------------------------
-
-const editable = (el) => Boolean(el && (el.isContentEditable
-  || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)));
-
-function rect(el) {
-  return el.getBoundingClientRect();
-}
-
-/** The tile to focus after an arrow key: the next in reading order, or the nearest in the next row. */
-function nextTile(list, current, key) {
-  const i = list.indexOf(current);
-  if (i < 0) return null;
-  if (key === "ArrowLeft") return list[i - 1] || null;
-  if (key === "ArrowRight") return list[i + 1] || null;
-  const here = rect(current);
-  const centre = here.left + here.width / 2;
-  const down = key === "ArrowDown";
-  const tops = list.map((el) => rect(el).top);
-  const rows = tops.filter((top) => (down ? top > here.top + 1 : top < here.top - 1));
-  if (!rows.length) return null;
-  const rowTop = down ? Math.min(...rows) : Math.max(...rows);
-  let best = null;
-  let distance = Infinity;
-  list.forEach((el, index) => {
-    if (Math.abs(tops[index] - rowTop) > 1) return;
-    const r = rect(el);
-    const d = Math.abs(r.left + r.width / 2 - centre);
-    if (d < distance) {
-      distance = d;
-      best = el;
-    }
-  });
-  return best;
-}
-
-function onGridKey(event) {
-  if (!/^Arrow(Left|Right|Up|Down)$/.test(event.key) || event.altKey || event.metaKey || event.ctrlKey) return;
-  const tile = event.target.closest && event.target.closest(".vault-tile");
-  if (!tile || event.target !== tile) return;
-  const target = nextTile([...event.currentTarget.querySelectorAll(".vault-tile")], tile, event.key);
-  event.preventDefault();
-  if (target) target.focus();
-}
-
-function onListKey(event) {
-  if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
-  const row = event.target.closest && event.target.closest(".vault-row");
-  if (!row) return;
-  event.preventDefault();
-  const target = event.key === "ArrowDown" ? row.nextElementSibling : row.previousElementSibling;
-  if (target && target.classList.contains("vault-row")) target.focus();
-}
-
-function onShelfKey(event) {
-  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-  const tile = event.target.closest && event.target.closest(".vault-tile");
-  if (!tile || event.target !== tile) return;
-  event.preventDefault();
-  const target = event.key === "ArrowRight" ? tile.nextElementSibling : tile.previousElementSibling;
-  if (target) target.focus();
-}
 
 function onDocumentKey(event) {
   if (!visible() || event.defaultPrevented) return;
   if (event.key === "/" && !event.metaKey && !event.ctrlKey && !event.altKey) {
     if (editable(event.target) || document.querySelector("dialog[open]")) return;
     event.preventDefault();
-    if (window.matchMedia && window.matchMedia(PHONE).matches) openSheet();
+    if (window.matchMedia && window.matchMedia(PHONE).matches && !sheetOpen()) openSheet();
     ui.search.focus();
     ui.search.select();
     return;
@@ -749,7 +685,6 @@ function onDocumentKey(event) {
       closeMenu(true);
     } else if (sheetOpen()) {
       closeSheet();
-      ui.filtersBtn.focus();
     }
   }
 }
@@ -827,7 +762,10 @@ function init() {
     list: byId("vault-list"),
     empty: byId("vault-empty"),
     sentinel: byId("scroll-sentinel"),
+    moreError: byId("vault-more-error"),
+    exportLink: byId("collection-export"),
   });
+  ui.listBody = null;
 
   ui.title.addEventListener("click", () => (menuOpen() ? closeMenu(false) : openMenu()));
   ui.menu.addEventListener("keydown", onMenuKey);
@@ -865,13 +803,18 @@ function init() {
     renderControls();
   });
   ui.filtersBtn.addEventListener("click", () => (sheetOpen() ? closeSheet() : openSheet()));
-  ui.scrim.addEventListener("click", closeSheet);
-  byId("vault-sheet-done").addEventListener("click", closeSheet);
+  ui.scrim.addEventListener("click", () => closeSheet());
+  byId("vault-sheet-done").addEventListener("click", () => closeSheet());
   ui.side.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && sheetOpen() && event.target !== ui.search) {
-      closeSheet();
-      ui.filtersBtn.focus();
-    }
+    if (!sheetOpen()) return;
+    if (event.key === "Tab") trapTab(ui.side, event);
+    else if (event.key === "Escape" && event.target !== ui.search) closeSheet();
+  });
+  ui.moreError.querySelector("button").addEventListener("click", retryMore);
+  ui.exportLink.addEventListener("click", (event) => {
+    event.preventDefault();
+    const current = collectionOf(screen.source);
+    if (current) exportCollection(current);
   });
 
   ui.grid.addEventListener("keydown", onGridKey);
@@ -885,12 +828,13 @@ function init() {
   }, { rootMargin: "800px" }).observe(ui.sentinel);
 }
 
+/** The collection list, newest first; null when the request failed. */
 async function loadCollections() {
   try {
     const data = await getJSON("/collections");
     return Array.isArray(data && data.collections) ? data.collections : [];
   } catch (error) {
-    return [];
+    return null;
   }
 }
 
@@ -905,18 +849,21 @@ async function loadFormats() {
 
 /**
  * The source to open: the chosen archive, the chosen collection, the active
- * collection, else the newest collection. A source that is gone is forgotten.
+ * collection, else the newest collection. screen.collections is a list that
+ * loaded; an id that it leaves out is forgotten. An id in screen.skip (its
+ * search answered 404) is passed over but not forgotten.
  */
 function resolveSource() {
-  const known = (id) => Boolean(id) && Boolean(collectionOf(id));
+  const listed = (id) => Boolean(id) && Boolean(collectionOf(id));
+  const usable = (id) => listed(id) && !screen.skip.has(id);
   const chosen = viewerSource();
   if (chosen === "archive") return null;
-  if (known(chosen)) return chosen;
-  if (chosen) setViewerSource(null);
+  if (usable(chosen)) return chosen;
+  if (chosen && !listed(chosen)) setViewerSource(null);
   const active = activeCollection();
-  if (known(active)) return active;
-  if (active) setActiveCollection(null);
-  const newest = screen.collections.find((c) => known(c.job_id));
+  if (usable(active)) return active;
+  if (active && !listed(active)) setActiveCollection(null);
+  const newest = screen.collections.find((c) => usable(c.job_id));
   return newest ? newest.job_id : null;
 }
 
@@ -947,11 +894,16 @@ export async function open() {
   init();
   const gen = ++screen.gen;
   closeMenu(false);
-  closeSheet();
+  closeSheet(false);
   setStatus("loading");
+  screen.skip = new Set();
   const [collections, formats] = await Promise.all([loadCollections(), loadFormats()]);
   if (gen !== screen.gen) return;
-  screen.collections = collections;
   screen.formats = formats;
+  if (!collections) {
+    showOpenError();
+    return;
+  }
+  screen.collections = collections;
   await switchTo(resolveSource());
 }

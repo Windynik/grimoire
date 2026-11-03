@@ -32,11 +32,11 @@
     --mana-r: #e58a6e;
     --mana-g: #74c193;
     --mana-c: #b9bdcc; /* colorless orb and chip of the Vault */
-    --mana-m: #e8c26a; /* multicolor: the gold of the Vault */
+    --mana-m: var(--gold); /* multicolor: the gold of the Vault */
 
     /* Rarity gems */
     --rarity-mythic: #e8863f;
-    --rarity-rare: #e8c26a;
+    --rarity-rare: var(--gold);
     --rarity-uncommon: #a8c3d8;
     --rarity-common: #8a8f9e;
 
