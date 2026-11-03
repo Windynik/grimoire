@@ -89,11 +89,14 @@ def mark_owned(cards: list) -> list:
     return cards
 
 
-def matches_filters(card: dict, card_type: str, color: str, rarity: str, foil: str) -> bool:
+def matches_filters(card: dict, card_type: str, color: str, rarity: str, foil: str,
+                    identity=None) -> bool:
     """Check a card dict against the optional viewer filters.
 
-    Works for both bulk-data cards and stored collection cards; color is
-    derived from the mana cost so it needs no extra stored fields.
+    Works for both bulk-data cards and stored collection cards.
+    When `identity` is a list, the color filter uses the Scryfall color identity.
+    When `identity` is None, the card is not in the index, so the color filter
+    uses the mana cost.
     """
     if card_type and card_type.lower() not in (card.get("type_line") or "").lower():
         return False
@@ -107,13 +110,20 @@ def matches_filters(card: dict, card_type: str, color: str, rarity: str, foil: s
             return False
 
     if color:
-        mana = (card.get("mana_cost") or "").upper()
         color = color.upper()
-        if color == "C":
-            if any(c in mana for c in "WUBRG"):
+        if identity is not None:
+            if color == "C":
+                if identity:
+                    return False
+            elif color not in identity:
                 return False
-        elif color not in mana:
-            return False
+        else:
+            mana = (card.get("mana_cost") or "").upper()
+            if color == "C":
+                if any(c in mana for c in "WUBRG"):
+                    return False
+            elif color not in mana:
+                return False
 
     return True
 
@@ -489,8 +499,8 @@ async def search_collection(
     if results is None:
         raise HTTPException(status_code=404, detail="Collection not found")
     check_format(format)
+    index = await bulk_data_manager.load_bulk_data()
     if format:
-        index = await bulk_data_manager.load_bulk_data()
         results = [
             c for c in results
             if c.get("scryfall_id") in index
@@ -503,7 +513,10 @@ async def search_collection(
     if card_type or color or rarity or foil:
         results = [
             card for card in results
-            if matches_filters(card, card_type, color, rarity, foil)
+            if matches_filters(
+                card, card_type, color, rarity, foil,
+                identity=(index.get(card.get("scryfall_id")) or {}).get("color_identity"),
+            )
         ]
 
     mark_owned(results)
@@ -511,7 +524,7 @@ async def search_collection(
 
     limit = max(1, min(limit, 200))
     offset = max(0, offset)
-    page = hydrate(results[offset:offset + limit], await bulk_data_manager.load_bulk_data())
+    page = hydrate(results[offset:offset + limit], index)
 
     return {"cards": page, "total": len(results), "offset": offset, "limit": limit}
 
@@ -567,7 +580,8 @@ async def search_all_cards(
         for card_id, card_info in bulk_data.items()
         if card_info.get("layout") not in NON_GAME_LAYOUTS
         and (not query_lower or query_lower in card_info.get("name", "").lower())
-        and matches_filters(card_info, card_type, color, rarity, "")
+        and matches_filters(card_info, card_type, color, rarity, "",
+                           identity=card_info.get("color_identity"))
         and (not format or legal_in(card_info, format))
     ]
 

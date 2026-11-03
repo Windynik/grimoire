@@ -266,3 +266,43 @@ def test_process_stream_5000_rows(stream_env):
         files={"file": ("big.csv", make_csv(4850, unknown=150))}))
     assert len([e for e in events if e["type"] == "progress"]) == 500
     assert events[-1]["result"]["error_count"] == 150
+
+
+def test_color_filter_uses_identity():
+    hybrid = {"mana_cost": "{G}", "type_line": "Creature"}
+    assert routes.matches_filters(hybrid, "", "U", "", "", identity=["G", "U"])
+    assert not routes.matches_filters(hybrid, "", "R", "", "", identity=["G", "U"])
+
+
+def test_colorless_means_empty_identity():
+    land = {"mana_cost": "", "type_line": "Land"}
+    assert routes.matches_filters(land, "", "R", "", "", identity=["R"])
+    assert not routes.matches_filters(land, "", "C", "", "", identity=["R"])
+    assert routes.matches_filters(land, "", "C", "", "", identity=[])
+
+
+def test_color_filter_without_identity_uses_mana_cost():
+    card = {"mana_cost": "{R}", "type_line": "Instant"}
+    assert routes.matches_filters(card, "", "R", "", "")
+    assert not routes.matches_filters(card, "", "C", "", "")
+
+
+def test_collection_search_filters_by_identity(overrides):
+    store, bulk = overrides
+    lair = make_record("Mountain Lair", type_line="Land", mana_cost="",
+                       color_identity=("R",))
+    bulk.cards.clear()
+    bulk.cards["id-lair"] = lair
+    store.store_collection("job1", [], {})
+    payload = {"meta": {"job_id": "job1", "name": "I"}, "cards": [
+        {"name": "Mountain Lair", "scryfall_id": "id-lair", "quantity": 1},
+    ]}
+    (store.storage_dir / "job1.json").write_text(json.dumps(payload))
+
+    def names(url):
+        return [c["name"] for c in client.get(url).json()["cards"]]
+
+    assert names("/api/collection/job1/search?color=R") == ["Mountain Lair"]
+    assert names("/api/collection/job1/search?color=C") == []
+    assert names("/api/cards/search?color=R") == ["Mountain Lair"]
+    assert names("/api/cards/search?color=C") == []
