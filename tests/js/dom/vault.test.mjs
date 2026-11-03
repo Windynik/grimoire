@@ -190,9 +190,9 @@ test("the fan holds the spotlight in the middle and four valuable cards around i
   assert.deepEqual(names.slice().sort(),
     ["Pricey Four", "Pricey One", "Pricey Three", "Pricey Two", "Spotlight Dragon"]);
   fan[0].click();
-  await app.until(() => $("dialog[open] .card-detail-name"));
-  assert.equal(text("dialog[open] .card-detail-name"), names[0]);
-  $("dialog[open] .modal-close").click();
+  await app.until(() => $(".vault-drawer.is-open .vault-dname"));
+  assert.equal(text(".vault-drawer.is-open .vault-dname"), names[0]);
+  $(".vault-dclose").click();
 });
 
 test("the switcher lists the collections and the archive, and switches", async () => {
@@ -403,17 +403,17 @@ test("arrow keys move the focus across the grid, row by row", async () => {
   assert.equal(document.activeElement, list[2]);
   key(list[0], "ArrowLeft");
   key(list[2], "Enter");
-  await app.until(() => $("dialog[open] .card-detail-name"));
-  assert.equal(text("dialog[open] .card-detail-name"), "Card 2");
-  $("dialog[open] .modal-close").click();
+  await app.until(() => $(".vault-drawer.is-open .vault-dname"));
+  assert.equal(text(".vault-drawer.is-open .vault-dname"), "Card 2");
+  $(".vault-dclose").click();
 });
 
 test("a tile click opens the card", async () => {
   await openVault();
   tiles()[1].click();
-  await app.until(() => $("dialog[open] .card-detail-name"));
-  assert.equal(text("dialog[open] .card-detail-name"), "Card 1");
-  $("dialog[open] .modal-close").click();
+  await app.until(() => $(".vault-drawer.is-open .vault-dname"));
+  assert.equal(text(".vault-drawer.is-open .vault-dname"), "Card 1");
+  $(".vault-dclose").click();
 });
 
 // ---- sort, view, size ----------------------------------------------------
@@ -454,8 +454,8 @@ test("a list row opens its card and has the table columns", async () => {
   assert.match(row.textContent, /NEO/);
   assert.match(row.textContent, /\$2\.00/);
   key(row, "Enter");
-  await app.until(() => $("dialog[open] .card-detail-name"));
-  $("dialog[open] .modal-close").click();
+  await app.until(() => $(".vault-drawer.is-open .vault-dname"));
+  $(".vault-dclose").click();
   // A column header sorts.
   $('#vault-list .vault-row-head [data-sort="mv"]').click();
   await app.until(() => lastSearch()?.query.get("sort") === "mv");

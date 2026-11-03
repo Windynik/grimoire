@@ -12,11 +12,11 @@ import { h } from "../shared/dom.js";
 import { getJSON } from "../shared/http.js";
 import { exportCollection } from "../shared/export.js";
 import { reducedMotion } from "../shared/motion.js";
-import { showCardDetail } from "../shared/card.js";
 import {
   activeCollection, setActiveCollection, setViewerSource, viewerSource,
 } from "../shared/session.js";
 import * as api from "./api.js";
+import { openDrawer } from "./drawer.js";
 import { attachTilt, vaultTile } from "./tile.js";
 import {
   ARCHIVE_SORTS, SIZES, SORTS, defaultState, loadState, normalizeState, saveState,
@@ -79,13 +79,9 @@ function fill(el, ...nodes) {
 
 // ---- opening a card --------------------------------------------------------
 
-/**
- * Open one card of a list. Task 7 replaces the detail panel with the drawer,
- * which can move through the list.
- */
+/** Open one card of a list in the drawer, which moves through the list. */
 export function openCard(list, index) {
-  const card = list && list[index];
-  if (card) showCardDetail(card);
+  if (list && list[index]) openDrawer(list, index);
 }
 
 // ---- state -----------------------------------------------------------------
@@ -673,7 +669,7 @@ function closeSheet(returnFocus = true) {
 function onDocumentKey(event) {
   if (!visible() || event.defaultPrevented) return;
   if (event.key === "/" && !event.metaKey && !event.ctrlKey && !event.altKey) {
-    if (editable(event.target) || document.querySelector("dialog[open]")) return;
+    if (editable(event.target) || document.querySelector("dialog[open], .vault-drawer.is-open")) return;
     event.preventDefault();
     if (window.matchMedia && window.matchMedia(PHONE).matches && !sheetOpen()) openSheet();
     ui.search.focus();

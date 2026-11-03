@@ -1657,3 +1657,332 @@
 body.vault-sheet-lock {
     overflow: hidden;
 }
+
+/* ==========================================================================
+   The card drawer (js/collection/drawer.js): a panel on the right. It slides
+   with transform, and its scrim fades with opacity.
+   ========================================================================== */
+
+.vault-dscrim {
+    position: fixed;
+    inset: 0;
+    z-index: 160;
+    background: rgba(4, 5, 10, 0.55);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--dur-base) var(--ease-out);
+}
+
+.vault-dscrim.is-open {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.vault-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 170;
+    width: min(520px, 94vw);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background: linear-gradient(180deg, var(--surface-2), var(--bg));
+    border-left: 1px solid var(--border-bright);
+    box-shadow: var(--shadow-2);
+    transform: translateX(104%);
+    visibility: hidden;
+    transition: transform var(--dur-base) var(--ease-out), visibility var(--dur-base) linear;
+    outline: 0;
+}
+
+.vault-drawer.is-open {
+    transform: none;
+    visibility: visible;
+    transition: transform var(--dur-base) var(--ease-out);
+}
+
+.vault-dclose {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    z-index: 2;
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--border-bright);
+    border-radius: 50%;
+    background: var(--surface);
+    color: var(--text-dim);
+    font: 600 14px var(--font-ui);
+    cursor: pointer;
+}
+
+.vault-dclose:hover {
+    color: var(--text);
+    border-color: var(--gold-dim);
+}
+
+.vault-drawer button:focus-visible,
+.vault-drawer a:focus-visible {
+    outline: 2px solid var(--violet);
+    outline-offset: 3px;
+}
+
+.vault-dhead {
+    display: flex;
+    justify-content: center;
+    padding: 30px 30px 0;
+    perspective: 1200px;
+}
+
+.vault-dface {
+    position: relative;
+    width: min(300px, 70vw);
+    aspect-ratio: 488 / 680;
+    border-radius: 16px;
+    transform-style: preserve-3d;
+    transition: transform var(--dur-slow) var(--ease-out);
+}
+
+.vault-dface.is-tilting {
+    transition: transform calc(var(--dur-fast) / 2) linear;
+    will-change: transform;
+}
+
+.vault-dface > .card-img,
+.vault-dnoimg {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    border-radius: 16px;
+    box-shadow: 0 40px 80px rgba(0, 0, 0, 0.65);
+}
+
+.vault-dnoimg {
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    border: 1px solid var(--border-bright);
+    background: var(--surface);
+    color: var(--text-dim);
+    font: italic 500 18px var(--font-serif);
+    text-align: center;
+}
+
+.vault-dflip {
+    display: block;
+    margin: 14px auto 0;
+    padding: 7px 18px;
+    border: 1px solid var(--border-bright);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--text);
+    font: 600 12px var(--font-ui);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+.vault-dflip[hidden] {
+    display: none;
+}
+
+.vault-dflip[aria-pressed="true"] {
+    border-color: var(--gold-dim);
+    color: var(--gold);
+}
+
+.vault-dbody {
+    padding: 24px 32px 8px;
+}
+
+.vault-dtitle {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 6px 14px;
+}
+
+.vault-dname {
+    margin: 0;
+    min-width: 0;
+    font: 600 28px/1.15 var(--font-serif);
+    overflow-wrap: anywhere;
+}
+
+.vault-dcost {
+    flex: none;
+}
+
+.vault-dtype {
+    margin-top: 6px;
+    font: italic 500 19px var(--font-serif);
+    color: var(--lede-warm);
+}
+
+.vault-oracle {
+    margin: 16px 0;
+    padding: 14px 16px;
+    border-left: 2px solid var(--gold);
+    background: var(--gold-faint);
+    font: 500 15px/1.55 var(--font-ui);
+    color: var(--text);
+    white-space: pre-line;
+}
+
+.vault-facts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 16px;
+}
+
+.vault-facts > div {
+    min-width: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--border-bright);
+    border-radius: var(--radius-md);
+}
+
+.vault-facts b,
+.vault-decks > b {
+    display: block;
+    font: 700 10px var(--font-ui);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+}
+
+.vault-facts span {
+    font: 600 22px var(--font-serif);
+    color: var(--gold);
+}
+
+.vault-facts .vault-notowned {
+    grid-column: span 2;
+}
+
+.vault-facts .vault-notowned span {
+    font-size: 18px;
+    color: var(--text-dim);
+}
+
+.vault-rank {
+    margin: 12px 0 0;
+    font: 600 12px var(--font-ui);
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+}
+
+.vault-legal {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    margin-top: 16px;
+}
+
+.vault-legal > span {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 8px;
+    border-radius: 7px;
+    background: color-mix(in srgb, var(--success) 12%, transparent);
+    color: var(--success);
+    font: 600 11.5px var(--font-ui);
+}
+
+.vault-legal > span.no {
+    background: color-mix(in srgb, var(--error) 11%, transparent);
+    color: var(--error);
+}
+
+.vault-decks {
+    margin-top: 18px;
+}
+
+.vault-decks[hidden] {
+    display: none;
+}
+
+.vault-decks ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.vault-decks a {
+    display: inline-block;
+    padding: 6px 12px;
+    border: 1px solid var(--violet-dim);
+    border-radius: 999px;
+    background: var(--violet-faint);
+    color: var(--text);
+    font: 600 13px var(--font-ui);
+    text-decoration: none;
+}
+
+.vault-decks a:hover {
+    border-color: var(--violet);
+}
+
+.vault-dnav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 32px 32px;
+    font: 600 12px var(--font-ui);
+    color: var(--text-dim);
+}
+
+.vault-dnav button {
+    padding: 8px 4px;
+    border: 0;
+    background: none;
+    color: var(--text-dim);
+    font: inherit;
+    cursor: pointer;
+}
+
+.vault-dnav button:hover:not(:disabled) {
+    color: var(--text);
+}
+
+.vault-dnav button:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+@media (max-width: 759px) {
+    .vault-drawer {
+        width: 100vw;
+        border-left: 0;
+    }
+
+    .vault-dhead {
+        padding: 56px 20px 0;
+    }
+
+    .vault-dbody {
+        padding: 20px 20px 8px;
+    }
+
+    .vault-dnav {
+        padding: 14px 20px 28px;
+    }
+
+    .vault-dname {
+        font-size: 24px;
+    }
+
+    .vault-facts span {
+        font-size: 19px;
+    }
+
+    .vault-facts .vault-notowned span {
+        font-size: 15px;
+    }
+}
