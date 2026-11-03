@@ -80,7 +80,7 @@ export function vaultTile(card, { index, onOpen } = {}) {
   cost.setAttribute("aria-hidden", "true");
 
   const tile = h("div", {
-    class: "vault-tile", tabindex: "0", role: "button", "aria-label": label(card, copies, price),
+    class: "vault-tile", "data-card-id": card.scryfall_id, tabindex: "0", role: "button", "aria-label": label(card, copies, price),
   },
   copies > 1 ? h("span", { class: "vault-qty", "aria-hidden": "true", text: `×${copies}` }) : null,
   h("div", { class: "vault-frame" }, face), caption, cost);

@@ -30,7 +30,7 @@ export function listRow(card, onOpen) {
   const price = typeof card.price === "number" ? card.price : parseFloat(card.price) || 0;
   const rarity = String(card.rarity || "").toLowerCase();
   const row = h("div", {
-    class: `vault-row${card.foil ? " is-foil" : ""}`, role: "listitem", tabindex: "0",
+    class: `vault-row${card.foil ? " is-foil" : ""}`, role: "listitem", "data-card-id": card.scryfall_id, tabindex: "0",
     "aria-label": [card.name, card.foil ? "foil" : null, qty > 1 ? `${qty} copies` : null,
       price ? formatCardPrice(price) : null].filter(Boolean).join(", "),
   },

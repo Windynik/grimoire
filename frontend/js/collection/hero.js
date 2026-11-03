@@ -210,7 +210,7 @@ export function renderFan(root, shelves, onOpen) {
     const label = [String(card.name || ""), spot ? "today's spotlight" : null, price ? formatCardPrice(price) : null]
       .filter(Boolean).join(", ");
     const el = h("button", {
-      type: "button", class: `vault-fan-card${k === 0 ? " is-spot" : ""}`, "aria-label": label,
+      type: "button", class: `vault-fan-card${k === 0 ? " is-spot" : ""}`, "data-card-id": card.scryfall_id, "aria-label": label,
       onclick: () => onOpen(list, i),
     },
     h("span", { class: "vault-fan-tag", "aria-hidden": "true", text: tag }),

@@ -13,6 +13,7 @@ let document;
 let window;
 let drawer;
 let usage = {};
+let hold = {}; // card id -> promise that releases its deck answer
 
 const LEGAL = {
   commander: "legal", standard: "not_legal", pioneer: "legal", modern: "legal",
@@ -31,9 +32,12 @@ const card = (i, over = {}) => ({
 before(async () => {
   app = await loadApp({
     routes: {
-      "GET /api/decks/usage": (req) => {
+      "GET /api/decks/usage": async (req) => {
         const out = {};
-        for (const id of req.query.getAll("ids")) if (usage[id]) out[id] = usage[id];
+        for (const id of req.query.getAll("ids")) {
+          if (hold[id]) await hold[id];
+          if (usage[id]) out[id] = usage[id];
+        }
         return { json: out };
       },
     },
@@ -46,6 +50,7 @@ before(async () => {
 afterEach(() => {
   drawer.closeDrawer();
   usage = {};
+  hold = {};
 });
 
 const $ = (sel) => document.querySelector(sel);
@@ -176,12 +181,112 @@ test("an archive card in a deck still lists the deck, and no deck hides the sect
   assert.equal($$(".vault-decks a").length, 0);
 });
 
+const deferred = () => {
+  let release;
+  const promise = new Promise((resolve) => { release = resolve; });
+  return { promise, release };
+};
+const usageCalls = () => app.fetchLog.filter((r) => r.path === "/api/decks/usage").length;
+
 test("a late deck answer for an earlier card does not show", async () => {
   usage = { [ID(1)]: [{ deck_id: "d1", name: "Old" }], [ID(2)]: [{ deck_id: "d2", name: "New" }] };
+  const one = deferred();
+  const two = deferred();
+  hold = { [ID(1)]: one.promise, [ID(2)]: two.promise };
   drawer.openDrawer([card(1), card(2)], 0);
   key("ArrowRight");
+  two.release();
   await app.until(() => $$(".vault-decks a").length === 1);
-  assert.equal($(".vault-decks a").textContent, "New");
+  one.release();
+  await app.settle();
+  await app.settle();
+  assert.deepEqual($$(".vault-decks a").map((a) => a.textContent), ["New"]);
+});
+
+test("a deck answer that arrives after close renders nothing", async () => {
+  usage = { [ID(1)]: [{ deck_id: "d1", name: "Late" }] };
+  const one = deferred();
+  hold = { [ID(1)]: one.promise };
+  drawer.openDrawer([card(1)], 0);
+  const box = $(".vault-decks");
+  drawer.closeDrawer();
+  one.release();
+  await app.settle();
+  await app.settle();
+  assert.equal(box.querySelectorAll("a").length, 0);
+  assert.equal(box.hidden, true);
+});
+
+test("revisiting a card sends no second deck request", async () => {
+  usage = { [ID(1)]: [{ deck_id: "d1", name: "A" }] };
+  const before = usageCalls();
+  drawer.openDrawer([card(1), card(2)], 0);
+  await app.until(() => $$(".vault-decks a").length === 1);
+  key("ArrowRight");
+  await app.settle();
+  key("ArrowLeft");
+  await app.until(() => $$(".vault-decks a").length === 1);
+  assert.equal(usageCalls() - before, 2, "one request per card");
+});
+
+test("flip, then the next card shows the front face and an unpressed Flip", async () => {
+  const dfc = (i) => card(i, { back_image_url: "https://example.test/b.jpg" });
+  drawer.openDrawer([dfc(1), dfc(2)], 0);
+  $(".vault-dflip").click();
+  await app.until(() => /\/back\?/.test($(".vault-dface img.card-img-sharp").getAttribute("src")));
+  await app.settle();
+  key("ArrowRight");
+  assert.equal($(".vault-dflip").getAttribute("aria-pressed"), "false");
+  assert.match($(".vault-dface img.card-img-sharp").getAttribute("src"), /\/front\?/);
+});
+
+test("arrows and F typed in a text field of the drawer do nothing", () => {
+  drawer.openDrawer([card(1, { back_image_url: "https://example.test/b.jpg" }), card(2)], 0);
+  const input = document.createElement("input");
+  $(".vault-dbody").append(input);
+  input.focus();
+  for (const k of ["ArrowRight", "ArrowLeft", "f", "F"]) key(k, input);
+  assert.equal($(".vault-dname").textContent, "Card 1");
+  assert.equal($(".vault-dflip").getAttribute("aria-pressed"), "false");
+  assert.ok(isOpen());
+});
+
+test("the closed drawer is inert and the open one is not", () => {
+  drawer.openDrawer([card(1)], 0);
+  assert.equal($(".vault-drawer").inert, false);
+  drawer.closeDrawer();
+  assert.equal($(".vault-drawer").inert, true);
+});
+
+test("the legality grid is a list of items that read 'Format: legal'", () => {
+  drawer.openDrawer([card(1)], 0);
+  assert.equal($(".vault-legal").getAttribute("role"), "list");
+  const items = $$(".vault-legal > [role='listitem']");
+  assert.equal(items.length, 8);
+  assert.equal(items[3].querySelector(".vault-sr").textContent, "Modern: legal");
+  assert.equal(items[1].querySelector(".vault-sr").textContent, "Standard: not legal");
+});
+
+test("after the arrows, close returns the focus to the tile of the card shown", async () => {
+  const vault = await import(pathToFileURL(join(JS, "collection", "vault.js")).href);
+  const area = document.createElement("div");
+  area.id = "vault-testarea";
+  const list = [card(1), card(2), card(3)];
+  const tiles = list.map((c) => {
+    const el = document.createElement("div");
+    el.tabIndex = 0;
+    el.dataset.cardId = c.scryfall_id;
+    area.append(el);
+    return el;
+  });
+  document.body.append(area);
+  tiles[0].focus();
+  vault.openCard(list, 0);
+  key("ArrowRight");
+  key("ArrowRight");
+  key("Escape");
+  assert.equal(document.activeElement, tiles[2]);
+  area.remove();
 });
 
 test("server text goes in as text", () => {

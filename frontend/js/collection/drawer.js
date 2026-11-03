@@ -27,6 +27,7 @@ const state = {
   trigger: null,
   token: 0, // grows with every card shown; late answers check it
   flipping: false,
+  usage: new Map(), // card id -> promise of its deck usage
 };
 
 const coarsePointer = () => Boolean(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
@@ -124,10 +125,10 @@ function legalGrid(card) {
   const legal = card.legalities || {};
   return FORMATS.map((name) => {
     const ok = LEGAL.has(legal[name]);
-    const cell = h("span", { class: ok ? "" : "no", "aria-label": `${capital(name)}: ${ok ? "legal" : "not legal"}` },
+    return h("span", { class: ok ? "" : "no", role: "listitem" },
       h("span", { text: capital(name), "aria-hidden": "true" }),
-      h("span", { text: ok ? "✓" : "✕", "aria-hidden": "true" }));
-    return cell;
+      h("span", { text: ok ? "✓" : "✕", "aria-hidden": "true" }),
+      h("span", { class: "vault-sr", text: `${capital(name)}: ${ok ? "legal" : "not legal"}` }));
   });
 }
 
@@ -158,7 +159,7 @@ function show() {
     oracle,
     h("div", { class: "vault-facts" }, ...factsOf(card)),
     rank,
-    h("div", { class: "vault-legal" }, ...legalGrid(card)),
+    h("div", { class: "vault-legal", role: "list", "aria-label": "Format legality" }, ...legalGrid(card)),
     decks].filter(Boolean));
 
   els.pos.textContent = `${state.index + 1} of ${state.cards.length}`;
@@ -167,11 +168,23 @@ function show() {
   loadDecks(card, decks, token);
 }
 
+// One request per card while the drawer stays open, so a held arrow key sends no burst.
+function decksOf(id) {
+  if (!state.usage.has(id)) {
+    const request = api.deckUsage([id]);
+    state.usage.set(id, request);
+    request.catch(() => {
+      if (state.usage.get(id) === request) state.usage.delete(id);
+    });
+  }
+  return state.usage.get(id);
+}
+
 async function loadDecks(card, box, token) {
   if (!card.scryfall_id) return;
   let usage;
   try {
-    usage = await api.deckUsage([card.scryfall_id]);
+    usage = await decksOf(card.scryfall_id);
   } catch (error) {
     return;
   }
@@ -191,7 +204,11 @@ function go(step) {
   if (next < 0 || next >= state.cards.length) return;
   state.index = next;
   show();
-  if (typeof state.options.onNavigate === "function") state.options.onNavigate(current(), next);
+  if (typeof state.options.onNavigate === "function") {
+    // The answer may be the element that gets the focus back on close.
+    const target = state.options.onNavigate(current(), next);
+    if (target && typeof target.focus === "function") state.trigger = target;
+  }
 }
 
 // Turn the image to the other face: a quarter turn out, the swap, a quarter turn in.
@@ -246,7 +263,8 @@ function onKey(event) {
  * @param {number} index The card to show.
  * @param {Object} [options]
  * @param {function(Object, number)} [options.onNavigate] Called with the card
- *   and its index after the arrows move to another card.
+ *   and its index after the arrows move to another card. It may return the
+ *   element that takes the focus back when the drawer closes.
  */
 export function openDrawer(cards, index, options = {}) {
   if (!Array.isArray(cards) || !cards[index]) return;
@@ -272,6 +290,7 @@ export function closeDrawer(returnFocus = true) {
   if (!isOpen()) return;
   const { els } = state;
   state.token += 1;
+  state.usage.clear();
   els.root.classList.remove("is-open");
   els.scrim.classList.remove("is-open");
   els.root.inert = true;

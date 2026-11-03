@@ -81,7 +81,20 @@ function fill(el, ...nodes) {
 
 /** Open one card of a list in the drawer, which moves through the list. */
 export function openCard(list, index) {
-  if (list && list[index]) openDrawer(list, index);
+  if (!list || !list[index]) return;
+  // The card controls of the area that opened the drawer take the focus back.
+  const opener = document.activeElement;
+  const area = (opener && opener.closest && opener.closest("[id^='vault-']")) || document;
+  openDrawer(list, index, { onNavigate: (card) => followCard(card, area) });
+}
+
+// The drawer moved to another card: the control of that card gets the focus on close.
+function followCard(card, area) {
+  const id = card && card.scryfall_id;
+  if (!id) return null;
+  const el = [...area.querySelectorAll("[data-card-id]")].find((n) => n.dataset.cardId === id);
+  if (el && typeof el.scrollIntoView === "function") el.scrollIntoView({ block: "nearest", behavior: "auto" });
+  return el || null;
 }
 
 // ---- state -----------------------------------------------------------------
