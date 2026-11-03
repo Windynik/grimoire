@@ -17,6 +17,7 @@
     <link rel="stylesheet" href="/css/decks.css">
     <link rel="stylesheet" href="/css/tile.css">
     <link rel="stylesheet" href="/css/home.css">
+    <link rel="stylesheet" href="/css/collection.css">
 </head>
 <body>
     <!-- Atmospheric background layers -->
@@ -103,49 +104,52 @@
                 <!-- Import View -->
                 <div id="import-view" class="view">
                     <section class="card">
-                        <h2>Process Collection CSV</h2>
+                        <h2>Import a collection</h2>
 
-                        <!-- Upload Zone -->
-                        <div id="upload-zone" class="upload-zone" tabindex="0" role="button" aria-label="Upload CSV file">
-                            <input type="file" id="file-input" accept=".csv" aria-label="Choose CSV file to process" hidden>
-                            <div class="upload-content">
-                                <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-                                    <path d="M12 16V4m0 0l-4 4m4-4l4 4" stroke-linecap="round" stroke-linejoin="round"/>
-                                    <path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke-linecap="round"/>
-                                </svg>
-                                <p class="upload-title">Drop your ManaBox CSV here</p>
-                                <p class="upload-hint">or click to browse</p>
-                            </div>
-                        </div>
-
-                        <!-- Processing Display -->
-                        <div id="processing-display" style="display: none;">
-                            <div class="progress-container">
-                                <div class="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-label="Processing progress">
-                                    <div class="progress-fill" id="process-progress-fill"></div>
+                        <!-- State 1: Upload -->
+                        <div id="import-upload">
+                            <div id="upload-zone" class="upload-zone" tabindex="0" role="button" aria-label="Choose a CSV file to import">
+                                <input type="file" id="file-input" accept=".csv" aria-label="Choose CSV file to import" hidden>
+                                <div class="upload-content">
+                                    <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                                        <path d="M12 16V4m0 0l-4 4m4-4l4 4" stroke-linecap="round" stroke-linejoin="round"/>
+                                        <path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke-linecap="round"/>
+                                    </svg>
+                                    <p class="upload-title">Drop your ManaBox CSV here</p>
+                                    <p class="upload-hint">or click to browse</p>
                                 </div>
-                                <p class="progress-text" id="process-progress-text">0%</p>
                             </div>
-                            <dl class="processing-info">
-                                <div><dt>Current</dt><dd id="current-card">&mdash;</dd></div>
-                                <div><dt>Progress</dt><dd id="card-counter">0 / 0</dd></div>
-                                <div><dt>Errors</dt><dd id="error-count">0</dd></div>
-                            </dl>
                         </div>
 
-                        <!-- Results -->
-                        <div id="results-display" style="display: none;">
-                            <div class="results-success">
-                                <h3>Processing Complete</h3>
-                                <dl class="results-stats">
-                                    <div><dt>Total Processed</dt><dd id="total-processed">0</dd></div>
-                                    <div><dt>Successful</dt><dd id="success-count">0</dd></div>
-                                    <div><dt>Errors</dt><dd id="final-error-count">0</dd></div>
-                                </dl>
+                        <!-- State 2: Progress -->
+                        <div id="import-progress" hidden>
+                            <div class="progress-container">
+                                <div class="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-label="Import progress">
+                                    <div class="progress-fill" id="import-progress-fill"></div>
+                                </div>
+                            </div>
+                            <p class="import-row-text" id="import-row-text" aria-live="polite">Row 0 of 0</p>
+                            <p class="import-card-name" id="import-card-name">&nbsp;</p>
+                            <p class="import-unmatched-count" id="import-unmatched-count">0 unmatched</p>
+                        </div>
+
+                        <!-- State 3: Summary -->
+                        <div id="import-summary" hidden>
+                            <div class="import-summary-head">
+                                <h3 id="import-summary-title">Imported 0 of 0 rows</h3>
+                            </div>
+                            <div id="import-unmatched" hidden>
+                                <h4 class="import-unmatched-title">Unmatched rows</h4>
+                                <table class="import-table">
+                                    <thead><tr><th scope="col">Row</th><th scope="col">Card</th><th scope="col">Reason</th></tr></thead>
+                                    <tbody></tbody>
+                                </table>
+                                <p id="import-unmatched-more" class="import-more" hidden></p>
                             </div>
                             <div class="actions">
-                                <button id="download-result" class="btn btn-primary">Download Enhanced CSV</button>
-                                <button id="process-another" class="btn btn-secondary">Process Another</button>
+                                <button id="import-view-collection" class="btn btn-primary" type="button">View collection</button>
+                                <a id="import-download" class="btn btn-secondary" href="#" download>Download enhanced CSV</a>
+                                <button id="import-another" class="btn btn-secondary" type="button">Import another</button>
                             </div>
                         </div>
                     </section>
