@@ -1,0 +1,271 @@
+"""Local store for card images.
+
+The store keeps the Scryfall "normal" JPEG of each card face on disk.
+A page asks for an image and gets the stored file. The store downloads
+the file first when it is missing.
+"""
+import asyncio
+import os
+import re
+import tempfile
+from pathlib import Path
+from typing import AsyncIterator, Dict, List, Optional, Tuple
+
+import httpx
+
+from backend.core.paths import cache_path
+
+ID_PATTERN = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+FACES = ("front", "back")
+MAX_BYTES = 2 * 1024 * 1024
+ALLOWED_TYPES = ("image/jpeg", "image/png")
+USER_AGENT = "Grimoire/1.0 (local card viewer)"
+TIMEOUT_SECONDS = 20
+ON_DEMAND_LIMIT = 8
+BACKGROUND_LIMIT = 4
+PROGRESS_EVERY = 10
+
+
+class ImageError(Exception):
+    """A download failed. No file was stored."""
+
+
+class ImageStore:
+    """Disk store for card images, with a download lane for each kind of caller."""
+
+    def __init__(self, root: Optional[Path] = None, transport=None):
+        self.root = Path(root) if root is not None else cache_path("images")
+        self.transport = transport
+        self._inflight: Dict[Tuple[str, str], "asyncio.Task"] = {}
+        self._semaphores: Dict[str, asyncio.Semaphore] = {}
+        self._loop = None
+        self._prefetching = False
+
+    def path_for(self, scryfall_id: str, face: str) -> Path:
+        """Return the file path of an image. Raise ValueError for a bad id or face."""
+        if not isinstance(scryfall_id, str) or not ID_PATTERN.match(scryfall_id):
+            raise ValueError("Invalid Scryfall id")
+        if face not in FACES:
+            raise ValueError("Invalid face")
+        return self.root / scryfall_id[0] / scryfall_id[1] / ("%s-%s.jpg" % (scryfall_id, face))
+
+    def has(self, scryfall_id: str, face: str) -> bool:
+        return self.path_for(scryfall_id, face).is_file()
+
+    def stats(self) -> Dict[str, int]:
+        """Return the number of stored images and their total size in bytes."""
+        count = 0
+        size = 0
+        for path in self.root.glob("*/*/*.jpg"):
+            try:
+                size += path.stat().st_size
+            except OSError:
+                continue
+            count += 1
+        return {"count": count, "bytes": size}
+
+    def _semaphore(self, lane: str) -> asyncio.Semaphore:
+        """Return the lane limit. Create it inside the running loop."""
+        loop = asyncio.get_running_loop()
+        if loop is not self._loop:
+            self._loop = loop
+            self._semaphores = {}
+        if lane not in self._semaphores:
+            limit = BACKGROUND_LIMIT if lane == "background" else ON_DEMAND_LIMIT
+            self._semaphores[lane] = asyncio.Semaphore(limit)
+        return self._semaphores[lane]
+
+    async def fetch(self, scryfall_id: str, face: str, url: str,
+                    background: bool = False) -> Path:
+        """Return the stored path of an image. Download it when it is missing.
+
+        Callers for one key share one download. A background caller uses the
+        background lane. Every other caller uses the on-demand lane.
+        """
+        path = self.path_for(scryfall_id, face)
+        if path.is_file():
+            return path
+        key = (scryfall_id, face)
+        loop = asyncio.get_running_loop()
+        task = self._inflight.get(key)
+        if task is None or task.get_loop() is not loop:
+            task = loop.create_task(self._download(key, path, url, background))
+            self._inflight[key] = task
+            task.add_done_callback(lambda t, k=key: self._forget(k, t))
+        # A waiter that is cancelled must not cancel the shared download.
+        return await asyncio.shield(task)
+
+    def _forget(self, key, task) -> None:
+        if self._inflight.get(key) is task:
+            del self._inflight[key]
+        if not task.cancelled():
+            task.exception()  # mark as retrieved
+
+    async def _download(self, key, path: Path, url: str, background: bool) -> Path:
+        lane = "background" if background else "on_demand"
+        async with self._semaphore(lane):
+            if path.is_file():
+                return path
+            body = await self._get_body(url)
+        self._write(path, body)
+        return path
+
+    async def _get_body(self, url: str) -> bytes:
+        headers = {"User-Agent": USER_AGENT}
+        try:
+            async with httpx.AsyncClient(timeout=TIMEOUT_SECONDS, headers=headers,
+                                         transport=self.transport,
+                                         follow_redirects=True) as client:
+                async with client.stream("GET", url) as response:
+                    if response.status_code != 200:
+                        raise ImageError("Bad status %s" % response.status_code)
+                    kind = response.headers.get("content-type", "").split(";")[0].strip().lower()
+                    if kind not in ALLOWED_TYPES:
+                        raise ImageError("Bad content type")
+                    declared = response.headers.get("content-length", "")
+                    if declared.isdigit() and int(declared) > MAX_BYTES:
+                        raise ImageError("Image is too large")
+                    body = bytearray()
+                    async for chunk in response.aiter_bytes():
+                        body.extend(chunk)
+                        if len(body) > MAX_BYTES:
+                            raise ImageError("Image is too large")
+        except httpx.HTTPError as exc:
+            raise ImageError("Download failed: %s" % exc.__class__.__name__) from exc
+        if not body:
+            raise ImageError("Empty image")
+        return bytes(body)
+
+    def _write(self, path: Path, body: bytes) -> None:
+        """Write the file in one atomic step."""
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
+        try:
+            with os.fdopen(fd, "wb") as handle:
+                handle.write(body)
+            os.replace(tmp, path)
+        except OSError as exc:
+            raise ImageError("Could not store the image") from exc
+        finally:
+            if os.path.exists(tmp):
+                os.unlink(tmp)
+
+    def begin_prefetch(self) -> bool:
+        """Claim the single prefetch run. Return False when one already runs."""
+        if self._prefetching:
+            return False
+        self._prefetching = True
+        return True
+
+    def end_prefetch(self) -> None:
+        self._prefetching = False
+
+
+def _int(value) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def priority_targets(collections, decks, index: dict) -> List[Tuple[str, str, str]]:
+    """List the (scryfall_id, face, url) images in download priority order.
+
+    Order: deck commanders and main cards (newest deck first), then deck
+    sideboards and maybeboards, then the newest collection (by quantity, then
+    name), then the other collections (newest first). Each group lists front
+    faces before back faces. A repeated image keeps its first place.
+    """
+    deck_records = []
+    for summary in decks.list():
+        record = decks.get(summary.get("id", ""))
+        if record:
+            deck_records.append(record)
+
+    main_ids: List[str] = []
+    side_ids: List[str] = []
+    for record in deck_records:
+        sections = record.get("sections") or {}
+        commander = record.get("commander")
+        if isinstance(commander, dict):
+            main_ids.append(commander.get("scryfall_id"))
+        for entry in sections.get("main") or []:
+            main_ids.append(entry.get("scryfall_id") if isinstance(entry, dict) else None)
+        for name in ("sideboard", "maybeboard"):
+            for entry in sections.get(name) or []:
+                side_ids.append(entry.get("scryfall_id") if isinstance(entry, dict) else None)
+
+    newest_ids: List[str] = []
+    other_ids: List[str] = []
+    for position, meta in enumerate(collections.list_collections()):
+        rows = collections.get_collection(meta["job_id"]) or []
+        rows = sorted(rows, key=lambda r: (-_int(r.get("quantity")), str(r.get("name", ""))))
+        (newest_ids if position == 0 else other_ids).extend(r.get("scryfall_id") for r in rows)
+    groups = [main_ids, side_ids, newest_ids, other_ids]
+
+    result: List[Tuple[str, str, str]] = []
+    seen = set()
+    for ids in groups:
+        for face, field in (("front", "image_url"), ("back", "back_image_url")):
+            for sid in ids:
+                if not sid or (sid, face) in seen:
+                    continue
+                card = index.get(sid)
+                url = card.get(field) if card else ""
+                if not url:
+                    continue
+                seen.add((sid, face))
+                result.append((sid, face, url))
+    return result
+
+
+async def prefetch_events(store: ImageStore,
+                          targets: List[Tuple[str, str, str]]) -> AsyncIterator[dict]:
+    """Download the missing images in background order. Yield progress events.
+
+    "total" counts the images that need a download. "skipped" counts the
+    images already stored. Closing the generator stops new downloads. Downloads
+    already running may finish.
+    """
+    pending = [t for t in targets if not store.has(t[0], t[1])]
+    skipped = len(targets) - len(pending)
+    total = len(pending)
+    done = 0
+    failed = 0
+
+    async def one(target) -> bool:
+        try:
+            await store.fetch(target[0], target[1], target[2], background=True)
+            return True
+        except Exception:  # one bad image must not stop the run
+            return False
+
+    running = set()
+    queue = iter(pending)
+    finished = 0
+    exhausted = False
+    try:
+        while True:
+            while not exhausted and len(running) < BACKGROUND_LIMIT:
+                target = next(queue, None)
+                if target is None:
+                    exhausted = True
+                    break
+                running.add(asyncio.ensure_future(one(target)))
+            if not running:
+                break
+            completed, running = await asyncio.wait(running, return_when=asyncio.FIRST_COMPLETED)
+            for task in completed:
+                finished += 1
+                if task.result():
+                    done += 1
+                else:
+                    failed += 1
+                if finished % PROGRESS_EVERY == 0 or finished == total:
+                    yield {"type": "progress", "done": done, "total": total, "failed": failed}
+        yield {"type": "done", "done": done, "total": total, "failed": failed,
+               "skipped": skipped}
+    finally:
+        # In-flight downloads may finish. Do not leave a task unobserved.
+        for task in running:
+            task.add_done_callback(lambda t: t.cancelled() or t.exception())

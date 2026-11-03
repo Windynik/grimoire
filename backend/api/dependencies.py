@@ -1,6 +1,7 @@
 from functools import lru_cache
 from backend.core.bulk_data import BulkDataManager
 from backend.core.collection_store import CollectionStore
+from backend.core.image_store import ImageStore
 from backend.core.csv_processor import CSVProcessor
 from backend.core.ollama_client import OllamaClient
 from backend.decks.store import DeckStore
@@ -65,3 +66,13 @@ def get_forge_manager() -> ForgeManager:
         ForgeManager instance
     """
     return ForgeManager()
+
+
+@lru_cache()
+def get_image_store() -> ImageStore:
+    """Get singleton ImageStore instance.
+
+    Returns:
+        ImageStore instance
+    """
+    return ImageStore()
