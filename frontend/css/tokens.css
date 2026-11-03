@@ -31,6 +31,18 @@
     --mana-b: #a895c4;
     --mana-r: #e58a6e;
     --mana-g: #74c193;
+    --mana-c: #b9bdcc; /* colorless orb and chip of the Vault */
+    --mana-m: #e8c26a; /* multicolor: the gold of the Vault */
+
+    /* Rarity gems */
+    --rarity-mythic: #e8863f;
+    --rarity-rare: #e8c26a;
+    --rarity-uncommon: #a8c3d8;
+    --rarity-common: #8a8f9e;
+
+    /* The warm tone of the Vault ledes and the deep ink of its fields */
+    --lede-warm: #cfc7b2;
+    --ink-deep: #0c0f1c;
 
     /* Foil shine of the vault tiles (css/vault.css) */
     --holo-1: #ff8ad8;

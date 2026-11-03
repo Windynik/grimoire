@@ -51,8 +51,21 @@ function bindNav() {
   });
 }
 
-/** Build the drifting motes (none under reduced motion) and bind the nav. */
+// Sticky parts of the screens sit under the top bar. They read its height
+// from --shell-h on the root.
+function trackBarHeight() {
+  const bar = document.querySelector(".shell-bar");
+  if (!bar) return;
+  const set = () => {
+    if (bar.offsetHeight) document.documentElement.style.setProperty("--shell-h", `${bar.offsetHeight}px`);
+  };
+  set();
+  window.addEventListener("resize", set);
+}
+
+/** Build the drifting motes (none under reduced motion), bind the nav, and publish the bar height. */
 export function startShell() {
   startMotes();
   bindNav();
+  trackBarHeight();
 }

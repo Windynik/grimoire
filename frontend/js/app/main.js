@@ -5,7 +5,7 @@ import { register, start } from "./router.js";
 import { startShell } from "./shell.js";
 import { enhanceSelects } from "../shared/select.js";
 import * as home from "../home/home.js";
-import * as collection from "../collection/viewer.js";
+import * as collection from "../collection/vault.js";
 import * as importScreen from "../collection/import.js";
 import * as forge from "../forge/forge.js";
 import * as decks from "../decks/decks.js";

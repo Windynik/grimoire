@@ -156,79 +156,76 @@
                     </section>
                 </div>
 
-                <!-- Collection View -->
-                <div id="collection-view" class="view">
-                    <section class="card">
-                        <div class="viewer-head">
-                            <h2>Collection Viewer</h2>
-                            <a class="btn btn-secondary btn-compact" id="collection-import" href="#import">Import CSV</a>
-                        </div>
-
-                        <div class="viewer-controls">
-                            <select id="viewer-source" class="filter-select" aria-label="Card source">
-                                <option value="">All Cards (Archive)</option>
-                            </select>
-                            <input type="search" id="viewer-search" class="search-input" placeholder="Search cards by name&hellip;" aria-label="Search cards">
-                            <select id="viewer-sort" class="sort-select" aria-label="Sort cards">
-                                <option value="">Sort: Default</option>
-                                <option value="name">Sort: Name A&ndash;Z</option>
-                                <option value="price">Sort: Price &darr; High</option>
-                                <option value="price_asc">Sort: Price &uarr; Low</option>
-                            </select>
-                            <button id="viewer-shuffle" class="btn btn-secondary btn-compact" title="Show a random hand of cards">Shuffle</button>
-                            <div class="view-toggle" role="group" aria-label="Display mode">
-                                <button class="toggle-btn active" data-mode="grid" aria-pressed="true">Grid</button>
-                                <button class="toggle-btn" data-mode="list" aria-pressed="false">List</button>
+                <!-- Collection View: the Vault (js/collection/vault.js) -->
+                <div id="collection-view" class="view vault" data-vault="idle">
+                    <section class="vault-hero-wrap" aria-labelledby="vault-title-text">
+                        <div class="vault-intro">
+                            <div class="vault-over-row">
+                                <p class="vault-over" id="vault-over">The Vault</p>
+                                <a class="vault-import" id="collection-import" href="#import">Import CSV</a>
+                            </div>
+                            <div class="vault-title-row">
+                                <div class="vault-switch">
+                                    <button type="button" class="vault-title" id="vault-title" aria-haspopup="menu" aria-expanded="false" aria-controls="vault-switch-menu" title="Switch collection">
+                                        <span class="vault-title-text" id="vault-title-text">The Vault</span>
+                                    </button>
+                                    <div class="vault-switch-menu" id="vault-switch-menu" role="menu" aria-label="Collections" hidden></div>
+                                </div>
+                            </div>
+                            <div class="vault-hero" id="vault-hero" hidden>
+                                <p class="vault-lede" id="vault-lede"></p>
+                                <div class="vault-ledger" id="vault-ledger"></div>
+                                <div class="vault-orbs" id="vault-orbs" role="group" aria-label="Color mix"></div>
                             </div>
                         </div>
-
-                        <div class="viewer-filters" role="group" aria-label="Filters">
-                            <select id="filter-type" class="filter-select" aria-label="Filter by card type">
-                                <option value="">Type: Any</option>
-                                <option value="creature">Creature</option>
-                                <option value="instant">Instant</option>
-                                <option value="sorcery">Sorcery</option>
-                                <option value="artifact">Artifact</option>
-                                <option value="enchantment">Enchantment</option>
-                                <option value="planeswalker">Planeswalker</option>
-                                <option value="land">Land</option>
-                            </select>
-                            <select id="filter-color" class="filter-select" aria-label="Filter by color identity">
-                                <option value="">Color identity: Any</option>
-                                <option value="W">White</option>
-                                <option value="U">Blue</option>
-                                <option value="B">Black</option>
-                                <option value="R">Red</option>
-                                <option value="G">Green</option>
-                                <option value="C">Colorless</option>
-                            </select>
-                            <select id="filter-format" class="filter-select" aria-label="Filter by format legality">
-                                <option value="">Format: Any</option>
-                            </select>
-                            <select id="filter-rarity" class="filter-select" aria-label="Filter by rarity">
-                                <option value="">Rarity: Any</option>
-                                <option value="common">Common</option>
-                                <option value="uncommon">Uncommon</option>
-                                <option value="rare">Rare</option>
-                                <option value="mythic">Mythic</option>
-                            </select>
-                            <select id="filter-foil" class="filter-select" aria-label="Filter by foil" hidden>
-                                <option value="">Foil: Any</option>
-                                <option value="foil">Foil only</option>
-                                <option value="normal">Non-foil</option>
-                            </select>
-                            <button id="filter-clear" class="btn btn-secondary btn-compact" hidden>Clear Filters</button>
-                        </div>
-
-                        <p class="viewer-context" id="viewer-context"></p>
-
-                        <div id="card-grid" class="card-grid" aria-live="polite"></div>
-                        <div id="card-list" class="card-list" style="display: none;" aria-live="polite"></div>
-
-                        <div id="scroll-sentinel" class="scroll-sentinel" aria-hidden="true">
-                            <span class="loading-rune"></span>
-                        </div>
+                        <div class="vault-fan" id="vault-fan" hidden></div>
                     </section>
+
+                    <div class="vault-shelves" id="vault-shelves" hidden></div>
+
+                    <div class="vault-main">
+                        <div class="vault-scrim" id="vault-scrim" hidden></div>
+                        <aside class="vault-side" id="vault-side" aria-label="Search and filters">
+                            <div class="vault-sheet-head">
+                                <span>Filters</span>
+                                <button type="button" class="btn btn-secondary btn-compact" id="vault-sheet-done">Done</button>
+                            </div>
+                            <label class="vault-search">
+                                <span class="vault-search-icon" aria-hidden="true">&#8981;</span>
+                                <input type="search" id="vault-search" placeholder="Search your vault&hellip;" autocomplete="off" spellcheck="false" aria-label="Search cards" aria-keyshortcuts="/">
+                                <kbd aria-hidden="true">/</kbd>
+                            </label>
+                            <p class="vault-hint">Try <code>t:dragon</code> <code>mv:2-4</code> <code>o:"draw a card"</code> <code>$&gt;10</code></p>
+                            <div class="vault-facets" id="vault-facets"></div>
+                        </aside>
+
+                        <section class="vault-results" aria-label="Cards">
+                            <div class="vault-rhead">
+                                <button type="button" class="btn btn-secondary btn-compact vault-filters-btn" id="vault-filters-btn" aria-expanded="false" aria-controls="vault-side">Filters</button>
+                                <p class="vault-count" id="vault-count" aria-live="polite"></p>
+                                <div class="vault-chips" id="vault-chips"></div>
+                                <button type="button" class="vault-clear-all" id="vault-clear-all" hidden>Clear all</button>
+                                <div class="vault-controls">
+                                    <select class="vault-sort" id="vault-sort" aria-label="Sort cards"></select>
+                                    <div class="vault-seg" id="vault-view" role="group" aria-label="View">
+                                        <button type="button" data-view="grid" aria-pressed="true">Grid</button>
+                                        <button type="button" data-view="list" aria-pressed="false">List</button>
+                                    </div>
+                                    <div class="vault-seg vault-size" id="vault-size" role="group" aria-label="Card size">
+                                        <button type="button" data-size="S" aria-pressed="false" title="Small cards">S</button>
+                                        <button type="button" data-size="M" aria-pressed="true" title="Medium cards">M</button>
+                                        <button type="button" data-size="L" aria-pressed="false" title="Large cards">L</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="vault-grid" id="vault-grid" aria-label="Card grid"></div>
+                            <div class="vault-list" id="vault-list" role="list" aria-label="Card list" hidden></div>
+                            <div class="vault-empty" id="vault-empty" hidden></div>
+                            <div id="scroll-sentinel" class="scroll-sentinel" aria-hidden="true">
+                                <span class="loading-rune"></span>
+                            </div>
+                        </section>
+                    </div>
                 </div>
 
                 <!-- Deck Forge View -->
