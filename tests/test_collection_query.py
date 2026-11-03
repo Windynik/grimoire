@@ -325,3 +325,26 @@ def test_search_performance_with_3000_rows():
     elapsed = time.perf_counter() - started
     assert results and facets["rarity"] and value > 0
     assert elapsed < 0.3, elapsed
+
+
+def test_unindexed_cards_take_color_identity_from_mana_cost():
+    rows = [
+        {"scryfall_id": "x1", "name": "Gone Elf", "mana_cost": "{1}{G}", "quantity": 1},
+        {"scryfall_id": "x2", "name": "Gone Hybrid", "mana_cost": "{G/U}{R}", "quantity": 1},
+        {"scryfall_id": "x3", "name": "Gone Rock", "mana_cost": "{2}", "quantity": 1},
+        {"scryfall_id": "x4", "name": "Gone Land", "quantity": 1},
+    ]
+    cards = owned_cards(rows, {})
+    ident = {c["name"]: c["color_identity"] for c in cards}
+    assert ident == {"Gone Elf": ["G"], "Gone Hybrid": ["U", "R", "G"],
+                     "Gone Rock": [], "Gone Land": []}
+    names_of = lambda q, **f: names(run(cards, q, **f)[0])
+    assert names_of("c:g") == ["Gone Elf", "Gone Hybrid"]
+    assert names_of("", colors=["G"]) == ["Gone Elf"]
+    assert names_of("", includes_color="G") == ["Gone Elf", "Gone Hybrid"]
+    assert names_of("c:c") == ["Gone Land", "Gone Rock"]
+
+
+def test_uppercase_keywords():
+    assert found("T:Creature") == ["Elf Lord", "Gold Wurm", "Seven Drop"]
+    assert found("C:UG") == ["Gold Wurm"]

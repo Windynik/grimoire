@@ -57,6 +57,12 @@ def collection_set_names(original_rows: Optional[list]) -> Dict[str, str]:
     return names
 
 
+def _identity_from_mana(mana_cost: str) -> List[str]:
+    """Colors named inside the {...} symbols of a mana cost, in WUBRG order."""
+    symbols = " ".join(re.findall(r"\{([^}]*)\}", (mana_cost or "").upper()))
+    return [c for c in "WUBRG" if c in symbols]
+
+
 def owned_cards(stored: list, index: dict, csv_set_names: Optional[Dict[str, str]] = None) -> List[dict]:
     """One dict per stored row, with the index fields merged in."""
     csv_set_names = csv_set_names or {}
@@ -91,7 +97,8 @@ def owned_cards(stored: list, index: dict, csv_set_names: Optional[Dict[str, str
             "set_name": set_name,
             "collector_number": entry.get("collector_number") or "",
             "cmc": entry.get("cmc") or 0,
-            "color_identity": list(entry.get("color_identity") or []),
+            "color_identity": (list(entry.get("color_identity") or []) if indexed
+                               else _identity_from_mana(pick("mana_cost"))),
             "legalities": dict(entry.get("legalities") or {}),
             "edhrec_rank": entry.get("edhrec_rank"),
             "image_url": pick("image_url"),

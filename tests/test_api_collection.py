@@ -176,3 +176,63 @@ def test_archive_search_parses_keywords(env):
     assert get("/api/cards/search?q=foil dupes new")["total"] == 3
     assert [c["name"] for c in get("/api/cards/search?q=bolt foil")["cards"]] == ["Bolt"]
     assert [c["name"] for c in get("/api/cards/search?q=r:mythic")["cards"]] == ["Gold Wurm"]
+
+
+def test_raw_plus_in_mv_and_uppercase_keywords(env):
+    store, bulk = env
+    big = make_record("Titan", "Creature", "{7}", "", ("G",), 8)
+    bulk.cards["id-titan"] = big
+    write(store, "t", "T", "2026-04-01T00:00:00+00:00", [row("id-titan", "Titan"), row("id-elf", "Elf")])
+    assert names("/api/collection/t/search?mv=7+") == ["Titan"]
+    assert names("/api/collection/t/search?q=T:Creature&sort=name") == ["Elf", "Titan"]
+    assert names("/api/collection/cur/search?q=C:UG") == ["Gold Wurm"]
+
+
+def test_unindexed_card_color_fallback_old_param_facet_and_keyword(env):
+    store, _ = env
+    write(store, "u", "U", "2026-04-01T00:00:00+00:00",
+          [{"name": "Gone", "scryfall_id": "id-gone", "mana_cost": "{1}{G}", "quantity": 1},
+           {"name": "Blank", "scryfall_id": "id-blank", "quantity": 1}])
+    assert names("/api/collection/u/search?color=G") == ["Gone"]
+    assert names("/api/collection/u/search?colors=G") == ["Gone"]
+    assert names("/api/collection/u/search?q=c:g") == ["Gone"]
+    assert names("/api/collection/u/search?color=C") == ["Blank"]
+    assert get("/api/collection/u/search")["facets"]["colors"]["G"] == 1
+
+
+def test_empty_index_is_not_cached_and_keeps_good_entries(env):
+    import backend.api.collection_routes as cr
+    store, bulk = env
+    cr.MERGE_CACHE.clear()
+    get("/api/collection/cur/search")
+    good = dict(cr.MERGE_CACHE)
+    assert len(good) == 1
+    saved = dict(bulk.cards)
+    bulk.cards.clear()
+    get("/api/collection/cur/search")
+    assert len(cr.MERGE_CACHE) <= 1
+    bulk.cards.update(saved)
+    assert dict(cr.MERGE_CACHE) == good or len(cr.MERGE_CACHE) == 0
+
+
+def test_cache_cleared_when_index_changes(env):
+    import backend.api.collection_routes as cr
+    store, bulk = env
+    cr.MERGE_CACHE.clear()
+    get("/api/collection/cur/search")
+    get("/api/collection/old/search")
+    assert len(cr.MERGE_CACHE) == 2
+    app.dependency_overrides[get_bulk_data_manager] = lambda: FakeBulk(dict(bulk.cards))
+    get("/api/collection/cur/search")
+    assert len(cr.MERGE_CACHE) == 1
+    assert all(m.index is not bulk.cards for m in cr.MERGE_CACHE.values())
+
+
+def test_rewriting_the_older_collection_refreshes_new_flags(env):
+    import os
+    store, _ = env
+    assert {c["name"]: c["new"] for c in get("/api/collection/cur/search")["cards"]}["Elf"] is False
+    write(store, "old", "Old", "2026-01-01T00:00:00+00:00", [row("id-bolt", "Bolt", 2)])
+    os.utime(store.storage_dir / "old.json", ns=(2 * 10**18, 2 * 10**18))
+    flags = {c["name"]: c["new"] for c in get("/api/collection/cur/search")["cards"]}
+    assert flags["Elf"] is True and flags["Bolt"] is False

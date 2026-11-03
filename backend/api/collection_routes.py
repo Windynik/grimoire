@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from collections import OrderedDict
 from typing import List, Optional
 
@@ -23,6 +24,7 @@ router = APIRouter(prefix="/api")
 CACHE_SIZE = 4
 # (job_id, file mtime, id(index), directory mtime) -> merged collection
 MERGE_CACHE = OrderedDict()
+_INDEX_ID = None
 
 
 class Merged:
@@ -37,14 +39,20 @@ class Merged:
 
 
 def _stamp(store, job_id: str):
+    """File mtimes of the collection and of every stored collection.
+
+    Any change (add, delete, in-place rewrite) changes the stamp, so the
+    "new" flags that depend on the previous collection stay fresh.
+    """
     root = getattr(store, "storage_dir", None)
     if root is None:
         return None
     try:
-        return (os.stat(os.path.join(str(root), job_id + ".json")).st_mtime_ns,
-                os.stat(str(root)).st_mtime_ns)
+        files = tuple(sorted((p.name, p.stat().st_mtime_ns) for p in Path(str(root)).glob("*.json")))
+        mine = os.stat(os.path.join(str(root), job_id + ".json")).st_mtime_ns
     except OSError:
         return None
+    return (mine, files)
 
 
 def _merge(store, job_id: str, index: dict) -> Merged:
@@ -64,7 +72,11 @@ def _merge(store, job_id: str, index: dict) -> Merged:
 
 def get_merged(store, job_id: str, index: dict) -> Merged:
     """Merged cards of a collection, cached until the file or the index changes."""
-    stamp = _stamp(store, job_id)
+    global _INDEX_ID
+    if id(index) != _INDEX_ID:
+        MERGE_CACHE.clear()  # drop entries that hold the old index
+        _INDEX_ID = id(index)
+    stamp = _stamp(store, job_id) if index else None  # an empty index is not cached
     key = (job_id, stamp, id(index))
     if stamp is not None:
         hit = MERGE_CACHE.get(key)
