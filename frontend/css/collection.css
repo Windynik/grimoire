@@ -525,3 +525,18 @@
     align-self: center;
     margin-bottom: 0.9rem;
 }
+
+/* Under reduced motion the tiles stay put on hover and focus. */
+@media (prefers-reduced-motion: reduce) {
+    .card-item:hover,
+    .card-item:focus-visible,
+    .list-row:hover,
+    .list-row:focus-visible {
+        transform: none;
+    }
+
+    .card-hover-preview,
+    .card-image-wrapper:hover .card-hover-preview {
+        transform: none;
+    }
+}
