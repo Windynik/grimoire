@@ -1,48 +1,73 @@
-# Grimoire 🌙
+# Grimoire
 
-**Your offline MTG companion.** Enrich your [ManaBox](https://manabox.app) collection
-exports with card data from [Scryfall](https://scryfall.com)'s bulk data, browse your
-collection in a moonlit viewer, and forge playable decks from the cards you actually
-own — all running locally, no internet required after the first download.
+Forge and edit Magic: The Gathering decks from the cards you own. Grimoire runs on your own machine and enriches your ManaBox exports with Scryfall data.
+
+![Home screen](docs/images/home.png)
+
+![Collection viewer](docs/images/collection.png)
+
+![Deck editor](docs/images/editor.png)
+
+The screenshots use a synthetic sample collection.
 
 ## Features
 
-- ⚡ **Fast processing** — enriches 850+ card collections in under 5 seconds using Scryfall bulk data
-- 🗃️ **Unlimited viewer** — browse your collection or all 114k+ cards in the Scryfall archive with infinite scroll, name search, price/name sorting, a shuffle button, and full card details
-- 🔍 **Filters** — slice any view by card type, color, rarity, and (for your collection) foil
-- 🛠️ **Deck Forge** — an agent builds decks from *only the cards you own*, for every supported format: Commander, Brawl, Standard Brawl, Standard, Pioneer, Modern, Legacy, Vintage, Pauper, and Casual. It reads the full rules text of each card. It builds a synergy graph, picks a backbone plan, builds a legal deck with a real mana base, and reviews the result
-- 🤖 **Optional local AI** — if [Ollama](https://ollama.com) is running, a local model ranks the strategies, judges borderline swaps, and writes the explanation. No cloud, no API keys. Everything stays on your machine. Choose the model "Engine only" to run without Ollama
-- 📦 **Offline capable** — works without internet after the initial bulk data download
-- 🎨 **Polished web UI** — live progress, drag-and-drop import, mana symbols, and motion that respects the reduced-motion setting
+- **Enrich your CSV.** Import a [ManaBox](https://manabox.app) export. Grimoire adds the mana cost, oracle text, and type line from [Scryfall](https://scryfall.com) bulk data. It shows a summary of the rows it could not match. It exports the enhanced CSV.
+- **Collection viewer.** Browse your cards, or all cards in the Scryfall archive. It has infinite scroll, name search, sorting, a shuffle button, and card details. Filters cover card type, color identity, rarity, foil, and format legality.
+- **Deck Forge.** An agent builds a deck from only the cards you own. It supports Commander, Brawl, Standard Brawl, Standard, Pioneer, Modern, Legacy, Vintage, Pauper, and Casual.
+- **Deck editor.** Edit saved decks with undo and redo, autosave, a stats panel, a sample hand, and legality checks. Import a decklist, or export plain text, Arena text, or CSV.
+- **Optional local AI.** If [Ollama](https://ollama.com) runs on your machine, a local model ranks the plans and writes the explanation. There are no cloud calls and no API keys. Choose the model "Engine only" to work without Ollama.
+- **Offline.** After the first card data download, nothing needs the internet.
+- **Accessible motion.** The interface respects the reduced-motion setting.
 
-## Quick Start
+## Quick start
+
+You need Python 3.9 or newer.
 
 ```bash
-# Install dependencies
 pip install -r requirements.txt
-
-# Start the server (opens your browser automatically)
 python main.py
 ```
 
-The app runs at **http://localhost:8133**.
+The server opens your browser at **http://localhost:8133**.
 
-1. **Download card data** — on *Home*, press *Download card data* (about 100 MB, one time).
-2. **Import your collection** — open *Collection*, press *Import CSV*, and drop in your ManaBox export. The `examples/` folder has a sample file.
-3. **Browse** — use the *Collection* viewer to explore your cards with images, prices, and filters.
-4. **Forge a deck** — open *Forge*, pick a format (and optionally a commander), and start the forge.
+1. **Download card data.** On *Home*, press *Download card data*. The download is about 100 MB and happens once.
+2. **Import your collection.** Open *Collection*, press *Import CSV*, and drop in your ManaBox export. The `examples/` folder has a synthetic sample file.
+3. **Browse.** Use the *Collection* viewer to explore your cards.
+4. **Forge a deck.** Open *Forge*, pick a format (and optionally a commander), and start the forge.
 
-### Screens
+For the optional local model, install Ollama and pull a model:
+
+```bash
+brew install ollama          # or download from ollama.com
+ollama pull qwen3.5:9b       # recommended; about 6.6 GB
+```
+
+## How it works
+
+The forge is a pipeline. The engine does the work. A model, when you turn one on, only helps at a few points.
+
+1. The engine reads the full rules text of your cards and tags their roles.
+2. The engine builds a synergy graph and finds candidate plans.
+3. The agent asks you a question when two plans are close.
+4. The engine builds a legal deck and a mana base.
+5. The engine reviews the deck and writes the explanation.
+
+**The engine has the last word on legality.** It checks every card name from the model against the cards you own.
+
+**Grimoire is local only.** The server binds to 127.0.0.1, so other machines cannot reach it. Your collections and decks stay in the cache directory on your machine.
+
+## Screens
 
 The top bar has five screens. Each screen has its own address, such as `#home` or `#collection`.
 
-- **Home** — shows the card data status, your collections, and your recent decks. You can download the card data here.
-- **Collection** — the viewer for your cards or for all cards in the archive. It has name search, sorting, a shuffle button, and filters for card type, color (by color identity), rarity, foil, and format legality. A card flips to show its other face. The *Import CSV* button opens the importer. The importer shows live progress and a summary of the rows it could not match. It also exports the enhanced CSV.
-- **Forge** — builds a deck from the cards you own (see below).
-- **Decks** — lists your saved decks and opens the editor (see below).
-- **Settings** — shows the Ollama status, picks the model (Automatic, Engine only, or one installed model), sets how often the forge asks you a question, and clears the card data.
+- **Home** shows the card data status, your collections, and your recent decks. You can download the card data here. Each collection row has an *Export CSV* button. It downloads the enhanced CSV. A collection stored by an older version may need a re-import. In that case the app shows a message.
+- **Collection** is the viewer for your cards or for all cards in the archive. A card flips to show its other face. The *Import CSV* button opens the importer. The importer shows live progress and a summary of the rows it could not match.
+- **Forge** builds a deck from the cards you own (see below).
+- **Decks** lists your saved decks and opens the editor (see below).
+- **Settings** shows the Ollama status, picks the model (Automatic, Engine only, or one installed model), sets how often the forge asks you a question, and clears the card data.
 
-### Deck Forge stages
+### The Deck Forge
 
 The forge runs five stages. The screen shows each stage as it runs.
 
@@ -68,11 +93,7 @@ The *Decks* screen lists your saved decks. Each deck belongs to one format.
 - **Sample hand:** draw a hand of seven cards, and take a mulligan, or draw one more card.
 - **Agent panel:** ask the local model to suggest swaps. This needs Ollama (see below). The engine checks each swap before the editor shows it.
 
-### Collection export
-
-Each collection row on *Home* has an *Export CSV* button. It downloads the enhanced CSV at any time. Collections stored before this feature may need a re-import. In that case the app shows a message.
-
-### Optional: local AI
+### Optional: local AI and models
 
 ```bash
 brew install ollama          # or download from ollama.com
@@ -97,15 +118,21 @@ Evaluation status:
 - `gpt-oss:20b` did not finish on a 24 GB Mac with other apps open. The Mac ran out of memory, and the first model call timed out.
 - With `qwen3.5:9b` (one seed per sample), every model call returned valid JSON, and a forge took 80–140 seconds. Counters passed. Both aristocrats runs scored 0.001–0.022 below the engine baseline, and bogles reached 67% core recall (the rule is 70%).
 
-## What Gets Added to Your CSV
+## Development
 
-| Column | Example |
-|---|---|
-| Mana Cost | `{2}{U}{B}` |
-| Oracle Text | Full rules text of the card |
-| Type Line | `Legendary Creature — Human Wizard` |
+```bash
+pip install -r requirements.txt
+python main.py          # run the server
+```
 
-## Project Layout
+You can also install the package in editable mode. This gives the `grimoire` command.
+
+```bash
+pip install -e .
+grimoire
+```
+
+### Project layout
 
 ```
 backend/            FastAPI application
@@ -141,14 +168,7 @@ cardvalue.py        Standalone legacy script (per-card Scryfall API lookups)
 examples/           Sample ManaBox export for testing
 ```
 
-## Development
-
-```bash
-pip install -r requirements.txt
-python main.py          # run the server
-```
-
-Run the tests:
+### Tests
 
 ```bash
 npm install             # once, for the jsdom test dependency
@@ -179,31 +199,25 @@ python scripts/forge_eval.py --real                   # check your newest collec
 
 The script exits with code 1 when a pass rule fails.
 
-Or install as an editable package, which provides the `grimoire` command:
-
-```bash
-pip install -e .
-grimoire
-```
-
 ## Requirements
 
-- Python 3.9+
+- Python 3.9 or newer.
 - Disk space: the card index is about 100 MB. The download needs about 550 MB free while it runs.
-- Internet connection for the initial download (and optionally Ollama for AI features)
+- An internet connection for the first download. Ollama is optional.
 
-## Tech Stack
+## Tech stack
 
-- **Backend**: FastAPI, httpx, Pydantic
-- **Frontend**: Vanilla JavaScript and modern CSS — no framework, no build step
-- **Data**: [Scryfall bulk data API](https://scryfall.com/docs/api/bulk-data)
-- **AI (optional)**: [Ollama](https://ollama.com) running any local chat model
+- **Backend:** FastAPI, httpx, and Pydantic.
+- **Frontend:** vanilla JavaScript and modern CSS. There is no framework and no build step.
+- **Data:** the [Scryfall bulk data API](https://scryfall.com/docs/api/bulk-data).
+- **AI (optional):** [Ollama](https://ollama.com) with any local chat model.
 
 ## License
 
-MIT License
+MIT License.
 
-## Attribution
+## Credits
 
-Card data and imagery courtesy of [Scryfall](https://scryfall.com).
-This project is not affiliated with or endorsed by Wizards of the Coast.
+- Card data and images come from [Scryfall](https://scryfall.com).
+- Grimoire reads exports from [ManaBox](https://manabox.app).
+- Grimoire is not affiliated with or endorsed by Wizards of the Coast.
