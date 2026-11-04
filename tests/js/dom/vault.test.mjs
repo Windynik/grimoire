@@ -465,7 +465,7 @@ test("stale remembered state falls back to the defaults", async () => {
   await openVault({
     storage: {
       viewerSource: "job1",
-      [STATE("job1")]: JSON.stringify({ view: "sets", sort: "random", colors: ["X"], size: 9 }),
+      [STATE("job1")]: JSON.stringify({ view: "tiles", sort: "random", colors: ["X"], size: 9 }),
     },
   });
   assert.equal($("#vault-sort").value, "price");

@@ -55,7 +55,7 @@ test("stale or unknown values fall back field by field", () => {
   const raw = {
     q: 42, colors: ["U", "X", "U", 3], rarity: ["rare", "special"], type: ["Creature", "Tribal"],
     mv: ["3", "9", 2], format: ["modern", "<b>"], set: ["neo", "not a set!"], price: 7,
-    foil: "yes", dupes: 1, sort: "random", view: "sets", size: "XL", extra: "dropped",
+    foil: "yes", dupes: 1, sort: "random", view: "tiles", size: "XL", extra: "dropped",
   };
   const state = normalizeState(raw);
   assert.equal(state.q, "");
@@ -103,4 +103,13 @@ test("a long search text is cut, and the saved state is a copy", () => {
   const base = defaultState();
   base.colors.push("W");
   assert.deepEqual(defaultState().colors, [], "defaultState returns a fresh object");
+});
+
+test("the sets view and its sort are valid; the archive falls back to the grid", () => {
+  assert.equal(normalizeState({ view: "sets", setsSort: "owned" }).view, "sets");
+  assert.equal(normalizeState({ view: "sets", setsSort: "owned" }).setsSort, "owned");
+  assert.equal(normalizeState({ setsSort: "bogus" }).setsSort, "pct");
+  assert.equal(defaultState().setsSort, "pct");
+  assert.equal(normalizeState({ view: "sets" }, { archive: true }).view, "grid");
+  assert.equal(normalizeState({ view: "list" }, { archive: true }).view, "list");
 });

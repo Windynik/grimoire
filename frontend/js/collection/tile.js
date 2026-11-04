@@ -11,7 +11,8 @@ import { reducedMotion } from "../shared/motion.js";
 
 const MAX_TILT = 9; // degrees at the edge of the face
 const LIFT = 14; // px toward the viewer while the face tilts
-const TILE = ".vault-tile";
+// A missing card of a checklist (is-missing) does not tilt.
+const TILE = ".vault-tile:not(.is-missing)";
 const FACE = ".vault-face";
 const FRAME = ".vault-frame";
 // Below the face (over the caption), the tilt fades to flat over this part of the face height.

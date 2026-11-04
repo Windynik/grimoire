@@ -199,6 +199,7 @@
                                 <kbd aria-hidden="true">/</kbd>
                             </label>
                             <p class="vault-hint">Try <code>t:dragon</code> <code>mv:2-4</code> <code>o:"draw a card"</code> <code>$&gt;10</code></p>
+                            <p class="vault-sets-note" id="vault-sets-note" hidden>Filters apply to Grid and List.</p>
                             <div class="vault-facets" id="vault-facets"></div>
                         </aside>
 
@@ -213,6 +214,7 @@
                                     <div class="vault-seg" id="vault-view" role="group" aria-label="View">
                                         <button type="button" data-view="grid" aria-pressed="true">Grid</button>
                                         <button type="button" data-view="list" aria-pressed="false">List</button>
+                                        <button type="button" data-view="sets" aria-pressed="false">Sets</button>
                                     </div>
                                     <div class="vault-seg vault-size" id="vault-size" role="group" aria-label="Card size">
                                         <button type="button" data-size="S" aria-pressed="false" aria-label="Small cards" title="Small cards">S</button>
@@ -223,6 +225,7 @@
                             </div>
                             <div class="vault-grid" id="vault-grid" aria-label="Card grid"></div>
                             <div class="vault-list" id="vault-list" hidden></div>
+                            <div class="vault-sets" id="vault-sets" hidden></div>
                             <div class="vault-empty" id="vault-empty" hidden></div>
                             <p class="vault-more-error" id="vault-more-error" role="status" hidden>Couldn&rsquo;t load more &middot; <button type="button">Try again</button></p>
                             <div id="scroll-sentinel" class="scroll-sentinel" aria-hidden="true">

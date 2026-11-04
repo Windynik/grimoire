@@ -19,7 +19,7 @@ import * as api from "./api.js";
 import { openDrawer } from "./drawer.js";
 import { attachTilt, vaultTile } from "./tile.js";
 import {
-  ARCHIVE_SORTS, SIZES, SORTS, defaultState, loadState, normalizeState, saveState,
+  ARCHIVE_SORTS, SETS_SORTS, SIZES, SORTS, defaultState, loadState, normalizeState, saveState,
 } from "./state.js";
 import {
   COLOR_NAMES, renderFan, renderHero, renderShelves, renderSwitcher, syncOrbs,
@@ -27,6 +27,9 @@ import {
 import { formatCount, formatMoney } from "./numbers.js";
 import { formatName, renderFacets, setName } from "./sidebar.js";
 import { onListKey, renderList, listRow } from "./list.js";
+import {
+  filterSets, renderChecklist, renderSetGrid, renderSetsMessage, sortSets,
+} from "./sets.js";
 import {
   editable, focusables, onGridKey, onShelfKey, trapTab,
 } from "./keys.js";
@@ -38,6 +41,7 @@ const SORT_NAMES = {
   price: "Most valuable", price_asc: "Least valuable", name: "Name", mv: "Mana value",
   color: "Color", rarity: "Rarity", set: "Set", edhrec: "EDHREC rank",
 };
+const SETS_SORT_NAMES = { pct: "% complete", owned: "Most owned", name: "Name" };
 const CHIP_ORDER = ["colors", "rarity", "type", "mv", "format", "set"];
 // Facets whose values do not overlap: the sum of the counts is the size of the
 // result without that facet. The empty-state hint uses them.
@@ -67,6 +71,11 @@ const screen = {
   heroSource: undefined, // the source whose hero shows now
   moreFailed: false, // the last next-page request failed
   skip: new Set(), // collections whose search answered 404 in this open()
+  sets: null, // the answer of the sets request for this source
+  setsOpen: null, // the checklist that shows now, or null for the set grid
+  setsToken: 0, // bumped by each sets request and each leave of the Sets view
+  setsFrom: "", // the code of the set whose checklist opened last
+  stale: true, // the loaded cards are not the result of the current state
 };
 let searchTimer = 0;
 
@@ -150,7 +159,7 @@ function clearAll() {
   ui.search.value = "";
   update((s) => {
     const fresh = defaultState();
-    Object.assign(s, fresh, { sort: s.sort, view: s.view, size: s.size });
+    Object.assign(s, fresh, { sort: s.sort, view: s.view, setsSort: s.setsSort, size: s.size });
   });
 }
 
@@ -199,6 +208,11 @@ function visible() {
 /** Run the search again from the first page. Resolves when the page shows. */
 async function reload() {
   clearTimeout(searchTimer);
+  if (inSets()) {
+    // The card filters do not apply here: the search text filters the tiles.
+    screen.stale = true;
+    return drawSets();
+  }
   const token = ++screen.token;
   const gen = screen.gen;
   screen.loading = true;
@@ -217,6 +231,7 @@ async function reload() {
     screen.done = screen.offset >= screen.total || list.length === 0;
     screen.facets = screen.archive ? null : data.facets || null;
     screen.value = Number(data.value) || 0;
+    screen.stale = false;
     renderResults(list, { first: true });
     setStatus("ready");
   } catch (error) {
@@ -248,7 +263,7 @@ async function reload() {
 
 /** Load the next page (infinite scroll). */
 async function loadMore() {
-  if (screen.loading || screen.done || screen.moreFailed || !visible()) return;
+  if (screen.loading || screen.done || screen.moreFailed || !visible() || inSets()) return;
   const token = screen.token;
   screen.loading = true;
   ui.sentinel.classList.add("loading");
@@ -304,6 +319,16 @@ function copies() {
 }
 
 function renderCount() {
+  if (inSets()) {
+    const open = screen.setsOpen;
+    const n = open ? open.cards.length : screen.sets ? filterSets(screen.sets, screen.state.q).length : 0;
+    const word = open ? "cards" : "sets";
+    // The sort orders the sets, not the cards of one checklist.
+    ui.sort.disabled = Boolean(open);
+    ui.count.replaceChildren(h("span", { class: "vault-count-n", text: `${formatCount(n)} ${n === 1 && !open ? "set" : word}` }));
+    return;
+  }
+  ui.sort.disabled = false;
   const n = screen.archive ? screen.total : copies();
   const parts = [h("span", { class: "vault-count-n", text: `${formatCount(n)} ${n === 1 ? "card" : "cards"}` })];
   if (!screen.archive) parts.push(h("span", { class: "vault-count-value", text: `est. ${formatMoney(screen.value)}` }));
@@ -381,6 +406,12 @@ function blockingChip() {
 }
 
 function renderEmpty() {
+  if (inSets()) {
+    ui.empty.hidden = true;
+    ui.grid.hidden = true;
+    ui.list.hidden = true;
+    return;
+  }
   const empty = screen.cards.length === 0;
   ui.empty.hidden = !empty;
   ui.grid.hidden = empty || screen.state.view !== "grid";
@@ -477,6 +508,118 @@ function showOpenError() {
   setStatus("error");
 }
 
+// ---- sets --------------------------------------------------------------------
+
+function inSets() {
+  return !screen.archive && screen.state.view === "sets";
+}
+
+/** Show the Sets view: the set grid, or the checklist that is open. */
+async function drawSets() {
+  ui.sets.hidden = false;
+  ui.grid.hidden = true;
+  ui.list.hidden = true;
+  ui.empty.hidden = true;
+  if (screen.setsOpen) {
+    renderCount();
+    return;
+  }
+  if (!screen.sets) {
+    await loadSets();
+    return;
+  }
+  renderSetGrid(ui.sets, sortSets(filterSets(screen.sets, screen.state.q), screen.state.setsSort), openChecklist);
+  renderCount();
+  setStatus("ready");
+}
+
+async function loadSets() {
+  const gen = screen.gen;
+  const token = ++screen.setsToken;
+  const source = screen.source;
+  setStatus("loading");
+  try {
+    const data = await api.sets(source);
+    if (token !== screen.setsToken || gen !== screen.gen) return;
+    screen.sets = Array.isArray(data) ? data : [];
+    await drawSets();
+  } catch (error) {
+    if (token !== screen.setsToken || gen !== screen.gen) return;
+    screen.sets = null;
+    renderSetsMessage(ui.sets, "The sets did not load.",
+      (error && error.message) || "The server did not answer.", () => drawSets());
+    ui.count.replaceChildren();
+    setStatus("error");
+  }
+}
+
+function backToSets() {
+  const code = screen.setsFrom;
+  screen.setsToken += 1;
+  screen.setsOpen = null;
+  drawSets();
+  const tile = [...ui.sets.querySelectorAll(".vault-set")].find((t) => t.dataset.code === code);
+  if (tile) tile.focus();
+}
+
+async function openChecklist(set, tile) {
+  const gen = screen.gen;
+  const token = ++screen.setsToken;
+  screen.setsFrom = String(set.code || "");
+  tile.setAttribute("aria-busy", "true");
+  try {
+    const data = await api.setCards(screen.source, set.code);
+    if (token !== screen.setsToken || gen !== screen.gen) return;
+    screen.setsOpen = { ...data, cards: Array.isArray(data && data.cards) ? data.cards : [] };
+    renderChecklist(ui.sets, screen.setsOpen, {
+      onBack: backToSets,
+      onOpenCard: openCard,
+      onGrid: (grid) => {
+        attachTilt(grid);
+        grid.addEventListener("keydown", onGridKey);
+      },
+    });
+    renderCount();
+  } catch (error) {
+    if (token !== screen.setsToken || gen !== screen.gen) return;
+    tile.removeAttribute("aria-busy");
+    renderSetsMessage(ui.sets, "The checklist did not load.",
+      (error && error.message) || "The server did not answer.", () => openChecklist(set, tile));
+    ui.sets.firstElementChild.append(h("button", {
+      type: "button", class: "btn btn-secondary vault-check-back", text: "Back to sets", onclick: backToSets,
+    }));
+  }
+}
+
+/** The owner chose Sets: stop the card search and show the sets. */
+function enterSets() {
+  // A search in flight is cancelled, so the cards are not the current result.
+  if (screen.loading) screen.stale = true;
+  screen.token += 1;
+  screen.loading = false;
+  ui.sentinel.classList.remove("loading");
+  ui.moreError.hidden = true;
+  screen.setsOpen = null;
+  renderChips();
+  drawSets();
+}
+
+/** The owner left Sets for Grid or List. */
+function leaveSets() {
+  screen.setsToken += 1;
+  screen.setsOpen = null;
+  ui.sets.hidden = true;
+  ui.sets.replaceChildren();
+  setStatus("ready");
+  if (screen.stale) {
+    reload();
+    return;
+  }
+  redrawView();
+  renderCount();
+  renderEmpty();
+}
+
 // ---- chips -----------------------------------------------------------------
 
 function chips() {
@@ -531,12 +674,22 @@ function renderSidebar() {
 
 function renderControls() {
   const s = screen.state;
-  const sorts = screen.archive ? ARCHIVE_SORTS : SORTS;
-  if (ui.sort.dataset.mode !== (screen.archive ? "archive" : "collection")) {
-    ui.sort.replaceChildren(...sorts.map((key) => h("option", { value: key, text: SORT_NAMES[key] })));
-    ui.sort.dataset.mode = screen.archive ? "archive" : "collection";
+  const sets = inSets();
+  const mode = screen.archive ? "archive" : sets ? "sets" : "collection";
+  if (ui.sort.dataset.mode !== mode) {
+    const names = sets ? SETS_SORT_NAMES : SORT_NAMES;
+    const sorts = sets ? SETS_SORTS : screen.archive ? ARCHIVE_SORTS : SORTS;
+    ui.sort.replaceChildren(...sorts.map((key) => h("option", { value: key, text: names[key] })));
+    ui.sort.dataset.mode = mode;
+    ui.sort.setAttribute("aria-label", sets ? "Sort sets" : "Sort cards");
   }
-  ui.sort.value = s.sort;
+  ui.sort.value = sets ? s.setsSort : s.sort;
+  ui.viewSeg.querySelector('[data-view="sets"]').hidden = screen.archive;
+  // The card filters do not apply to the sets: dim them and say so.
+  ui.view.classList.toggle("is-sets", sets);
+  ui.setsNote.hidden = !sets;
+  if (sets) ui.facets.setAttribute("inert", "");
+  else ui.facets.removeAttribute("inert");
   ui.viewSeg.querySelectorAll("[data-view]").forEach((b) => {
     b.setAttribute("aria-pressed", String(b.dataset.view === s.view));
   });
@@ -769,6 +922,8 @@ function init() {
     sizeSeg: byId("vault-size"),
     grid: byId("vault-grid"),
     list: byId("vault-list"),
+    sets: byId("vault-sets"),
+    setsNote: byId("vault-sets-note"),
     empty: byId("vault-empty"),
     sentinel: byId("scroll-sentinel"),
     moreError: byId("vault-more-error"),
@@ -795,14 +950,20 @@ function init() {
     } else if (target.dataset.facet) toggle(target.dataset.facet, target.dataset.value);
   });
   ui.clearAll.addEventListener("click", clearAll);
-  ui.sort.addEventListener("change", () => update((s) => { s.sort = ui.sort.value; }));
+  ui.sort.addEventListener("change", () => update((s) => {
+    if (s.view === "sets" && !screen.archive) s.setsSort = ui.sort.value;
+    else s.sort = ui.sort.value;
+  }));
   ui.viewSeg.addEventListener("click", (event) => {
     const button = event.target.closest("[data-view]");
     if (!button || button.dataset.view === screen.state.view) return;
+    const was = screen.state.view;
     screen.state.view = button.dataset.view;
     remember();
     renderControls();
-    redrawView();
+    if (inSets()) enterSets();
+    else if (was === "sets") leaveSets();
+    else redrawView();
   });
   ui.sizeSeg.addEventListener("click", (event) => {
     const button = event.target.closest("[data-size]");
@@ -885,6 +1046,12 @@ async function switchTo(source) {
   screen.shelves = null;
   screen.value = 0;
   screen.allSets = false;
+  screen.sets = null;
+  screen.setsOpen = null;
+  screen.setsToken += 1;
+  screen.stale = true;
+  ui.sets.hidden = true;
+  ui.sets.replaceChildren();
   setStatus("loading");
   renderChrome();
   renderControls();

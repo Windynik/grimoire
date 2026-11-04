@@ -15,7 +15,8 @@ export const MANA_VALUES = ["0", "1", "2", "3", "4", "5", "6", "7+"];
 export const PRICES = [1, 5, 20];
 export const SORTS = ["price", "price_asc", "name", "mv", "color", "rarity", "set", "edhrec"];
 export const ARCHIVE_SORTS = ["price", "price_asc", "name"];
-export const VIEWS = ["grid", "list"];
+export const VIEWS = ["grid", "list", "sets"];
+export const SETS_SORTS = ["pct", "owned", "name"];
 export const SIZES = { S: 160, M: 200, L: 250 };
 
 const PREFIX = "grimoire.vault.";
@@ -32,7 +33,7 @@ export function storageKey(key) {
 export function defaultState() {
   return {
     q: "", colors: [], rarity: [], type: [], mv: [], format: [], set: [],
-    price: null, foil: false, dupes: false, sort: "price", view: "grid", size: "M",
+    price: null, foil: false, dupes: false, sort: "price", view: "grid", setsSort: "pct", size: "M",
   };
 }
 
@@ -63,8 +64,11 @@ export function normalizeState(raw, { archive = false } = {}) {
   if (PRICES.includes(raw.price)) state.price = raw.price;
   if (SORTS.includes(raw.sort)) state.sort = raw.sort;
   if (VIEWS.includes(raw.view)) state.view = raw.view;
+  if (SETS_SORTS.includes(raw.setsSort)) state.setsSort = raw.setsSort;
   if (Object.prototype.hasOwnProperty.call(SIZES, raw.size)) state.size = raw.size;
   if (archive) {
+    // The archive has no sets.
+    if (state.view === "sets") state.view = "grid";
     for (const name of ["colors", "rarity", "type", "mv", "format"]) state[name] = state[name].slice(0, 1);
     if (!ARCHIVE_SORTS.includes(state.sort)) state.sort = "price";
     return state;
