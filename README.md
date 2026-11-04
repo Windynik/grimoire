@@ -4,7 +4,11 @@ Forge and edit Magic: The Gathering decks from the cards you own. Grimoire runs 
 
 ![Home screen](docs/images/home.png)
 
-![Collection viewer](docs/images/collection.png)
+![The Vault](docs/images/collection.png)
+
+![Sets completion](docs/images/sets.png)
+
+![The welcome screen](docs/images/welcome.png)
 
 ![Deck editor](docs/images/editor.png)
 
@@ -13,11 +17,12 @@ The screenshots use a synthetic sample collection.
 ## Features
 
 - **Enrich your CSV.** Import a [ManaBox](https://manabox.app) export. Grimoire adds the mana cost, oracle text, and type line from [Scryfall](https://scryfall.com) bulk data. It shows a summary of the rows it could not match. It exports the enhanced CSV.
-- **Collection viewer.** Browse your cards, or all cards in the Scryfall archive. It has infinite scroll, name search, sorting, a shuffle button, and card details. Filters cover card type, color identity, rarity, foil, and format legality.
+- **The Vault.** Browse your collection with an insights ledger, today's spotlight, color orbs, a sidebar of live counts, keyword search, tactile card tiles, a card drawer, and a Sets completion view. You can also browse all cards in the Scryfall archive.
+- **First-run welcome.** A new owner gets a guided start. It downloads the card data, imports a ManaBox CSV or a sample collection, and shows the most valuable cards.
 - **Deck Forge.** An agent builds a deck from only the cards you own. It supports Commander, Brawl, Standard Brawl, Standard, Pioneer, Modern, Legacy, Vintage, Pauper, and Casual.
 - **Deck editor.** Edit saved decks with undo and redo, autosave, a stats panel, a sample hand, and legality checks. Import a decklist, or export plain text, Arena text, or CSV.
 - **Optional local AI.** If [Ollama](https://ollama.com) runs on your machine, a local model ranks the plans and writes the explanation. There are no cloud calls and no API keys. Choose the model "Engine only" to work without Ollama.
-- **Offline.** After the first card data download, nothing needs the internet.
+- **Offline.** After the first card data download, nothing needs the internet. The page fonts (Cinzel Decorative, Spectral, and Geist) come from Google Fonts. Without a connection the app uses Georgia and the system fonts.
 - **Accessible motion.** The interface respects the reduced-motion setting.
 
 ## Quick start
@@ -31,9 +36,9 @@ python main.py
 
 The server opens your browser at **http://localhost:8133**.
 
-1. **Download card data.** On *Home*, press *Download card data*. The download is about 100 MB and happens once.
-2. **Import your collection.** Open *Collection*, press *Import CSV*, and drop in your ManaBox export. The `examples/` folder has a synthetic sample file.
-3. **Browse.** Use the *Collection* viewer to explore your cards.
+1. **Download card data.** On a first run, the welcome screen does this for you (see *First run*). Otherwise, on *Home*, press *Download card data*. The download is about 100 MB and happens once.
+2. **Import your collection.** Drop in your ManaBox export on the welcome screen, or press *Import CSV* on the *Collection* screen. The `examples/` folder has a synthetic sample file.
+3. **Browse.** Use the *Collection* screen (the Vault) to explore your cards.
 4. **Forge a deck.** Open *Forge*, pick a format (and optionally a commander), and start the forge.
 
 For the optional local model, install Ollama and pull a model:
@@ -42,6 +47,16 @@ For the optional local model, install Ollama and pull a model:
 brew install ollama          # or download from ollama.com
 ollama pull qwen3.5:9b       # recommended; about 6.6 GB
 ```
+
+## First run
+
+When Grimoire has no collection, *Home* and *Collection* open the welcome screen. It has three steps.
+
+1. **Card data.** The screen downloads the Scryfall card data. A sigil shows the progress. If the data is already on disk, this step is done at once.
+2. **Import.** Drop a ManaBox CSV on the binder page, or press *Choose CSV file*. You can also press *Try a sample collection*. The sample imports the small file in `examples/` (19 rows of synthetic data), so you can try the app with no export. The ten slots on the binder light up as the rows go by. At the end, real cards of the new collection flip into the slots.
+3. **Reveal.** The most valuable cards fan out, and the ledger counts up: the estimated value, the cards, the rares and mythics, and the foils. The *Open the Vault* button takes you to the new collection.
+
+*Skip — just browse all cards* leaves the welcome screen and opens the archive. The browser remembers the choice, so *Home* and *Collection* do not send you back. The welcome screen returns after you import a collection and the collection list later becomes empty.
 
 ## How it works
 
@@ -62,10 +77,42 @@ The forge is a pipeline. The engine does the work. A model, when you turn one on
 The top bar has five screens. Each screen has its own address, such as `#home` or `#collection`.
 
 - **Home** shows the card data status, your collections, and your recent decks. You can download the card data here. Each collection row has an *Export CSV* button. It downloads the enhanced CSV. A collection stored by an older version may need a re-import. In that case the app shows a message.
-- **Collection** is the viewer for your cards or for all cards in the archive. A card flips to show its other face. The *Import CSV* button opens the importer. The importer shows live progress and a summary of the rows it could not match.
+- **Collection** is the Vault, the viewer for your cards or for all cards in the archive (see below). The *Import CSV* button opens the importer. The importer shows live progress and a summary of the rows it could not match.
 - **Forge** builds a deck from the cards you own (see below).
 - **Decks** lists your saved decks and opens the editor (see below).
 - **Settings** shows the Ollama status, picks the model (Automatic, Engine only, or one installed model), sets how often the forge asks you a question, clears the card data, and shows the card images on this Mac. The app downloads the images of your cards in the background when it starts. A switch turns this off, and a button starts a download at any time.
+
+### The Vault
+
+The Vault is the *Collection* screen. A switcher at the top picks a collection or the archive.
+
+- **Insights ledger.** Four counters count up: the estimated value, the rares and mythics, the foils, and the number of sets. A line above them gives the card count and the import date. The value note names the date of the Scryfall prices. Each card counts at its best price: the foil price for a foil, and the regular price for other cards. The value is the price times the quantity.
+- **Today's spotlight.** A fan of cards shows one rare or mythic of your collection in the middle. The spotlight changes each day. The cards beside it are your most valuable cards. When you have no rare or mythic, the fan shows your most valuable card in the middle.
+- **Color orbs.** One orb for each color, for colorless, and for multicolor shows the share of your cards. Press an orb to filter by that color.
+- **Index sidebar.** The sidebar lists Colors, Rarity, Type, Mana value, Price, Finish, Legal in, and Set. Each value shows a live count for the current result. The counts change as you search and filter. On a narrow screen the sidebar opens as a sheet.
+- **Shelves.** *New since your last import* and *Your foils* show a row of cards each, when there are any. *See all* applies the matching filter. Shelves hide while a search or filter is active.
+- **Search.** The search box matches the card name. Keywords combine with AND. They work in any order, in any case.
+
+  | Keyword | Meaning | Example |
+  |---|---|---|
+  | `t:` | The type line contains the text | `t:creature` |
+  | `o:` | The oracle text contains the text (quotes allowed) | `o:"draw a card"` |
+  | `c:` | The color identity includes all letters; `c:c` is colorless | `c:ug` |
+  | `mv:` | Mana value, exact or a range | `mv:2-4`, `mv:5-` |
+  | `r:` | Rarity | `r:mythic` |
+  | `s:` | Set code | `s:neo` |
+  | `f:` | Legal in a format | `f:modern` |
+  | `$` | Price comparison | `$>5`, `$<1` |
+  | `foil` | Foils only | `foil` |
+  | `dupes` | Quantity above 1 | `dupes` |
+  | `new` | Cards added since the previous import | `new` |
+
+  An unknown keyword stays plain text and matches the name. The archive search takes the same keywords, but not `foil`, `dupes`, or `new`.
+- **Tactile tiles.** Each tile tilts toward the pointer, and a foil card has a sheen. The tile shows the quantity, the mana cost, and the price. Tilt is off with a touch screen and with the reduced-motion setting. The view control switches between a grid and a list. The size control sets the card width.
+- **Card drawer.** Press a tile to open a drawer at the right, so the results stay in view. The drawer shows a large image, the facts, the prices, the legality of each format, and the saved decks that use the card. A card with two faces has a flip button.
+- **Keys.** `/` focuses the search, and `Esc` clears it. The arrow keys move between tiles, and `Enter` opens the drawer. In the drawer, the left and right arrows show the previous and next card, `F` flips the card, and `Esc` closes the drawer.
+- **Sets.** The *Sets* view lists each set with the cards you own, a completion bar, and the value you own in it. Each card name counts once in a set. Press a set to open its checklist. The checklist shows missing cards dimmed. *Missing only* hides the cards you own.
+- **Remembered view.** The Vault remembers the search, the filters, the sort, the view, and the card size for each collection in your browser. It restores them when you come back.
 
 ### The Deck Forge
 
@@ -149,18 +196,20 @@ frontend/           Vanilla JS single-page app (ES modules, no build step)
   index.html        The page shell and the editor template
   js/app/           Entry point, hash router, and shell (top bar and nav)
   js/home/          Home screen
-  js/collection/    Collection viewer and importer
+  js/collection/    The Vault (hero, sidebar, list, drawer, sets) and the importer
+  js/welcome/       First-run welcome screen and its gate
   js/forge/         Deck Forge screens (setup, stage, feed, timeline)
   js/decks/         Saved decks: list, editor, agent panel, export menu
   js/settings/      Settings screen
   js/shared/        DOM, HTTP, SSE, mana, modal, toast, motion, and
                     settings helpers used by several screens
   css/tokens.css    Colors, fonts, spacing, and motion tokens
-  css/base.css      Shared controls, modals, toasts, and mana symbols
+  css/base.css      Shared buttons, modals, toasts, and mana symbols
   css/shell.css     Atmosphere, top bar, nav, page frame, and footer
   css/tile.css      Shared tile style
-  css/home.css, collection.css, forge.css, decks.css, settings.css
-                    One style file per screen
+  css/home.css, collection.css, vault.css, welcome.css, forge.css,
+  decks.css, settings.css
+                    One style file per screen (collection.css is the importer)
 scripts/forge_eval.py  Hidden-deck evaluation for the forge
 scripts/make_sandbox.py  Builds a safe copy of the cache for manual checks
 tests/              Pytest suite (tests/js has the JavaScript tests)
