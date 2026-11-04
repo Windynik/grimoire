@@ -345,3 +345,14 @@ def test_rules_text_drops_mdfc_land_face(oracle, playbook):
     text = rules_text(card)
     assert "Menace" in text and "Add {B}" not in text and "//" not in text
     assert "ramp" not in card.roles
+
+
+def test_extra_tribes_tag_small_tribes_and_changelings(playbook):
+    rec = [make_record(f"Angel {i}", type_line="Creature — Angel") for i in range(2)]
+    rec.append(make_record("Shifter", type_line="Creature — Shapeshifter",
+                           oracle_text="Changeling", keywords=("Changeling",)))
+    cards = hydrate(*make_pool(rec), playbook.formats["commander"])
+    tag_cards(cards, playbook)
+    assert not any("tribal:Angel" in c.gives for c in cards)  # two Angels are no tribe
+    tag_cards(cards, playbook, extra_tribes={"Angel"})
+    assert all("tribal:Angel" in c.gives for c in cards)

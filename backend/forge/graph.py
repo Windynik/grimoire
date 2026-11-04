@@ -433,6 +433,54 @@ def find_backbones(cards: List[OwnedCard], graph: SynergyGraph, fmt: FormatRules
     return chosen
 
 
+def wish_backbone(cards: List[OwnedCard], graph: SynergyGraph, fmt: FormatRules,
+                  playbook: Playbook, tribes: Collection[str],
+                  commander_id: Optional[str] = None,
+                  colors: Optional[FrozenSet[str]] = None) -> Optional[Backbone]:
+    """Return the plan for the creature types the owner's wish names, or None.
+
+    A wished tribe needs no payoff cards (MIN_WANTERS) and no synergy edges:
+    the owner asked for the type itself. The members are the cards that give
+    or want one of the tribal hooks (changelings give every one). The scope is
+    the one with the most copies of such cards, then the most quality, then
+    the backbone id. The group must still be big enough for the format.
+
+    Args:
+        cards: Tagged owned cards, legal in the format. The wished tribes must
+            be tagged (see tag_cards extra_tribes).
+        graph: Synergy graph of the cards.
+        fmt: Format rules.
+        playbook: Playbook with the hook labels.
+        tribes: Wished creature types, for example {"Angel"}.
+        commander_id: In commander formats, use only this commander.
+        colors: Use only this color set.
+
+    Returns:
+        A backbone with the tribal hooks, or None when no scope has enough cards.
+    """
+    hooks = tuple(sorted(TRIBAL_PREFIX + tribe for tribe in tribes))
+    if not hooks:
+        return None
+    wanted = set(hooks)
+    pool = [card for card in cards if not card.is_land and (card.gives | card.wants) & wanted]
+    best = None  # type: Optional[Tuple[tuple, Backbone]]
+    for scope, commander in _scopes(cards, fmt, commander_id, colors):
+        skip = commander.id if commander is not None else None
+        members = [card for card in pool if fits_colors(card, scope, fmt) and card.id != skip]
+        if not members or not _big_enough(members, fmt):
+            continue
+        core = _core(_select({card.id for card in members}, graph, fmt), graph)
+        density = graph.inner_weight(core) / len(core)
+        quality = sum(card_weight(graph.cards[i], fmt) for i in core)
+        score = density * quality * min(1.0, len(core) / fmt.min_core)
+        bone = _backbone(hooks, core, scope, commander, score, playbook)
+        copies = sum(min(card.owned, fmt.max_copies) for card in members)
+        rank = (-copies, -quality, bone.id)
+        if best is None or rank < best[0]:
+            best = (rank, bone)
+    return best[1] if best is not None else None
+
+
 def _backbone_id(hooks: Tuple[str, ...], scope: FrozenSet[str],
                  commander: Optional[OwnedCard]) -> str:
     parts = ["+".join(hooks), _color_code(scope)]

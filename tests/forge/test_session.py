@@ -9,7 +9,7 @@ from backend.forge.cards import hydrate
 from backend.forge.graph import Backbone
 from backend.forge.llm import BACKBONE_SCHEMA, REASONS_SCHEMA, SWAP_SCHEMA
 from backend.forge.session import (
-    ENGINE_ONLY, MODEL_FAILED, ForgeManager, ForgeParams, ForgeSession, wish_names,
+    ENGINE_ONLY, MODEL_FAILED, ForgeManager, ForgeParams, ForgeSession, wish_names, wish_tribes,
 )
 from tests.forge.conftest import make_pool, make_record
 
@@ -778,3 +778,190 @@ def test_wish_names_skip_negated_names(rules):
     assert wish_names(wish, cards) == {"Sol Ring", "Fire // Ice"}
     assert wish_names("No Sol Ring here. Then add Sol Ring.", cards) == {"Sol Ring"}
     assert wish_names("knot Sol Ring; snot dark ritual", cards) == {"Sol Ring", "Dark Ritual"}
+
+
+# ---- wished tribes ---------------------------------------------------------
+
+def angel(name, cmc=4):
+    return make_record(name, type_line="Creature — Angel", oracle_text="Flying",
+                       color_identity=("W",), mana_cost="{%d}{W}" % (cmc - 1), cmc=cmc,
+                       keywords=("Flying",))
+
+
+def shifter(name):
+    return make_record(name, type_line="Creature — Shapeshifter", color_identity=("W",),
+                       oracle_text="Changeling (This card is every creature type.)",
+                       mana_cost="{1}{W}", cmc=2, keywords=("Changeling",))
+
+
+def angel_pool(angels=3, shifters=3):
+    """The strong black Aristocrats plan, a few Angels and a few changelings."""
+    collection, index = two_plan_pool(extra_death=4)
+    recs = [angel(f"Angel {i}") for i in range(angels)]
+    recs += [shifter(f"Shifter {i}") for i in range(shifters)]
+    more_collection, more_index = make_pool(recs, [4] * len(recs))
+    return collection + more_collection, dict(index, **more_index)
+
+
+def test_wish_tribes_read_plurals_and_skip_negated_types(rules):
+    recs = [angel("Angel A"), shifter("Shifter A"),
+            make_record("Goblin A", type_line="Creature — Goblin Warrior")]
+    cards = hydrate(*make_pool(recs), rules["modern"])
+    assert wish_tribes("An ANGELS deck, taking shapeshifters into play", cards) == {
+        "Angel", "Shapeshifter"}
+    assert wish_tribes("angel deck with no goblins", cards) == {"Angel"}
+    assert wish_tribes("warriors", cards) == {"Warrior"}
+    assert wish_tribes("", cards) == set()
+    assert wish_tribes("angelic", cards) == set()  # whole words only
+
+
+@pytest.mark.asyncio
+async def test_wished_tribe_becomes_the_plan(tmp_path):
+    session, store = await start(tmp_path, pool=angel_pool(), ask_mode="never",
+                                 wish="an angels deck")
+    events = await collect(session)
+    assert events[-1]["type"] == "done", events[-1]
+    deck = saved(store, events)
+    assert deck["backbone"]["hooks"] == ["tribal:Angel"]
+    names = {e["name"] for e in deck["sections"]["main"]}
+    assert {"Angel 0", "Angel 1", "Angel 2", "Shifter 0"} <= names
+    thoughts = [e["text"] for e in of_type(events, "thought")]
+    assert any(t.startswith("Your wish names Angels") for t in thoughts), thoughts
+
+
+@pytest.mark.asyncio
+async def test_every_card_of_the_wished_type_goes_in(tmp_path, monkeypatch):
+    import backend.forge.session as session_module
+    plans = []
+    real_build = session_module.build_deck
+
+    def spy(cards, graph, playbook, plan, fmt):
+        plans.append(plan)
+        return real_build(cards, graph, playbook, plan, fmt)
+
+    monkeypatch.setattr(session_module, "build_deck", spy)
+    collection, index = angel_pool(angels=0, shifters=4)
+    recs = [angel(f"Big Angel {i}", cmc=6) for i in range(3)]
+    more_collection, more_index = make_pool(recs, [1] * len(recs))
+    session, store = await start(tmp_path, pool=(collection + more_collection,
+                                                 dict(index, **more_index)),
+                                 ask_mode="never", wish="angels")
+    events = await collect(session)
+    deck = saved(store, events)
+    assert deck["backbone"]["hooks"] == ["tribal:Angel"]
+    names = {e["name"] for e in deck["sections"]["main"]}
+    assert {"Big Angel 0", "Big Angel 1", "Big Angel 2"} <= names
+    assert not any("not an owned, legal card" in w for w in deck["warnings"])
+    # The Angels are required; the changelings are core cards, not required ones.
+    assert plans[0].required == {"Big Angel 0", "Big Angel 1", "Big Angel 2"}
+
+
+@pytest.mark.asyncio
+async def test_model_ranking_keeps_the_wished_plan_first(tmp_path):
+    client = FakeClient(backbone={"ranking": [DEATH_ID], "plans": [], "close_call": False})
+    session, store = await start(tmp_path, pool=angel_pool(), client=client, ask_mode="never",
+                                 wish="angels")
+    events = await collect(session)
+    assert saved(store, events)["backbone"]["hooks"] == ["tribal:Angel"]
+
+
+@pytest.mark.asyncio
+async def test_too_small_wished_tribe_asks_before_building(tmp_path):
+    session, store = await start(tmp_path, pool=angel_pool(angels=1, shifters=0),
+                                 wish="angels please")
+    events = await collect(session)
+    question = of_type(events, "question")[0]
+    assert question["text"].startswith("No plan fits your wish for Angels.")
+    assert "You own 1 Angel card legal in Modern" in question["text"]
+    stages = stage_order(events)
+    assert stages.index(2) < stages.index(3)  # the question comes before the build
+    warnings = of_type(events, "review")[0]["warnings"]
+    assert any(w.startswith("No plan fits your wish for Angels.") for w in warnings)
+    assert saved(store, events)["backbone"]["hooks"] != ["tribal:Angel"]
+
+
+@pytest.mark.asyncio
+async def test_too_small_wished_tribe_warns_in_never_mode(tmp_path):
+    session, store = await start(tmp_path, pool=angel_pool(angels=1, shifters=0),
+                                 ask_mode="never", wish="angels")
+    events = await collect(session)
+    assert not of_type(events, "question")
+    thoughts = [e["text"] for e in of_type(events, "thought")]
+    assert any(t.startswith("No plan fits your wish for Angels.") for t in thoughts)
+    assert any(w.startswith("No plan fits your wish") for w in saved(store, events)["warnings"])
+
+
+# ---- the audit of a run -------------------------------------------------------
+
+def audit(tmp_path, session):
+    import json
+    path = tmp_path / "forge_runs" / ("%s.json" % session.id)
+    assert path.exists(), list((tmp_path / "forge_runs").glob("*")) if (tmp_path / "forge_runs").exists() else "no runs dir"
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+@pytest.mark.asyncio
+async def test_a_finished_run_writes_its_audit_next_to_the_decks(tmp_path):
+    session, store = await start(tmp_path, pool=angel_pool(), ask_mode="never",
+                                 wish="an angels deck")
+    events = await collect(session)
+    record = audit(tmp_path, session)
+    assert record["id"] == session.id
+    assert record["state"] == "done"
+    assert record["deck_id"] == events[-1]["deck_id"]
+    assert record["params"]["wish"] == "an angels deck"
+    assert record["params"]["format"] == "modern"
+    assert record["wish_tribes"] == ["Angel"]
+    assert record["candidates"][0]["hooks"] == ["tribal:Angel"]
+    assert record["candidates"][0]["from_wish"] is True
+    assert any(c["hooks"] == ["death"] for c in record["candidates"])
+    assert record["chosen"]["hooks"] == ["tribal:Angel"]
+    assert record["chosen"]["ranked_by"] == "engine"
+    assert record["model"] is None and record["model_calls"] == []
+    kinds = [e["type"] for e in record["events"]]
+    assert kinds[-1] == "done" and "thought" in kinds
+    assert "explanation" not in kinds and "stage" not in kinds
+    cards = [e for e in record["events"] if e["type"] == "cards"]
+    assert cards and all(set(e) == {"type", "count"} for e in cards)
+    assert record["started"] <= record["finished"]
+    deck = saved(store, events)
+    assert deck["forge"] == {"run_id": session.id, "wish": "an angels deck"}
+
+
+@pytest.mark.asyncio
+async def test_failed_model_calls_are_in_the_audit(tmp_path):
+    session, _ = await start(tmp_path, client=FakeClient(fail_after_probe=True),
+                             ask_mode="never")
+    await collect(session)
+    record = audit(tmp_path, session)
+    assert record["model"] == "fake:1b"
+    calls = {c["name"]: c for c in record["model_calls"]}
+    assert calls["backbones"] == {"name": "backbones", "ok": False, "error": "scripted failure"}
+    assert calls["explanation"]["ok"] is False
+    assert record["chosen"]["ranked_by"] == "engine"
+
+
+@pytest.mark.asyncio
+async def test_model_ranking_is_in_the_audit(tmp_path):
+    client = FakeClient(backbone={"ranking": [LIFE_ID, DEATH_ID], "plans": [],
+                                  "close_call": False})
+    session, _ = await start(tmp_path, client=client, ask_mode="never")
+    await collect(session)
+    record = audit(tmp_path, session)
+    assert record["chosen"]["id"] == LIFE_ID
+    assert record["chosen"]["ranked_by"] == "model"
+    assert {"name": "backbones", "ok": True} in record["model_calls"]
+
+
+@pytest.mark.asyncio
+async def test_failed_and_cancelled_runs_write_an_audit(tmp_path):
+    session, _ = await start(tmp_path, format="bogus")
+    await collect(session)
+    record = audit(tmp_path, session)
+    assert record["state"] == "error" and record["deck_id"] is None
+    assert record["events"][-1]["message"].startswith("'bogus' is not a format")
+
+    session, _ = await start(tmp_path)
+    session.cancel()
+    await collect(session)
+    assert audit(tmp_path, session)["state"] == "cancelled"

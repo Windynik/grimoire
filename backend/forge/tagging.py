@@ -131,6 +131,16 @@ def _tag_hooks(card: OwnedCard, text: str, playbook: Playbook) -> None:
             card.wants.add(hook)
 
 
+def tribe_plural(tribe: str, plurals: Dict[str, str]) -> str:
+    """Return the plural of a creature type, for example "Elves" or "Angels"."""
+    plural = plurals.get(tribe)
+    if plural is None and tribe.endswith("fe"):
+        plural = tribe[:-2] + "ves"
+    elif plural is None and tribe.endswith("f"):
+        plural = tribe[:-1] + "ves"
+    return plural or tribe + "s"
+
+
 def plural_forms(tribe: str, plurals: Dict[str, str]) -> str:
     """Return a regex alternation of a creature type's singular and plural forms.
 
@@ -165,18 +175,21 @@ def _tag_tribes(card: OwnedCard, text: str, tribes: Set[str], playbook: Playbook
             card.wants.add(hook)
 
 
-def tag_cards(cards: List[OwnedCard], playbook: Playbook) -> None:
+def tag_cards(cards: List[OwnedCard], playbook: Playbook,
+              extra_tribes: Iterable[str] = ()) -> None:
     """Set roles, hooks and the quality prior on every card.
 
     Args:
         cards: Owned cards. Each card's roles, gives, wants and quality are
             replaced. Tribal hooks use the tribes of this whole list.
         playbook: Playbook with the role and hook patterns.
+        extra_tribes: Creature types that get a tribal hook even when too few
+            creatures have them, for example the types the owner's wish names.
 
     Returns:
         None. The cards change in place.
     """
-    tribes = tribes_in_pool(cards)
+    tribes = tribes_in_pool(cards) | set(extra_tribes)
     for card in cards:
         text = rules_text(card)
         card.roles = _tag_roles(card, text, playbook)

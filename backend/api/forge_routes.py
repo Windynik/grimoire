@@ -18,6 +18,7 @@ from backend.core.bulk_data import BulkDataManager
 from backend.core.collection_store import CollectionStore
 from backend.core.ollama_client import OllamaClient
 from backend.decks.store import DeckStore
+from backend.forge.audit import load_run, runs_dir
 from backend.forge.cards import hydrate
 from backend.forge.events import TERMINAL
 from backend.forge.graph import commander_candidates
@@ -172,6 +173,15 @@ async def forge_events(
     except ValueError:
         after = -1
     return StreamingResponse(_stream(session, after), media_type="text/event-stream")
+
+
+@router.get("/forge/runs/{run_id}")
+async def forge_run(run_id: str, deck_store: DeckStore = Depends(get_deck_store)):
+    """Return the audit of a finished forge run: the wish, the plans, the choice, the model calls."""
+    record = load_run(runs_dir(deck_store.storage_dir), run_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Forge run not found")
+    return record
 
 
 @router.post("/forge/{forge_id}/answer")

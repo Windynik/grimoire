@@ -11,11 +11,13 @@ import logging
 import re
 import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
 from typing import AsyncIterator, Dict, List, Optional, Set, Tuple
 
 from backend.core.ollama_client import CallStats, OllamaClient
 from backend.decks.store import DeckStore
+from backend.forge.audit import compact_events, runs_dir, save_run
 from backend.forge.builder import BuildPlan, BuiltDeck, build_deck
 from backend.forge.cards import COLORS, OwnedCard, fits_colors, hydrate
 from backend.forge.eta import EtaEstimator, estimate_output_tokens, prompt_tokens
@@ -27,6 +29,7 @@ from backend.forge.events import (
 from backend.forge.export import deck_to_record
 from backend.forge.graph import (
     Backbone, Edge, SynergyGraph, build_graph, commander_candidates, find_backbones,
+    wish_backbone,
 )
 from backend.forge.llm import (
     ForgeModel, backbone_prompt, borderline_prompt, explanation_prompt, reasons_prompt,
@@ -34,7 +37,7 @@ from backend.forge.llm import (
 from backend.forge.metrics import curve, deck_metrics
 from backend.forge.playbook import PLAYSTYLES, FormatRules, Playbook
 from backend.forge.swaps import apply_swaps
-from backend.forge.tagging import tag_cards
+from backend.forge.tagging import TRIBAL_PREFIX, plural_forms, tag_cards, tribe_plural
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +85,10 @@ class ForgeError(Exception):
     """A problem with the request. The message is for the owner."""
 
 
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
 def _text(value, limit: int = TEXT_LIMIT) -> str:
     return value.strip()[:limit] if isinstance(value, str) else ""
 
@@ -120,6 +127,31 @@ def wish_names(wish: str, cards: List[OwnedCard]) -> Set[str]:
         for name in {card.name.lower(), card.name.split(" // ")[0].lower()}:
             if len(name) >= 3 and name in text and _wanted(name, text):
                 found.add(card.name)
+    return found
+
+
+def wish_tribes(wish: str, cards: List[OwnedCard],
+                plurals: Optional[Dict[str, str]] = None) -> Set[str]:
+    """Return the creature types of owned creatures that the wish names as whole words.
+
+    "angels" and "Angel" both name Angel. A type that comes directly after
+    "no", "not", "without" or "except" does not count, as in wish_names.
+
+    Args:
+        wish: The owner's wish.
+        cards: Owned cards; the types come from their creature subtypes.
+        plurals: Irregular plurals from the playbook, for example {"Elf": "Elves"}.
+    """
+    text = (wish or "").lower()
+    found = set()  # type: Set[str]
+    if not text.strip():
+        return found
+    types = {sub for card in cards if "Creature" in card.types for sub in card.subtypes}
+    for tribe in types:
+        pattern = re.compile(r"(?<!\w)" + plural_forms(tribe, plurals or {}) + r"(?!\w)",
+                             re.IGNORECASE)
+        if any(not NEGATION.search(text[:m.start()]) for m in pattern.finditer(text)):
+            found.add(tribe)
     return found
 
 
@@ -167,6 +199,15 @@ class ForgeSession:
         self._question = None  # type: Optional[dict]
         self._watchers = 0  # open subscribe() iterators
         self._unwatched_since = time.time()
+        # The audit of this run (see backend.forge.audit).
+        self.started = _now()
+        self.runs_dir = runs_dir(deck_store.storage_dir) if deck_store is not None else None
+        self.model_calls = []  # type: List[dict]
+        self._wish_tribes = set()  # type: Set[str]
+        self._candidates = []  # type: List[dict]
+        self._chosen = None  # type: Optional[dict]
+        self._ranked_by = "engine"
+        self._deck_id = None  # type: Optional[str]
 
     # Events
 
@@ -199,6 +240,28 @@ class ForgeSession:
         self._emit(kind, **payload)
         self.state = kind
         self.finished_at = time.time()
+        self._save_audit()
+
+    def audit(self) -> dict:
+        """Return the lasting record of this run: what was asked, found, chosen and called."""
+        return {
+            "id": self.id,
+            "started": self.started,
+            "finished": _now() if self.finished_at is not None else None,
+            "state": self.state,
+            "params": asdict(self.params),
+            "wish_tribes": sorted(self._wish_tribes),
+            "model": self.model.model if self.model is not None else None,
+            "model_calls": list(self.model_calls),
+            "candidates": list(self._candidates),
+            "chosen": self._chosen,
+            "deck_id": self._deck_id,
+            "events": compact_events(self.events),
+        }
+
+    def _save_audit(self) -> None:
+        if self.runs_dir is not None:
+            save_run(self.runs_dir, self.audit())
 
     async def subscribe(self, after: int = -1) -> AsyncIterator[Tuple[int, dict]]:
         """Yield (index, event) for stored events after `after`, then live events.
@@ -275,11 +338,13 @@ class ForgeSession:
         """Await a model call that returns (result, stats). Returns None on any failure."""
         try:
             result, stats = await call
-        except Exception:
+        except Exception as exc:
             logger.warning("Model call %s failed", name, exc_info=True)
+            self.model_calls.append({"name": name, "ok": False, "error": _text(str(exc))})
             self.eta.observe(name, NO_STATS)
             self._thought(MODEL_FAILED)
             return None
+        self.model_calls.append({"name": name, "ok": True})
         self.eta.observe(name, stats)
         return result
 
@@ -329,8 +394,24 @@ class ForgeSession:
 
     def _study(self, fmt: FormatRules) -> List[OwnedCard]:
         cards = hydrate(self.collection, self.index, fmt)
-        tag_cards(cards, self.playbook)
+        owned = [card for card in cards if card.owned > 0]
+        self._wish_tribes = wish_tribes(self.params.wish, owned, self.playbook.tribal_plurals)
+        tag_cards(cards, self.playbook, extra_tribes=self._wish_tribes)
         return cards
+
+    def _tribe_names(self, tribes) -> str:
+        return " and ".join(tribe_plural(t, self.playbook.tribal_plurals) for t in sorted(tribes))
+
+    def _misfit(self, fmt: FormatRules, cards: List[OwnedCard]) -> str:
+        """Return the message for a wish whose creature types make no plan."""
+        counts = []
+        for tribe in sorted(self._wish_tribes):
+            n = sum(1 for card in cards if card.owned > 0 and not card.is_land
+                    and TRIBAL_PREFIX + tribe in card.gives)
+            counts.append("%d %s card%s" % (n, tribe, "" if n == 1 else "s"))
+        return ("No plan fits your wish for %s. You own %s legal in %s, changelings included, "
+                "and that is too few for a plan." % (self._tribe_names(self._wish_tribes),
+                                                       " and ".join(counts), fmt.name))
 
     def _commander_id(self, fmt: FormatRules) -> Optional[str]:
         wanted = self.params.commander.strip()
@@ -368,6 +449,23 @@ class ForgeSession:
         backbones = await asyncio.to_thread(
             find_backbones, cards, graph, fmt, self.playbook, commander_id=commander_id,
             colors=colors, limit=MAX_BACKBONES)
+        wished, misfit = None, None
+        if self._wish_tribes:
+            wished = await asyncio.to_thread(
+                wish_backbone, cards, graph, fmt, self.playbook, self._wish_tribes,
+                commander_id=commander_id, colors=colors)
+            if wished is not None:
+                backbones = [wished] + [b for b in backbones
+                                        if b.hooks != wished.hooks][:MAX_BACKBONES - 1]
+                self._thought("Your wish names %s, so the %s plan comes first (%d core cards)."
+                              % (self._tribe_names(self._wish_tribes), wished.name,
+                                 len(wished.members)), tuple(wished.members[:OPTION_CARDS]))
+            else:
+                misfit = self._misfit(fmt, cards)
+                self._thought(misfit)
+        self._candidates = [{"id": b.id, "name": b.name, "hooks": list(b.hooks),
+                             "members": len(b.members), "score": round(b.score, 4),
+                             "from_wish": b is wished} for b in backbones]
         if not backbones:
             raise ForgeError("No deck plan fits the cards you own in %s." % fmt.name)
         shown = shown_cards(backbones, graph)
@@ -375,12 +473,17 @@ class ForgeSession:
         self._emit("graph", **graph_payload(backbones, shown, graph, self.playbook))
         self._stage(1, 0.5)
         ranked, plans, close_call, model_question = await self._judge(fmt, backbones)
+        if wished is not None:
+            # The owner named the type, so the model ranks the other plans only.
+            ranked = [wished] + [b for b in ranked if b is not wished]
         theses = {b.id: plans.get(b.id, {}).get("thesis")
                   or template_thesis(b, self._commander(b), self.playbook) for b in ranked}
         self._stage(1, 1.0)
 
         close = close_call or is_close(backbones)  # engine scores, engine order
-        bone, prefer = await self._ask(ranked, theses, close, model_question)
+        bone, prefer = await self._ask(ranked, theses, close, model_question, misfit)
+        self._chosen = {"id": bone.id, "name": bone.name, "hooks": list(bone.hooks),
+                        "ranked_by": self._ranked_by, "from_wish": bone is wished}
         plan_info = plans.get(bone.id, {})
         thesis = theses[bone.id]
         playstyle = plan_info.get("playstyle") or engine_playstyle(bone, graph)
@@ -392,10 +495,19 @@ class ForgeSession:
 
         self._stage(3, 0.0)
         required = wish_names(p.wish, cards)
+        if bone is wished:
+            # The owner named the type: every owned card of it that fits the plan goes in.
+            required |= {card.name for card in cards
+                         if card.owned > 0 and not card.is_land and card.id != bone.commander_id
+                         and set(card.subtypes) & self._wish_tribes
+                         and "Changeling" not in card.keywords
+                         and fits_colors(card, bone.colors, fmt)}
         deck = await self._build(fmt, BuildPlan(backbone=bone, playstyle=playstyle,
                                                 prefer=prefer, required=required,
                                                 commander=commander))
         self._stage(4, 0.0)
+        if misfit is not None:
+            deck.warnings.insert(0, misfit)
         self._status("Checking the deck.")
         metrics = deck_metrics(deck, graph, self.playbook)
         self._emit("review", curve=curve(deck), metrics=metrics, warnings=list(deck.warnings))
@@ -406,7 +518,9 @@ class ForgeSession:
         info = {"name": bone.name, "hooks": list(bone.hooks), "thesis": thesis,
                 "playstyle": playstyle, "key_interactions": interactions}
         record = deck_to_record(deck, name, p.job_id, info, explanation, reasons, metrics)
+        record["forge"] = {"run_id": self.id, "wish": p.wish}
         deck_id = self.deck_store.save(record)
+        self._deck_id = deck_id
         self._stage(4, 1.0, final=True)
         self._finish("done", deck_id=deck_id)
 
@@ -435,6 +549,8 @@ class ForgeSession:
             if bone is not None and bone.id not in plans:
                 plans[bone.id] = self._plan(item, bone)
         ranked = rank_by(backbones, reply["ranking"])
+        if any(bone.id == _key(i) for bone in backbones for i in _list(reply["ranking"])):
+            self._ranked_by = "model"
         question = self._model_question(reply.get("question"), by_id, ranked[0])
         return ranked, plans, reply.get("close_call") is True, question
 
@@ -519,14 +635,21 @@ class ForgeSession:
         return dict(question, options=options)
 
     async def _ask(self, ranked: List[Backbone], theses: Dict[str, str], close: bool,
-                   model_question: Optional[dict]) -> Tuple[Backbone, Set[str]]:
-        """Stage 3: ask when the plans are close. Returns (backbone, preferred names)."""
+                   model_question: Optional[dict],
+                   misfit: Optional[str] = None) -> Tuple[Backbone, Set[str]]:
+        """Stage 3: ask when the plans are close, or when no plan fits the wish.
+
+        Returns (backbone, preferred names).
+        """
         chosen, prefer = ranked[0], set()  # type: Backbone, Set[str]
-        if self.params.ask_mode == "never" or not close:
+        if self.params.ask_mode == "never" or not (close or misfit):
             return chosen, prefer
         fork = model_question is not None and model_question["fork"]
         questions = []
-        if model_question is not None and not fork:
+        if misfit is not None:
+            question = template_question(ranked, self.graph, theses)
+            questions.append(dict(question, text=misfit + " Which plan do you want instead?"))
+        elif model_question is not None and not fork:
             questions.append(model_question)
         elif len(ranked) >= 2:
             questions.append(template_question(ranked, self.graph, theses))
@@ -652,9 +775,12 @@ class ForgeSession:
                 if not "".join(parts).strip():
                     raise ValueError("The explanation is empty")
                 self.eta.observe("explanation", found[0] if found else NO_STATS)
+                self.model_calls.append({"name": "explanation", "ok": True})
                 return "".join(parts)
-            except Exception:
+            except Exception as exc:
                 logger.warning("Model explanation failed", exc_info=True)
+                self.model_calls.append({"name": "explanation", "ok": False,
+                                         "error": _text(str(exc))})
                 if pending:
                     self._emit("explanation", text=pending)
                 self.eta.observe("explanation", NO_STATS)

@@ -256,3 +256,19 @@ async def test_keepalive_then_next_event(tmp_path, monkeypatch):
     assert (await asyncio.wait_for(stream.__anext__(), 2)).startswith("id: 1\nevent: cancelled")
     with pytest.raises(StopAsyncIteration):
         await stream.__anext__()
+
+
+def test_forge_run_audit_route(overrides):
+    _, _, decks = overrides
+    with TestClient(app) as client:
+        forge_id = client.post("/api/forge", json={"job_id": "aaa1", "format": "casual",
+                                                   "colors": "B", "ask_mode": "never",
+                                                   "wish": "a black deck"}).json()["forge_id"]
+        frames = read_events(client, forge_id)
+        deck_id = frames[-1][2]["deck_id"]
+        record = client.get("/api/forge/runs/%s" % forge_id).json()
+        assert record["id"] == forge_id and record["deck_id"] == deck_id
+        assert record["params"]["wish"] == "a black deck"
+        assert decks.get(deck_id)["forge"]["run_id"] == forge_id
+        assert client.get("/api/forge/runs/%s" % ("0" * 32)).status_code == 404
+        assert client.get("/api/forge/runs/..%2Fdecks").status_code == 404
