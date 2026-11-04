@@ -10,6 +10,7 @@ from backend.core.collection_query import (
     new_since,
     owned_cards,
     unit_price,
+    _is_foil,
 )
 
 
@@ -348,3 +349,19 @@ def test_unindexed_cards_take_color_identity_from_mana_cost():
 def test_uppercase_keywords():
     assert found("T:Creature") == ["Elf Lord", "Gold Wurm", "Seven Drop"]
     assert found("C:UG") == ["Gold Wurm"]
+
+
+def test_is_foil_ignores_case_and_spaces():
+    assert _is_foil("Normal") is False
+    assert _is_foil(" NORMAL ") is False
+    assert _is_foil("Foil") is True
+    assert _is_foil("etched") is True
+    assert _is_foil(None) is False and _is_foil("") is False
+
+
+def test_casual_format_excludes_tokens_but_keeps_game_cards():
+    token = mk("Spirit", "Token Creature — Spirit")
+    token["legalities"] = {"modern": "not_legal"}
+    card = mk("Plain Elf", "Creature — Elf")
+    assert names(run([token, card], "", format=["casual"])[0]) == ["Plain Elf"]
+    assert names(run([token, card], "f:casual")[0]) == ["Plain Elf"]

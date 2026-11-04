@@ -54,7 +54,7 @@ When Grimoire has no collection, *Home* and *Collection* open the welcome screen
 
 1. **Card data.** The screen downloads the Scryfall card data. A sigil shows the progress. If the data is already on disk, this step is done at once.
 2. **Import.** Drop a ManaBox CSV on the binder page, or press *Choose CSV file*. You can also press *Try a sample collection*. The sample imports the small file in `examples/` (19 rows of synthetic data), so you can try the app with no export. The ten slots on the binder light up as the rows go by. At the end, real cards of the new collection flip into the slots.
-3. **Reveal.** The most valuable cards fan out, and the ledger counts up: the estimated value, the cards, the rares and mythics, and the foils. The *Open the Vault* button takes you to the new collection.
+3. **Reveal.** The most valuable cards fan out, and the ledger counts up: the estimated value, the cards, and the rares and mythics. The *Open the Vault* button takes you to the new collection.
 
 *Skip — just browse all cards* leaves the welcome screen and opens the archive. The browser remembers the choice, so *Home* and *Collection* do not send you back. The welcome screen returns after you import a collection and the collection list later becomes empty.
 

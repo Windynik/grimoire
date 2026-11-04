@@ -403,3 +403,49 @@ def test_sample_missing_file_is_404(tmp_path, monkeypatch):
 
 def test_real_sample_file_exists():
     assert routes.SAMPLE_PATH.name == "ManaBox_Collection.csv" and routes.SAMPLE_PATH.exists()
+
+
+def test_archive_card_carries_legality_and_set_details(set_env):
+    body = get("/api/cards/search?q=gold%20wurm")
+    card = body["cards"][0]
+    assert card["legalities"]["modern"] == "legal"
+    assert card["legalities"]["standard"] == "legal"
+    for key in ("set_name", "collector_number", "edhrec_rank"):
+        assert key in card
+
+
+def test_set_checklist_cards_carry_drawer_fields(set_env):
+    cards = {c["name"]: c for c in get("/api/collection/cur/sets/neo")["cards"]}
+    for name in ("Gold Wurm", "Zed"):  # one owned, one missing
+        card = cards[name]
+        assert card["legalities"]["modern"] == "legal"
+        for key in ("oracle_text", "back_image_url", "set_name", "edhrec_rank"):
+            assert key in card
+    assert cards["Zed"]["set_name"] == "Kamigawa Neon"
+
+
+def test_owned_count_counts_only_catalog_names(set_env):
+    store, bulk = set_env
+    # An owned name that the catalog of "neo" does not list
+    stray = make_record("Stray", "Creature — Cat", "{G}", "", ("G",), 1)
+    stray["set"] = "neo"
+    bulk.cards["id-stray"] = stray
+    write(store, "stray", "Stray", "2026-06-01T00:00:00+00:00",
+          [row("id-wurm", "Gold Wurm"), row("id-stray", "Stray")])
+    bulk.cards["id-stray"]["type_line"] = "Token Creature — Cat"
+    summary = {s["code"]: s for s in get("/api/collection/stray/sets")}
+    assert summary["neo"]["owned"] == 1 and summary["neo"]["total"] == 4
+    checklist = get("/api/collection/stray/sets/neo")
+    assert checklist["owned"] == 1 and checklist["total"] == 4
+
+
+def test_token_only_set_has_total_zero_and_sorts_last(set_env):
+    store, bulk = set_env
+    tok = make_record("Treasure", "Token Artifact — Treasure", "", "", (), 0, layout="token")
+    tok["set"] = "ttok"
+    bulk.cards["id-tok"] = tok
+    write(store, "toks", "Toks", "2026-06-02T00:00:00+00:00",
+          [row("id-tok", "Treasure"), row("id-bolt", "Bolt")])
+    sets = get("/api/collection/toks/sets")
+    assert [s["code"] for s in sets][-1] == "ttok"
+    assert sets[-1]["total"] == 0 and sets[-1]["owned"] == 1

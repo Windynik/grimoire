@@ -97,6 +97,19 @@ test("an archive card shows 'Not in your collection'", () => {
   assert.match($(".vault-facts").textContent, /\$2\.00/, "price from prices");
 });
 
+test("an archive card with legalities shows the real grid, not 'not legal' for all", () => {
+  const archive = card(3, { quantity: undefined, foil: undefined, value: undefined, price: undefined });
+  drawer.openDrawer([archive], 0);
+  assert.ok($$(".vault-legal > span:not(.no)").length > 0);
+  assert.equal($(".vault-legal-unknown"), null);
+});
+
+test("empty legalities show 'Legality unknown'", () => {
+  drawer.openDrawer([card(4, { legalities: {} })], 0);
+  assert.equal($(".vault-legal"), null);
+  assert.equal($(".vault-legal-unknown").textContent, "Legality unknown");
+});
+
 test("the arrow keys move through the list and call onNavigate", () => {
   const list = [card(1), card(2), card(3)];
   const seen = [];
@@ -300,7 +313,8 @@ test("a card without an image or legalities still opens", () => {
   drawer.openDrawer([card(1, { image_url: "", legalities: undefined, oracle_text: "", edhrec_rank: null })], 0);
   assert.ok(isOpen());
   assert.equal($(".vault-oracle"), null);
-  assert.equal($$(".vault-legal > span").length, 8);
+  assert.equal($(".vault-legal"), null, "no grid without legalities");
+  assert.equal($(".vault-legal-unknown").textContent, "Legality unknown");
   assert.doesNotMatch($(".vault-drawer").textContent, /EDHREC|null|undefined/);
 });
 

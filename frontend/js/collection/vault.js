@@ -16,7 +16,7 @@ import {
   activeCollection, setActiveCollection, setViewerSource, viewerSource,
 } from "../shared/session.js";
 import * as api from "./api.js";
-import { openDrawer } from "./drawer.js";
+import { closeDrawer, openDrawer } from "./drawer.js";
 import { attachTilt, vaultTile } from "./tile.js";
 import {
   ARCHIVE_SORTS, SETS_SORTS, SIZES, SORTS, defaultState, loadState, normalizeState, saveState,
@@ -212,6 +212,7 @@ async function reload() {
   if (inSets()) {
     // The card filters do not apply here: the search text filters the tiles.
     screen.stale = true;
+    renderShelvesVisibility();
     return drawSets();
   }
   const token = ++screen.token;
@@ -602,6 +603,7 @@ function enterSets() {
   ui.moreError.hidden = true;
   screen.setsOpen = null;
   renderChips();
+  renderShelvesVisibility();
   drawSets();
 }
 
@@ -611,6 +613,7 @@ function leaveSets() {
   screen.setsOpen = null;
   ui.sets.hidden = true;
   ui.sets.replaceChildren();
+  renderShelvesVisibility();
   setStatus("ready");
   if (screen.stale) {
     reload();
@@ -702,7 +705,7 @@ function renderControls() {
 }
 
 function renderShelvesVisibility() {
-  const show = !screen.archive && !hasFilters() && ui.shelves.childElementCount > 0;
+  const show = !screen.archive && !hasFilters() && !inSets() && ui.shelves.childElementCount > 0;
   ui.shelves.hidden = !show;
 }
 
@@ -1038,11 +1041,22 @@ function resolveSource() {
   return newest ? newest.job_id : null;
 }
 
+/** Forget saved format filters that the loaded format list no longer has. */
+function dropStaleFormats(key) {
+  if (!Array.isArray(screen.formats) || !screen.formats.length) return;
+  const known = new Set(screen.formats.map((f) => f.key));
+  const kept = screen.state.format.filter((value) => known.has(value));
+  if (kept.length === screen.state.format.length) return;
+  screen.state.format = kept;
+  saveState(key, screen.state);
+}
+
 async function switchTo(source) {
   const gen = ++screen.gen;
   screen.source = source;
   screen.archive = !source;
   screen.state = loadState(source || "archive", { archive: screen.archive });
+  dropStaleFormats(source || "archive");
   screen.facets = null;
   screen.shelves = null;
   screen.value = 0;
@@ -1060,6 +1074,15 @@ async function switchTo(source) {
   renderSidebar();
   const hero = screen.archive ? null : loadHero(gen);
   await Promise.all([reload(), hero]);
+}
+
+/** Leave the screen: close the drawer, the phone sheet, and the collection menu. */
+export function leave() {
+  closeDrawer(false);
+  if (ui.side) {
+    closeSheet(false);
+    closeMenu(false);
+  }
 }
 
 /**

@@ -127,6 +127,9 @@ def test_search_format_filter(overrides):
 
     # casual keeps every game card
     assert client.get("/api/cards/search?format=casual").json()["total"] == 2
+    # ...but not tokens
+    bulk.cards["id-token"] = make_record("Spirit", "Token Creature — Spirit", layout="token")
+    assert client.get("/api/cards/search?format=casual").json()["total"] == 2
 
     for url in ("/api/cards/search", "/api/collection/job1/search"):
         response = client.get(url + "?format=historic")

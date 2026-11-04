@@ -20,7 +20,7 @@ _FOIL_ORDER = ("usd_foil", "usd", "eur", "tix")
 def _is_foil(value) -> bool:
     if isinstance(value, bool):
         return value
-    return value not in (None, "", "normal")
+    return str(value).strip().lower() not in ("none", "", "normal")
 
 
 def _quantity(value) -> int:
@@ -102,6 +102,7 @@ def owned_cards(stored: list, index: dict, csv_set_names: Optional[Dict[str, str
                                else _identity_from_mana(pick("mana_cost"))),
             "legalities": dict(entry.get("legalities") or {}),
             "edhrec_rank": entry.get("edhrec_rank"),
+            "layout": entry.get("layout") or "",
             "image_url": pick("image_url"),
             "back_image_url": pick("back_image_url"),
             "prices": prices,
@@ -269,8 +270,9 @@ def _legal_formats(card: dict) -> Set[str]:
     legalities = card.get("legalities") or {}
     if not legalities:
         return set()
+    game_card = is_game_card(card)
     return {key for key, lk in _FORMAT_KEYS.items()
-            if lk is None or legalities.get(lk) in _LEGAL}
+            if (game_card if lk is None else legalities.get(lk) in _LEGAL)}
 
 
 def _card_types(card: dict) -> Set[str]:
@@ -544,22 +546,28 @@ def sets_summary(cards: list, catalog: Dict[str, dict]) -> List[dict]:
     rows = []
     for code, owned in _by_set(cards).items():
         best = max(owned, key=lambda c: c["price"])
-        total = len((catalog.get(code) or {}).get("cards") or {})
+        names = (catalog.get(code) or {}).get("cards") or {}
+        total = len(names)
         rows.append({
             "code": code,
             "name": (catalog.get(code) or {}).get("name") or owned[0]["set_name"] or code.upper(),
-            "owned": len({(c["name"] or "").lower() for c in owned}),
+            "owned": len({(c["name"] or "").lower() for c in owned} & set(names)) if total
+                     else len({(c["name"] or "").lower() for c in owned}),
             "total": total,
             "value": sum(c["value"] for c in owned),
             "art_id": best["scryfall_id"],
         })
-    rows.sort(key=lambda r: (-(r["owned"] / r["total"] if r["total"] else 0), -r["owned"], r["name"]))
+    rows.sort(key=lambda r: (not r["total"], -(r["owned"] / r["total"] if r["total"] else 0),
+                             -r["owned"], r["name"]))
     return rows
 
 
 def _number_key(number: str):
     match = re.match(r"\d+", number or "")
     return (0, int(match.group()), number) if match else (1, 0, number or "")
+
+
+_DETAIL_KEYS = ("legalities", "oracle_text", "back_image_url", "set_name", "edhrec_rank")
 
 
 def set_checklist(cards: list, index: dict, catalog: Dict[str, dict], code: str) -> Optional[dict]:
@@ -582,7 +590,8 @@ def set_checklist(cards: list, index: dict, catalog: Dict[str, dict], code: str)
                             "mana_cost": card["mana_cost"], "type_line": card["type_line"],
                             "rarity": card["rarity"], "collector_number": card["collector_number"],
                             "image_url": card["image_url"], "price": card["price"],
-                            "quantity": card["quantity"], "foil": card["foil"]}
+                            "quantity": card["quantity"], "foil": card["foil"],
+                            **{k: card.get(k) for k in _DETAIL_KEYS}}
         else:
             record = index.get(sid) or {}
             entries[key] = {"scryfall_id": sid, "name": record.get("name", ""),
@@ -592,15 +601,21 @@ def set_checklist(cards: list, index: dict, catalog: Dict[str, dict], code: str)
                             "collector_number": record.get("collector_number") or "",
                             "image_url": record.get("image_url", ""),
                             "price": unit_price(record.get("prices"), False),
-                            "quantity": 0, "foil": False}
+                            "quantity": 0, "foil": False,
+                            "legalities": dict(record.get("legalities") or {}),
+                            "oracle_text": record.get("oracle_text", ""),
+                            "back_image_url": record.get("back_image_url", ""),
+                            "set_name": record.get("set_name", ""),
+                            "edhrec_rank": record.get("edhrec_rank")}
     for key, card in best.items():  # owned names the index does not list for this set
         if key not in entries:
             entries[key] = {k: card[k] for k in ("scryfall_id", "name", "mana_cost", "type_line", "rarity",
-                                                 "collector_number", "image_url", "price", "quantity", "foil")}
+                                                 "collector_number", "image_url", "price", "quantity", "foil",
+                                                 *_DETAIL_KEYS)}
     ordered = sorted(entries.values(),
                      key=lambda e: (_number_key(e["collector_number"]), e["name"])
                      if e["collector_number"] else ((1, 0, ""), e["name"]))
     # cards with a number come first in numeric order, the rest by name
     name = (catalog.get(code) or {}).get("name") or (owned[0]["set_name"] if owned else code.upper())
     return {"code": code, "name": name, "total": len(names or {}),
-            "owned": len(best), "cards": ordered}
+            "owned": len(set(best) & set(names)) if names else len(best), "cards": ordered}

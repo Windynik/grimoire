@@ -856,3 +856,64 @@ test("a 404 search for a listed collection opens the next one and forgets nothin
   assert.equal(window.localStorage.getItem("viewerSource"), "job1");
   assert.equal(window.localStorage.getItem("lastJobId"), "job1");
 });
+
+// ---- final review fixes ----------------------------------------------------
+
+const SETS_ROUTE = [{ code: "neo", name: "Neon", owned: 1, total: 2, value: 1, art_id: "" }];
+
+test("the shelves stay hidden in Sets and come back in Grid", async () => {
+  app.route("GET /api/collection/job1/sets", () => ({ json: SETS_ROUTE }));
+  await openVault({ storage: { viewerSource: "job1", [STATE("job1")]: JSON.stringify({ view: "sets" }) } });
+  await app.until(() => $$("#vault-sets .vault-set").length === 1);
+  assert.equal($("#vault-shelves").hidden, true, "hidden on open in Sets");
+  $('#vault-view [data-view="grid"]').click();
+  await app.until(() => !$("#vault-shelves").hidden);
+  $('#vault-view [data-view="sets"]').click();
+  await app.until(() => $$("#vault-sets .vault-set").length === 1);
+  assert.equal($("#vault-shelves").hidden, true, "hidden again after Sets is chosen");
+  $('#vault-view [data-view="list"]').click();
+  await app.until(() => !$("#vault-shelves").hidden);
+});
+
+async function goBack() {
+  window.location.hash = "#home";
+  window.dispatchEvent(new window.HashChangeEvent("hashchange"));
+  await app.until(() => !view().classList.contains("active"));
+  await app.settle();
+}
+
+test("leaving the Vault with the drawer open leaves no drawer behind", async () => {
+  await openVault();
+  window.location.hash = "#collection";
+  tiles()[0].click();
+  assert.ok($(".vault-drawer.is-open"));
+  await goBack();
+  assert.equal($(".vault-drawer.is-open"), null);
+  assert.equal($(".vault-drawer-scrim.is-open"), null);
+  key(document.body, "ArrowRight");
+  assert.equal($(".vault-dpos").textContent, "1 of 3", "the drawer key listener is off");
+  window.location.hash = "#collection";
+  window.dispatchEvent(new window.HashChangeEvent("hashchange"));
+  await app.until(() => view().classList.contains("active"));
+});
+
+test("leaving the Vault with the phone sheet open clears the sheet and the scroll lock", async () => {
+  await openVault();
+  $("#vault-filters-btn").click();
+  assert.ok(document.body.classList.contains("vault-sheet-lock"));
+  await goBack();
+  assert.ok(!document.body.classList.contains("vault-sheet-lock"));
+  assert.ok(!$("#vault-side").classList.contains("is-sheet-open"));
+  window.location.hash = "#collection";
+  window.dispatchEvent(new window.HashChangeEvent("hashchange"));
+  await app.until(() => view().classList.contains("active"));
+});
+
+test("a saved format that the list no longer has is dropped, and the search still runs", async () => {
+  await openVault({
+    storage: { viewerSource: "job1", [STATE("job1")]: JSON.stringify({ format: ["oldformat", "modern"] }) },
+  });
+  assert.equal(lastSearch().query.get("format"), "modern");
+  assert.deepEqual(JSON.parse(window.localStorage.getItem(STATE("job1"))).format, ["modern"]);
+  assert.equal(view().dataset.vault, "ready");
+});

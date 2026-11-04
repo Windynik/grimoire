@@ -252,3 +252,17 @@ test("a failed sets request shows Try again", async () => {
   retry.click();
   await app.until(() => tiles().length === 4);
 });
+
+test("a token-only set (no total) shows 'N owned', no ratio, no percent, no bar, and sorts last", async () => {
+  const list = [
+    { code: "ttok", name: "Tokens", owned: 3, total: 0, value: 1, art_id: "" },
+    { code: "neo", name: "Kamigawa: Neon Dynasty", owned: 1, total: 100, value: 1, art_id: "" },
+  ];
+  await openVault({ storage: SETS_VIEW, sets: () => ({ json: list }) });
+  assert.deepEqual(codes(), ["neo", "ttok"]);
+  const tok = $('#vault-sets .vault-set[data-code="ttok"]');
+  assert.equal(tok.querySelector(".vault-set-count b").textContent, "3 owned");
+  assert.doesNotMatch(tok.textContent, /\/|%/);
+  assert.equal(tok.querySelector(".vault-set-bar"), null);
+  assert.doesNotMatch(tok.getAttribute("aria-label"), /complete|%/);
+});

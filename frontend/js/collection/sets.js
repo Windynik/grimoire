@@ -3,7 +3,8 @@
 //
 // A set counts each card name once. A set can hold more owned names than it
 // has catalog names (tokens): the percent and the bar stop at 100%, and the
-// count still shows the true numbers.
+// count still shows the true numbers. A set with no catalog names shows only
+// the owned count.
 //
 // Server text goes in with textContent only (h()).
 
@@ -49,7 +50,7 @@ export function filterSets(sets, q) {
 export function sortSets(sets, sort) {
   const byName = (a, b) => nameOf(a).localeCompare(nameOf(b));
   const compare = {
-    pct: (a, b) => completion(b) - completion(a) || num(b.owned) - num(a.owned) || byName(a, b),
+    pct: (a, b) => Boolean(!num(a.total)) - Boolean(!num(b.total)) || completion(b) - completion(a) || num(b.owned) - num(a.owned) || byName(a, b),
     owned: (a, b) => num(b.owned) - num(a.owned) || byName(a, b),
     name: byName,
   }[sort] || byName;
@@ -62,7 +63,11 @@ function bar(ratio, className) {
   return h("span", { class: className, "aria-hidden": "true" }, fill);
 }
 
+// A set with no total (a token-only code) has no ratio, no percent, and no bar.
+const hasTotal = (set) => num(set && set.total) > 0;
+
 function countText(set) {
+  if (!hasTotal(set)) return `${formatCount(set.owned)} owned`;
   return `owned ${formatCount(set.owned)} / ${formatCount(set.total)}`;
 }
 
@@ -70,7 +75,8 @@ function countText(set) {
 export function setTile(set, onOpen) {
   const code = String(set.code || "").toUpperCase();
   const pct = percentOf(set);
-  const label = `${code}, ${nameOf(set)}, ${countText(set)}, ${pct}% complete, ${formatCardPrice(set.value)}`;
+  const complete = hasTotal(set) ? `${pct}% complete, ` : "";
+  const label = `${code}, ${nameOf(set)}, ${countText(set)}, ${complete}${formatCardPrice(set.value)}`;
   const tile = h("button", {
     type: "button", class: `vault-set${pct >= 100 ? " is-complete" : ""}`, "data-code": String(set.code || ""),
     "aria-label": label,
@@ -81,8 +87,8 @@ export function setTile(set, onOpen) {
   h("span", { class: "vault-set-code", text: code }),
   h("span", { class: "vault-set-name", text: shownName(set) }),
   h("span", { class: "vault-set-count" },
-    h("b", { text: countText(set) }), h("em", { text: `${pct}%` })),
-  bar(completion(set), "vault-set-bar"),
+    h("b", { text: countText(set) }), hasTotal(set) ? h("em", { text: `${pct}%` }) : null),
+  hasTotal(set) ? bar(completion(set), "vault-set-bar") : null,
   h("span", { class: "vault-set-value", text: formatCardPrice(set.value) }));
   tile.addEventListener("click", () => onOpen(set, tile));
   return tile;
@@ -172,8 +178,8 @@ export function renderChecklist(root, data, { onBack, onOpenCard, onGrid }) {
         h("h2", { class: "vault-check-title", text: shownName(data) || "Set checklist" }),
         h("p", { class: "vault-check-stats" },
           h("span", { class: "vault-check-count", text: countText(set) }),
-          h("span", { class: "vault-check-pct", text: ` · ${percentOf(set)}% complete` })),
-        bar(completion(set), "vault-set-bar vault-check-meter"))));
+          hasTotal(set) ? h("span", { class: "vault-check-pct", text: ` · ${percentOf(set)}% complete` }) : null),
+        hasTotal(set) ? bar(completion(set), "vault-set-bar vault-check-meter") : null)));
   draw();
   root.replaceChildren(head, grid);
   back.focus();

@@ -121,6 +121,13 @@ function factsOf(card) {
   return nodes;
 }
 
+function legalBlock(card) {
+  if (!Object.keys(card.legalities || {}).length) {
+    return h("p", { class: "vault-legal-unknown", text: "Legality unknown" });
+  }
+  return h("div", { class: "vault-legal", role: "list", "aria-label": "Format legality" }, ...legalGrid(card));
+}
+
 function legalGrid(card) {
   const legal = card.legalities || {};
   return FORMATS.map((name) => {
@@ -159,7 +166,7 @@ function show() {
     oracle,
     h("div", { class: "vault-facts" }, ...factsOf(card)),
     rank,
-    h("div", { class: "vault-legal", role: "list", "aria-label": "Format legality" }, ...legalGrid(card)),
+    legalBlock(card),
     decks].filter(Boolean));
 
   els.pos.textContent = `${state.index + 1} of ${state.cards.length}`;

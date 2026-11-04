@@ -2138,6 +2138,12 @@ body.vault-sheet-lock {
     color: var(--error);
 }
 
+.vault-legal-unknown {
+    margin: 16px 0 0;
+    color: var(--text-dim);
+    font: 500 12px var(--font-ui);
+}
+
 .vault-decks {
     margin-top: 18px;
 }
