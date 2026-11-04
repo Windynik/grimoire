@@ -421,7 +421,7 @@
                 <!-- Welcome View: the first run (no collection yet) -->
                 <div id="welcome-view" class="view welcome" data-step="0">
                     <div class="welcome-top">
-                        <button type="button" class="welcome-skip" id="welcome-skip" hidden>Skip — just browse all cards</button>
+                        <button type="button" class="welcome-skip" id="welcome-skip">Skip — just browse all cards</button>
                     </div>
                     <div class="welcome-stage">
                         <section class="welcome-intro" aria-labelledby="welcome-title">
@@ -457,9 +457,11 @@
                         </section>
 
                         <section class="welcome-scene" aria-label="Current step">
+                            <!-- Import news for screen readers: the start, each quarter, the end -->
+                            <p class="welcome-sr" id="welcome-announce" aria-live="polite"></p>
                             <!-- Step 1: the card data -->
                             <div class="welcome-panel" id="welcome-download" data-panel="1" hidden>
-                                <div class="welcome-sigil" id="welcome-sigil" role="progressbar" aria-label="Card data download" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                                <div class="welcome-sigil" id="welcome-sigil" tabindex="-1" role="progressbar" aria-label="Card data download" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
                                     <svg class="welcome-sigil-art" viewBox="0 0 340 340" aria-hidden="true" focusable="false">
                                         <defs>
                                             <linearGradient id="welcome-ring-grad" x1="0" x2="1">
@@ -508,12 +510,12 @@
                                     <button type="button" class="btn btn-primary welcome-cta" id="welcome-choose">Choose CSV file</button>
                                     <button type="button" class="btn btn-secondary welcome-ghost" id="welcome-sample">Try a sample collection</button>
                                 </div>
-                                <div class="welcome-progress" id="welcome-progress" hidden>
+                                <div class="welcome-progress" id="welcome-progress" tabindex="-1" aria-label="Import progress" hidden>
                                     <div class="welcome-track" role="progressbar" aria-label="Import progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
                                         <span class="welcome-track-fill" id="welcome-progress-fill"></span>
                                     </div>
                                     <div class="welcome-progress-row">
-                                        <span id="welcome-row" aria-live="polite">Reading the card data…</span>
+                                        <span id="welcome-row">Reading the card data…</span>
                                         <strong id="welcome-card"></strong>
                                     </div>
                                 </div>

@@ -14,7 +14,7 @@ import {
 import { readSSE } from "../shared/sse.js";
 import { showToast } from "../shared/toast.js";
 import { exportCollection } from "../shared/export.js";
-import { gateFirstRun } from "../welcome/welcome.js";
+import { gateFirstRun } from "../welcome/gate.js";
 
 const API_BASE = "/api";
 const RECENT_DECKS = 4;
@@ -185,10 +185,9 @@ async function loadCollections() {
     if (request !== listRequest) return null;
 
     if (data.collections.length === 0) {
-      container.replaceChildren(h("p", {
-        class: "home-empty",
-        text: "No collections yet. Import a ManaBox CSV to start.",
-      }));
+      container.replaceChildren(h("p", { class: "home-empty" },
+        "No collections yet. Import a ManaBox CSV to start. ",
+        h("a", { class: "home-link", id: "home-guided-setup", href: "#welcome" }, "Start the guided setup")));
       return data.collections;
     }
     container.replaceChildren(...data.collections.map(collectionRow));

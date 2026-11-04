@@ -1,26 +1,34 @@
 // Session values that more than one screen reads, kept in localStorage.
 //
-// A blocked or full storage does not stop the app: a read gives null, and a
-// write does nothing.
+// A blocked or full storage does not stop the app: a value that the storage
+// refuses stays in memory for this page session.
 
 const ACTIVE_KEY = "lastJobId";
 const SOURCE_KEY = "viewerSource";
 const SKIPPED_KEY = "welcomeSkipped";
 
+// The values that the storage refused, by key. null means "removed".
+const memory = new Map();
+
 function read(key) {
+  let stored = null;
   try {
-    return localStorage.getItem(key);
+    stored = localStorage.getItem(key);
   } catch (e) {
-    return null;
+    stored = null;
   }
+  return memory.has(key) ? memory.get(key) : stored;
 }
 
 function write(key, value) {
+  const empty = value === null || value === undefined || value === "";
   try {
-    if (value === null || value === undefined || value === "") localStorage.removeItem(key);
+    if (empty) localStorage.removeItem(key);
     else localStorage.setItem(key, String(value));
+    memory.delete(key);
   } catch (e) {
-    // The storage is blocked or full. The app continues without the value.
+    // The storage is blocked or full. The value stays in memory for this page.
+    memory.set(key, empty ? null : String(value));
   }
 }
 

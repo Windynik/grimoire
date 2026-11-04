@@ -33,7 +33,7 @@ import {
 import {
   editable, focusables, onGridKey, onShelfKey, trapTab,
 } from "./keys.js";
-import { gateFirstRun } from "../welcome/welcome.js";
+import { gateFirstRun } from "../welcome/gate.js";
 
 const PAGE = 60;
 const SEARCH_DELAY = 250; // ms of quiet before a typed search runs

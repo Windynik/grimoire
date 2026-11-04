@@ -4,11 +4,11 @@
 // current step:
 //   1. the card data download, with a sigil and a progress ring;
 //   2. the import of a ManaBox CSV or of the sample collection, on a binder
-//      page with ten card slots;
+//      page with ten card slots that light up as the rows go by;
 //   3. the reveal: the most valuable cards fan in and the ledger counts up.
 //
-// The gate (gateFirstRun) sends Home and the Vault here while there is no
-// collection, unless the owner chose Skip.
+// The gate that sends Home and the Vault here lives in gate.js. This module
+// builds its UI on the first open().
 //
 // Server text goes in with textContent only (h()). Card images use cardImg.
 
@@ -18,9 +18,7 @@ import { h } from "../shared/dom.js";
 import { getJSON } from "../shared/http.js";
 import { cardImg } from "../shared/images.js";
 import { DURATION, reducedMotion } from "../shared/motion.js";
-import {
-  setActiveCollection, setViewerSource, setWelcomeSkipped, welcomeSkipped,
-} from "../shared/session.js";
+import { setActiveCollection, setViewerSource, setWelcomeSkipped } from "../shared/session.js";
 import { readSSE } from "../shared/sse.js";
 import { showToast } from "../shared/toast.js";
 
@@ -30,6 +28,7 @@ const FAN = 5;
 const FAN_SPOTS = [0, -1, 1, -2, 2]; // the most valuable card goes in the middle
 const COUNT_MS = DURATION.slow * 2;
 const STOPPED = "The import stopped. Try again.";
+const UNSHOWN = "The import finished, but its summary did not show. Open the Vault to see the cards.";
 const DOWNLOAD_STOPPED = "The download stopped. Try again.";
 const DOWNLOAD_LABEL = "Download card data · 100 MB";
 // Flavor lines of the download, one for each fifth of the percent.
@@ -48,39 +47,21 @@ const screen = {
   step: 0,
   downloading: false,
   importing: false, // true from the start of an import until its reveal shows
+  quarter: 0, // the last quarter of the import that screen readers heard
   job: null, // the job id of the new collection
 };
 let countFrame = 0;
 let ui = null;
-
-// ---- the gate --------------------------------------------------------------
-
-/**
- * Send the owner to the welcome screen when there is no collection.
- *
- * @param {string} from The screen that asks: "home" or "collection".
- * @param {Array|null} collections The collection list; null when it did not load.
- * @returns {boolean} true when the welcome screen opens instead.
- */
-export function gateFirstRun(from, collections) {
-  if (!Array.isArray(collections)) return false;
-  if (collections.length > 0) {
-    // A collection exists: a later empty list starts the welcome again.
-    setWelcomeSkipped(false);
-    return false;
-  }
-  if (welcomeSkipped()) return false;
-  // The owner went somewhere else while the list loaded.
-  if (parseHash(location.hash).screen !== from) return false;
-  redirect("#welcome");
-  return true;
-}
 
 // ---- the path and the panels -----------------------------------------------
 
 function focusInside() {
   const el = document.activeElement;
   return !el || el === document.body || ui.view.contains(el);
+}
+
+function onView() {
+  return ui.view.classList.contains("active");
 }
 
 /** Show step n (1, 2 or 3): light the path and show the scene of that step. */
@@ -100,22 +81,27 @@ function showStep(n, { focus = false } = {}) {
     panel.hidden = Number(panel.dataset.panel) !== n;
   });
   syncSkip();
-  if (!focus || !focusInside()) return;
+  if (!focus || !onView() || !focusInside()) return;
   // The control of the old step is gone: the focus moves to the new step.
   if (n === 2) ui.binder.focus();
   if (n === 3) ui.revealTitle.focus();
 }
 
-// Skip shows when the archive can show cards (the card data is ready) and
-// there is no new collection yet.
+// Skip shows on steps 1 and 2 while no stream runs. Without card data the
+// archive opens anyway and says that the card data is not on this Mac yet.
 function syncSkip() {
-  ui.skip.hidden = !(screen.step === 2 && !screen.importing);
+  ui.skip.hidden = screen.downloading || screen.importing || screen.step === 3;
 }
 
 function skip() {
   setWelcomeSkipped(true);
   setViewerSource("archive");
   navigate("#collection");
+}
+
+// Move the focus to a progress region when the control that had it hides.
+function holdFocus(el) {
+  if (onView() && focusInside()) el.focus();
 }
 
 // ---- step 1: the card data -------------------------------------------------
@@ -147,6 +133,7 @@ async function cardCount() {
 async function download() {
   if (screen.downloading) return;
   screen.downloading = true;
+  syncSkip();
   const gen = screen.gen;
   let finished = false;
   ui.downloadBtn.disabled = true;
@@ -154,11 +141,14 @@ async function download() {
   setSigil(0, "Downloading");
   ui.pct.textContent = "0%";
   ui.ticker.textContent = FLAVOR[0];
+  holdFocus(ui.sigil);
 
   const fail = (message) => {
     finished = true;
+    screen.downloading = false;
     showToast(message || DOWNLOAD_STOPPED, "error");
     resetSigil();
+    syncSkip();
   };
 
   try {
@@ -186,6 +176,7 @@ async function download() {
         const count = await cardCount();
         ui.ticker.textContent = count ? `${formatCount(count)} cards ready offline.` : "The card data is ready offline.";
         ui.downloadBtn.textContent = "Card data ready";
+        screen.downloading = false;
         if (gen === screen.gen) showStep(2, { focus: true });
       }
     });
@@ -194,6 +185,7 @@ async function download() {
     if (!finished) fail(DOWNLOAD_STOPPED);
   } finally {
     screen.downloading = false;
+    syncSkip();
   }
 }
 
@@ -203,7 +195,7 @@ function buildSlots() {
   ui.slots.replaceChildren(...Array.from({ length: SLOTS }, () => h("span", { class: "welcome-slot" })));
 }
 
-/** Show the binder ready for a file: no progress, empty slots. */
+/** Show the binder ready for a file: no progress, dark slots. */
 function resetImport() {
   ui.file.value = "";
   ui.actions.hidden = false;
@@ -213,8 +205,15 @@ function resetImport() {
   ui.binder.setAttribute("aria-disabled", "false");
   ui.choose.disabled = false;
   ui.sample.disabled = false;
+  ui.announce.textContent = "";
   buildSlots();
   syncSkip();
+}
+
+// Screen readers hear the start, each quarter, and the end of the import,
+// not each row.
+function announce(text) {
+  ui.announce.textContent = text;
 }
 
 function showProgress(event) {
@@ -226,10 +225,15 @@ function showProgress(event) {
   // The server loads the card index first, so the total is 0 for a few seconds.
   ui.row.textContent = total > 0 ? `Row ${formatCount(current)} of ${formatCount(total)}` : "Reading the card data…";
   ui.card.textContent = event.current_card ? String(event.current_card) : "";
-  // The slots light up as the rows go by. The cards show when the import is
-  // done: the stream does not name the imported cards.
+  // The slots light up as the rows go by. Cards do not show here: the stream
+  // does not name the imported cards.
   const lit = Math.floor(share * SLOTS);
   [...ui.slots.children].forEach((slot, i) => slot.classList.toggle("is-lit", i < lit));
+  const quarter = Math.floor(share * 4);
+  if (quarter > screen.quarter && quarter < 4) {
+    screen.quarter = quarter;
+    announce(`Import ${quarter * 25}% done.`);
+  }
 }
 
 function startProgress() {
@@ -240,8 +244,11 @@ function startProgress() {
   ui.binder.setAttribute("aria-disabled", "true");
   ui.choose.disabled = true;
   ui.sample.disabled = true;
+  screen.quarter = 0;
   showProgress({ current: 0, total: 0 });
+  announce("Import started.");
   syncSkip();
+  holdFocus(ui.progress);
 }
 
 function failImport(message) {
@@ -249,14 +256,13 @@ function failImport(message) {
   const lost = screen.step === 2 && focusInside();
   showToast(message || STOPPED, "error");
   resetImport();
-  // The button that started the import hid: the binder takes the focus back.
-  if (lost && !ui.view.hidden && ui.view.classList.contains("active")) ui.binder.focus();
+  // The progress region that had the focus hid: the binder takes it back.
+  if (lost && onView()) ui.binder.focus();
 }
 
 async function runImport(request) {
   if (screen.importing) return;
   screen.importing = true;
-  const gen = screen.gen;
   let finished = false;
   startProgress();
   try {
@@ -272,13 +278,18 @@ async function runImport(request) {
       failImport(detail);
       return;
     }
-    await readSSE(response, (event) => {
+    await readSSE(response, async (event) => {
       if (finished) return;
       if (event.type === "progress") {
         showProgress(event);
       } else if (event.type === "done") {
         finished = true;
-        finishImport(event.result || {}, gen);
+        try {
+          await finishImport(event.result || {});
+        } catch (error) {
+          // The collection exists, but the reveal failed: say so, and go back to step 2.
+          failImport(UNSHOWN);
+        }
       } else if (event.type === "error") {
         finished = true;
         failImport(event.detail);
@@ -334,52 +345,39 @@ async function load(path) {
   }
 }
 
-/** Fill the slots with real cards of the new collection, then show the reveal. */
-async function finishImport(result, gen) {
-  const job = result.job_id ? String(result.job_id) : null;
-  screen.job = job;
-  if (job) {
-    setActiveCollection(job);
-    // A fresh import becomes the viewer's collection.
-    setViewerSource(null);
-    setWelcomeSkipped(false);
-  }
-  const total = Number(result.total_processed) || 0;
-  const matched = Number(result.success_count) || 0;
-  ui.progressFill.style.transform = "scaleX(1)";
-  ui.track.setAttribute("aria-valuenow", "100");
-  ui.row.textContent = `${formatCount(matched)} of ${formatCount(total)} rows matched`;
-  ui.card.textContent = total > matched ? `${formatCount(total - matched)} to check` : "";
-
-  const base = job ? `/collection/${encodeURIComponent(job)}` : null;
-  const [shelves, insights] = base
-    ? await Promise.all([load(`${base}/shelves`), load(`${base}/insights`)])
-    : [null, null];
-  if (gen !== screen.gen) return;
-
-  const picks = uniqueCards(shelves && shelves.valuable, SLOTS);
-  [...ui.slots.children].forEach((slot, i) => {
-    slot.classList.remove("is-lit");
-    const card = picks[i];
-    if (!card) {
-      slot.replaceChildren();
-      return;
+/**
+ * Remember the new collection, read its shelves and insights, and show the
+ * reveal at once. The fan and the ledger animate in the reveal; nothing waits
+ * for them.
+ */
+async function finishImport(result) {
+  try {
+    const job = result.job_id ? String(result.job_id) : null;
+    screen.job = job;
+    if (job) {
+      setActiveCollection(job);
+      // A fresh import becomes the viewer's collection.
+      setViewerSource(null);
+      setWelcomeSkipped(false);
     }
-    const face = h("span", { class: "welcome-slot-card" }, cardImg(card, { size: "small" }));
-    face.style.setProperty("--i", String(i));
-    slot.replaceChildren(face);
-  });
+    const total = Number(result.total_processed) || 0;
+    const matched = Number(result.success_count) || 0;
+    ui.progressFill.style.transform = "scaleX(1)";
+    ui.track.setAttribute("aria-valuenow", "100");
+    ui.row.textContent = `${formatCount(matched)} of ${formatCount(total)} rows matched`;
+    ui.card.textContent = total > matched ? `${formatCount(total - matched)} to check` : "";
+    announce(`Import done: ${formatCount(matched)} of ${formatCount(total)} rows matched.`);
 
-  // The cards flip in one after another. Under reduced motion they show at
-  // once, and the reveal follows at once.
-  const still = reducedMotion();
-  ui.view.classList.toggle("is-still", still);
-  const pause = still || !picks.length ? 0 : DURATION.slow * 1.5 + picks.length * DURATION.fast * 0.4;
-  if (pause) await new Promise((resolve) => setTimeout(resolve, pause));
-  if (gen !== screen.gen) return;
-  reveal(insights, shelves);
-  screen.importing = false;
-  syncSkip();
+    const base = job ? `/collection/${encodeURIComponent(job)}` : null;
+    const [shelves, insights] = base
+      ? await Promise.all([load(`${base}/shelves`), load(`${base}/insights`)])
+      : [null, null];
+    ui.view.classList.toggle("is-still", reducedMotion());
+    screen.importing = false;
+    reveal(insights, shelves);
+  } finally {
+    screen.importing = false;
+  }
 }
 
 // ---- step 3: the reveal ----------------------------------------------------
@@ -504,6 +502,7 @@ function init() {
     track: document.querySelector("#welcome-progress .welcome-track"),
     row: $("welcome-row"),
     card: $("welcome-card"),
+    announce: $("welcome-announce"),
     revealTitle: $("welcome-reveal-title"),
     revealSub: $("welcome-reveal-sub"),
     fan: $("welcome-fan"),
@@ -546,8 +545,19 @@ async function cardDataReady() {
   }
 }
 
+/** The collection list, or null when it did not load. */
+async function collectionList() {
+  try {
+    const data = await getJSON("/collections");
+    return Array.isArray(data && data.collections) ? data.collections : null;
+  } catch (error) {
+    return null;
+  }
+}
+
 /**
- * Show the screen. A running download or import keeps its place. Else the
+ * Show the screen. A running download or import keeps its place. With a
+ * collection, Home opens instead (in place of this history entry). Else the
  * flow starts again: step 2 when the card data is ready, else step 1.
  */
 export async function open() {
@@ -562,9 +572,11 @@ export async function open() {
   syncSkip();
   resetSigil();
   resetImport();
-  const ready = await cardDataReady();
+  const [ready, collections] = await Promise.all([cardDataReady(), collectionList()]);
   if (gen !== screen.gen) return;
+  if (collections && collections.length > 0) {
+    if (parseHash(location.hash).screen === "welcome") redirect("#home");
+    return;
+  }
   showStep(ready ? 2 : 1);
 }
-
-init();
