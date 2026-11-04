@@ -198,16 +198,6 @@ test("cardImg puts the name in as text", () => {
   assert.equal(el.querySelector(".card-img-name img"), null);
 });
 
-test("the grid tile and the list row use the local images", () => {
-  const tile = card.cardTile(sample(), 0, { priority: "high" });
-  assert.equal(tile.querySelector(".card-img-sharp").getAttribute("src"), `/api/images/${ID}/front?size=normal`);
-  assert.equal(tile.querySelector(".card-img-sharp").getAttribute("fetchpriority"), "high");
-  const row = card.cardRow(sample(), 0);
-  const thumb = row.querySelector(".list-thumb");
-  assert.ok(thumb.classList.contains("card-img"));
-  assert.equal(thumb.querySelector("img").getAttribute("src"), `/api/images/${ID}/front?size=small`);
-});
-
 test("the card detail shows the local image and flips to the back", async () => {
   card.showCardDetail(sample({ back_image_url: "https://cards.example/back.jpg" }));
   const sharp = () => panel().querySelector(".modal-card-image .card-img-sharp");

@@ -3,7 +3,6 @@
 
 import { register, start } from "./router.js";
 import { startShell } from "./shell.js";
-import { enhanceSelects } from "../shared/select.js";
 import * as home from "../home/home.js";
 import * as collection from "../collection/vault.js";
 import * as importScreen from "../collection/import.js";
@@ -22,7 +21,6 @@ register("settings", settings);
 register("welcome", welcome);
 
 startShell();
-enhanceSelects();
 await start();
 
 // Tests wait for this flag. It is set after the first route ran.

@@ -1,6 +1,5 @@
 import asyncio
 import json
-import random
 import re
 from pathlib import Path
 
@@ -508,25 +507,6 @@ def check_format(fmt_key: str) -> None:
         raise HTTPException(status_code=400, detail="Unknown format: " + fmt_key)
 
 
-@router.get("/collection/{job_id}/random")
-async def get_random_cards(
-    job_id: str,
-    limit: int = 20,
-    store: CollectionStore = Depends(get_collection_store),
-    bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager),
-):
-    """Get random cards from collection."""
-    collection = store.get_collection(job_id)
-    if not collection:
-        raise HTTPException(status_code=404, detail="Collection not found")
-
-    sample_size = min(limit, len(collection))
-    random_cards = mark_owned(random.sample(collection, sample_size))
-    hydrate(random_cards, await bulk_data_manager.load_bulk_data())
-
-    return {"cards": random_cards, "total": len(random_cards)}
-
-
 @router.get("/cards/search")
 async def search_all_cards(
     q: str = "",
@@ -579,35 +559,6 @@ async def search_all_cards(
     ]
 
     return {"cards": cards, "total": len(matches), "offset": offset, "limit": limit}
-
-
-@router.get("/cards/random")
-async def get_random_all_cards(
-    limit: int = 30,
-    bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager)
-):
-    """Get random cards from all bulk data."""
-    bulk_data = await bulk_data_manager.load_bulk_data()
-
-    if not bulk_data:
-        raise HTTPException(
-            status_code=400,
-            detail="Bulk data not available. Please download cache first."
-        )
-
-    all_cards = [
-        item for item in bulk_data.items()
-        if item[1].get("layout") not in NON_GAME_LAYOUTS
-    ]
-    sample_size = min(limit, len(all_cards))
-    random_sample = random.sample(all_cards, sample_size)
-
-    cards = [
-        serialize_bulk_card(card_id, card_info)
-        for card_id, card_info in random_sample
-    ]
-
-    return {"cards": cards, "total": len(cards)}
 
 
 @router.get("/ai/status")

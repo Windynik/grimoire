@@ -1,4 +1,4 @@
-// Card tile, list row, and detail panel. Text goes in with textContent.
+// Card detail panel. Text goes in with textContent.
 // The mana and oracle text markup is the only innerHTML, and mana.js escapes it.
 
 import { h, manaNode } from "./dom.js";
@@ -8,85 +8,11 @@ import { renderOracleText } from "./mana.js";
 import { showPanel } from "./modal.js";
 import { animate } from "./motion.js";
 
-function manaOrDash(cost, className) {
-  return cost ? manaNode(cost, className) : h("span", { class: "mana-none", text: "—" });
-}
-
 // A node whose content is oracle text with mana symbol icons.
 function oracleNode(tag, className, text) {
   const el = h(tag, { class: className });
   el.innerHTML = renderOracleText(text);
   return el;
-}
-
-function onActivate(el, card) {
-  el.addEventListener("click", () => showCardDetail(card));
-  el.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      showCardDetail(card);
-    }
-  });
-}
-
-/**
- * A grid tile for a card.
- *
- * @param {Object} card
- * @param {number} index Place in its batch; it sets the entrance delay.
- * @param {{priority: string}} [options] priority "high" for the cards of the first screen.
- */
-export function cardTile(card, index, options = {}) {
-  const hasImage = Boolean(cardImage(card));
-  const owned = card.owned && card.quantity > 0;
-  const art = hasImage
-    ? cardImg(card, { alt: card.name || "", priority: options.priority })
-    : h("div", { class: "card-placeholder" },
-      h("img", { src: "/favicon.svg", alt: "", class: "placeholder-icon" }),
-      h("p", { class: "placeholder-text", text: "No Image" }));
-  const text = h("p", null, h("strong", { text: "Text" }), " ");
-  text.append(card.oracle_text ? oracleNode("span", "", card.oracle_text) : "—");
-
-  const tile = h("div", {
-    class: "card-item", tabindex: "0", role: "button", "aria-label": card.name || "Card",
-  },
-  h("div", { class: `card-image-wrapper ${hasImage ? "" : "no-image"}`.trim() },
-    owned ? h("div", { class: "owned-badge", text: `Owned × ${card.quantity}` }) : null,
-    art,
-    h("div", { class: "card-hover-preview" },
-      h("p", null, h("strong", { text: "Type" }), " ", card.type_line || "—"),
-      h("p", null, h("strong", { text: "Mana" }), " ", manaOrDash(card.mana_cost)),
-      text)),
-  h("div", { class: "card-info" },
-    h("p", { class: "card-name", text: card.name }),
-    h("p", { class: "card-price", text: formatPrice(card.price) })));
-  // Stagger each batch's entrance
-  tile.style.animationDelay = `${Math.min(index * 0.03, 0.45)}s`;
-  onActivate(tile, card);
-  return tile;
-}
-
-/** A list row for a card. */
-export function cardRow(card, index) {
-  const thumb = cardImage(card)
-    ? cardImg(card, { className: "list-thumb", size: "small" })
-    : h("div", { class: "list-thumb-placeholder" }, h("img", { src: "/favicon.svg", alt: "" }));
-  const qty = card.owned && card.quantity > 0
-    ? h("span", { class: "list-qty", text: `× ${card.quantity}` })
-    : h("span");
-
-  const row = h("div", {
-    class: "list-row", tabindex: "0", role: "button", "aria-label": card.name || "Card",
-  },
-  thumb,
-  h("div", { class: "list-main" },
-    h("p", { class: "list-name", text: card.name }),
-    h("p", { class: "list-type", text: card.type_line || "—" })),
-  qty,
-  h("span", { class: "list-price", text: formatPrice(card.price) }));
-  row.style.animationDelay = `${Math.min(index * 0.02, 0.3)}s`;
-  onActivate(row, card);
-  return row;
 }
 
 function statPill(label, value, valueClass) {
