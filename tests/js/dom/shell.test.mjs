@@ -7,6 +7,8 @@ let app;
 before(async () => {
   app = await loadApp({
     reducedMotion: true,
+    // There is no collection: the owner skipped the welcome screen, so Home shows.
+    storage: { welcomeSkipped: "1" },
     routes: {
       "GET /api/cache/status": () => ({ json: { status: "missing" } }),
       "GET /api/collections": () => ({ json: { collections: [] } }),

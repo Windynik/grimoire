@@ -14,6 +14,7 @@ import {
 import { readSSE } from "../shared/sse.js";
 import { showToast } from "../shared/toast.js";
 import { exportCollection } from "../shared/export.js";
+import { gateFirstRun } from "../welcome/welcome.js";
 
 const API_BASE = "/api";
 const RECENT_DECKS = 4;
@@ -172,26 +173,29 @@ function collectionRow(c) {
     h("div", { class: "collection-row-actions" }, view, exportLink, remove));
 }
 
+/** Show the collection list. Resolves to the list, or null when it did not load. */
 async function loadCollections() {
   const request = ++listRequest;
   const container = $("dashboard-collections");
 
   try {
     const response = await fetch(`${API_BASE}/collections`);
-    if (!response.ok) return;
+    if (!response.ok) return null;
     const data = await response.json();
-    if (request !== listRequest) return;
+    if (request !== listRequest) return null;
 
     if (data.collections.length === 0) {
       container.replaceChildren(h("p", {
         class: "home-empty",
         text: "No collections yet. Import a ManaBox CSV to start.",
       }));
-      return;
+      return data.collections;
     }
     container.replaceChildren(...data.collections.map(collectionRow));
+    return data.collections;
   } catch (error) {
     console.error("Error loading dashboard collections:", error);
+    return null;
   }
 }
 
@@ -246,11 +250,14 @@ function init() {
   $("download-cache").addEventListener("click", downloadCache);
 }
 
-/** Show the screen: refresh the card data status, the collections, and the decks. */
-export function open() {
+/**
+ * Show the screen: refresh the card data status, the collections, and the
+ * decks. Without a collection, the welcome screen opens instead.
+ */
+export async function open() {
   checkCacheStatus();
-  loadCollections();
   loadDecks();
+  gateFirstRun("home", await loadCollections());
 }
 
 init();

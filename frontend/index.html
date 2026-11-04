@@ -19,6 +19,7 @@
     <link rel="stylesheet" href="/css/collection.css">
     <link rel="stylesheet" href="/css/vault.css">
     <link rel="stylesheet" href="/css/settings.css">
+    <link rel="stylesheet" href="/css/welcome.css">
 </head>
 <body>
     <!-- Atmospheric background layers -->
@@ -415,6 +416,130 @@
                         <h2>Settings</h2>
                         <div id="settings-body"></div>
                     </section>
+                </div>
+
+                <!-- Welcome View: the first run (no collection yet) -->
+                <div id="welcome-view" class="view welcome" data-step="0">
+                    <div class="welcome-top">
+                        <button type="button" class="welcome-skip" id="welcome-skip" hidden>Skip — just browse all cards</button>
+                    </div>
+                    <div class="welcome-stage">
+                        <section class="welcome-intro" aria-labelledby="welcome-title">
+                            <p class="welcome-hello">Welcome, planeswalker</p>
+                            <h1 class="welcome-title" id="welcome-title">Your collection, made magical.</h1>
+                            <p class="welcome-lede">Grimoire keeps every card you own on this Mac — searchable, beautiful, and ready to build decks from. It takes about a minute to set up.</p>
+                            <div class="welcome-path">
+                                <span class="welcome-path-fill" id="welcome-path-fill" aria-hidden="true"></span>
+                                <ol class="welcome-steps" id="welcome-path" aria-label="Setup steps">
+                                    <li class="welcome-step is-on" data-step="1">
+                                        <span class="welcome-step-n" aria-hidden="true">1</span>
+                                        <div>
+                                            <h2 class="welcome-step-title">Bring the card library home</h2>
+                                            <p class="welcome-step-text">Grimoire downloads Scryfall's card data once (about 100 MB). After that, everything works offline.</p>
+                                        </div>
+                                    </li>
+                                    <li class="welcome-step" data-step="2">
+                                        <span class="welcome-step-n" aria-hidden="true">2</span>
+                                        <div>
+                                            <h2 class="welcome-step-title">Import your collection</h2>
+                                            <p class="welcome-step-text">Drop in a ManaBox CSV export, or try a sample collection first.</p>
+                                        </div>
+                                    </li>
+                                    <li class="welcome-step" data-step="3">
+                                        <span class="welcome-step-n" aria-hidden="true">3</span>
+                                        <div>
+                                            <h2 class="welcome-step-title">Open your vault</h2>
+                                            <p class="welcome-step-text">See what you own, what it is worth, and what to build next.</p>
+                                        </div>
+                                    </li>
+                                </ol>
+                            </div>
+                        </section>
+
+                        <section class="welcome-scene" aria-label="Current step">
+                            <!-- Step 1: the card data -->
+                            <div class="welcome-panel" id="welcome-download" data-panel="1" hidden>
+                                <div class="welcome-sigil" id="welcome-sigil" role="progressbar" aria-label="Card data download" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                                    <svg class="welcome-sigil-art" viewBox="0 0 340 340" aria-hidden="true" focusable="false">
+                                        <defs>
+                                            <linearGradient id="welcome-ring-grad" x1="0" x2="1">
+                                                <stop offset="0" class="welcome-stop-a"/>
+                                                <stop offset="1" class="welcome-stop-b"/>
+                                            </linearGradient>
+                                        </defs>
+                                        <g class="welcome-spin">
+                                            <circle class="welcome-sigil-dots" cx="170" cy="170" r="160" fill="none" stroke-dasharray="2 9"/>
+                                            <circle class="welcome-sigil-line" cx="170" cy="170" r="132" fill="none"/>
+                                        </g>
+                                        <g class="welcome-spin welcome-spin-back">
+                                            <polygon class="welcome-sigil-tri-a" points="170,40 283,235 57,235" fill="none"/>
+                                            <polygon class="welcome-sigil-tri-b" points="170,300 57,105 283,105" fill="none"/>
+                                        </g>
+                                        <circle class="welcome-ring-track" cx="170" cy="170" r="146" fill="none" stroke-width="6"/>
+                                        <circle class="welcome-ring" id="welcome-ring" cx="170" cy="170" r="146" fill="none" stroke="url(#welcome-ring-grad)" stroke-width="6" stroke-linecap="round" stroke-dasharray="917.35" stroke-dashoffset="917.35" transform="rotate(-90 170 170)"/>
+                                    </svg>
+                                    <div class="welcome-sigil-core">
+                                        <div>
+                                            <div class="welcome-pct" id="welcome-pct">✦</div>
+                                            <div class="welcome-sigil-label" id="welcome-sigil-label">Card library</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="welcome-center">
+                                    <button type="button" class="btn btn-primary welcome-cta" id="welcome-download-btn">Download card data · 100 MB</button>
+                                    <p class="welcome-ticker" id="welcome-ticker" aria-live="polite"></p>
+                                    <p class="welcome-small">One time only. Your collection never leaves this Mac.</p>
+                                </div>
+                            </div>
+
+                            <!-- Step 2: the import -->
+                            <div class="welcome-panel" id="welcome-import" data-panel="2" hidden>
+                                <input type="file" id="welcome-file" accept=".csv" aria-label="Choose a ManaBox CSV file" hidden>
+                                <div class="welcome-binder" id="welcome-binder" role="button" tabindex="0" aria-label="Choose a ManaBox CSV file to import, or drop it here">
+                                    <div class="welcome-slots" id="welcome-slots"></div>
+                                    <div class="welcome-drop" id="welcome-drop" aria-hidden="true">
+                                        <div class="welcome-drop-card">
+                                            <p class="welcome-drop-title">Drop your ManaBox CSV here</p>
+                                            <p class="welcome-drop-hint">or click to choose the file</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="welcome-actions" id="welcome-actions">
+                                    <button type="button" class="btn btn-primary welcome-cta" id="welcome-choose">Choose CSV file</button>
+                                    <button type="button" class="btn btn-secondary welcome-ghost" id="welcome-sample">Try a sample collection</button>
+                                </div>
+                                <div class="welcome-progress" id="welcome-progress" hidden>
+                                    <div class="welcome-track" role="progressbar" aria-label="Import progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                                        <span class="welcome-track-fill" id="welcome-progress-fill"></span>
+                                    </div>
+                                    <div class="welcome-progress-row">
+                                        <span id="welcome-row" aria-live="polite">Reading the card data…</span>
+                                        <strong id="welcome-card"></strong>
+                                    </div>
+                                </div>
+                                <details class="welcome-how">
+                                    <summary>How do I export from ManaBox?</summary>
+                                    <ol>
+                                        <li>Open <b>ManaBox</b> and go to <b>Collection</b>.</li>
+                                        <li>Tap <b>⋯</b> and choose <b>Export</b>.</li>
+                                        <li>Pick <b>CSV</b>, then send the file to this Mac (AirDrop works).</li>
+                                    </ol>
+                                </details>
+                            </div>
+
+                            <!-- Step 3: the reveal -->
+                            <div class="welcome-panel welcome-reveal" id="welcome-reveal" data-panel="3" hidden>
+                                <h2 class="welcome-reveal-title" id="welcome-reveal-title" tabindex="-1">Your vault is ready.</h2>
+                                <p class="welcome-reveal-sub" id="welcome-reveal-sub"></p>
+                                <ul class="welcome-fan" id="welcome-fan" aria-label="Your most valuable cards"></ul>
+                                <div class="welcome-ledger" id="welcome-ledger"></div>
+                                <div class="welcome-center">
+                                    <button type="button" class="btn btn-primary welcome-cta" id="welcome-open">Open the Vault →</button>
+                                    <p class="welcome-small">Next: forge a deck from what you own.</p>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
                 </div>
             </div>
         </main>

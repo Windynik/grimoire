@@ -10,6 +10,7 @@ import * as importScreen from "../collection/import.js";
 import * as forge from "../forge/forge.js";
 import * as decks from "../decks/decks.js";
 import * as settings from "../settings/settings.js";
+import * as welcome from "../welcome/welcome.js";
 import { autoStartImageSync } from "../shared/imagesync.js";
 
 register("home", home);
@@ -18,6 +19,7 @@ register("import", importScreen);
 register("forge", forge);
 register("decks", decks);
 register("settings", settings);
+register("welcome", welcome);
 
 startShell();
 enhanceSelects();

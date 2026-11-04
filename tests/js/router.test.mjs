@@ -7,6 +7,7 @@ test("parseHash maps every route", () => {
   assert.deepEqual(parseHash("#home"), { screen: "home", params: {} });
   assert.deepEqual(parseHash("#deck/abc_1"), { screen: "decks", params: { deckId: "abc_1" } });
   assert.deepEqual(parseHash("#import"), { screen: "import", params: {} });
+  assert.deepEqual(parseHash("#welcome"), { screen: "welcome", params: {} });
   assert.deepEqual(parseHash("#deck/../x"), { screen: "home", params: {} });
   assert.deepEqual(parseHash("#nope"), { screen: "home", params: {} });
 });
@@ -22,6 +23,6 @@ test("parseHash refuses a deck id with other characters", () => {
 });
 
 test("the screen list and the nav parents", () => {
-  assert.deepEqual(SCREENS, ["home", "collection", "import", "forge", "decks", "settings"]);
-  assert.deepEqual(NAV_PARENT, { import: "collection" });
+  assert.deepEqual(SCREENS, ["home", "collection", "import", "forge", "decks", "settings", "welcome"]);
+  assert.deepEqual(NAV_PARENT, { import: "collection", welcome: "home" });
 });

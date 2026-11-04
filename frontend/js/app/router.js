@@ -4,10 +4,10 @@
 // the view switch, then the nav mark, then the new screen's open(params).
 // Route changes run one at a time, in the order they come.
 
-export const SCREENS = ["home", "collection", "import", "forge", "decks", "settings"];
+export const SCREENS = ["home", "collection", "import", "forge", "decks", "settings", "welcome"];
 
 /** A screen without its own nav link marks the link of its parent. */
-export const NAV_PARENT = { import: "collection" };
+export const NAV_PARENT = { import: "collection", welcome: "home" };
 
 const DECK_HASH = /^#deck\/([A-Za-z0-9_-]+)$/;
 
@@ -118,6 +118,19 @@ export function navigate(hash, state) {
   if (location.hash === hash) return dispatch();
   location.hash = hash;
   return undefined;
+}
+
+/**
+ * Go to a hash in place of the current history entry. Back then skips the
+ * current hash, so a screen that sends the owner away does not trap Back.
+ *
+ * @param {string} hash For example "#welcome".
+ * @returns {Promise} The route run.
+ */
+export function redirect(hash) {
+  carried = null;
+  if (location.hash !== hash) history.replaceState(history.state, "", hash);
+  return dispatch();
 }
 
 /**

@@ -33,6 +33,7 @@ import {
 import {
   editable, focusables, onGridKey, onShelfKey, trapTab,
 } from "./keys.js";
+import { gateFirstRun } from "../welcome/welcome.js";
 
 const PAGE = 60;
 const SEARCH_DELAY = 250; // ms of quiet before a typed search runs
@@ -1080,6 +1081,8 @@ export async function open() {
     showOpenError();
     return;
   }
+  // No collection yet: the welcome screen opens, unless the owner chose the archive there.
+  if (gateFirstRun("collection", collections)) return;
   screen.collections = collections;
   await switchTo(resolveSource());
 }

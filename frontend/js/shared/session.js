@@ -5,6 +5,7 @@
 
 const ACTIVE_KEY = "lastJobId";
 const SOURCE_KEY = "viewerSource";
+const SKIPPED_KEY = "welcomeSkipped";
 
 function read(key) {
   try {
@@ -44,4 +45,18 @@ export function viewerSource() {
 /** Set the source of the collection viewer. null forgets it. */
 export function setViewerSource(value) {
   write(SOURCE_KEY, value);
+}
+
+/**
+ * True when the owner chose "Skip — just browse all cards" on the welcome
+ * screen. While there is no collection, Home and the Vault then do not send
+ * the owner back to the welcome screen.
+ */
+export function welcomeSkipped() {
+  return read(SKIPPED_KEY) === "1";
+}
+
+/** Remember (true) or forget (false) the choice to skip the welcome screen. */
+export function setWelcomeSkipped(skipped) {
+  write(SKIPPED_KEY, skipped ? "1" : null);
 }
