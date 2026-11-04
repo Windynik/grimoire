@@ -4,7 +4,8 @@
 // current step:
 //   1. the card data download, with a sigil and a progress ring;
 //   2. the import of a ManaBox CSV or of the sample collection, on a binder
-//      page with ten card slots that light up as the rows go by;
+//      page with ten card slots that light up as the rows go by; at the end,
+//      real cards of the new collection flip into the slots;
 //   3. the reveal: the most valuable cards fan in and the ledger counts up.
 //
 // The gate that sends Home and the Vault here lives in gate.js. This module
@@ -27,6 +28,11 @@ const SLOTS = 10;
 const FAN = 5;
 const FAN_SPOTS = [0, -1, 1, -2, 2]; // the most valuable card goes in the middle
 const COUNT_MS = DURATION.slow * 2;
+// The flip of the binder slots: each card starts FLIP_STEP after the one
+// before and flips for DURATION.base (css/welcome.css, .welcome-slot-card).
+// Ten cards end at 574 ms, inside DURATION.slow.
+const FLIP_STEP = DURATION.fast * 0.24;
+const flipMs = (cards) => (cards > 0 ? DURATION.base + (cards - 1) * FLIP_STEP : 0);
 const STOPPED = "The import stopped. Try again.";
 const UNSHOWN = "The import finished, but its summary did not show. Open the Vault to see the cards.";
 const DOWNLOAD_STOPPED = "The download stopped. Try again.";
@@ -52,6 +58,7 @@ const screen = {
 };
 let countFrame = 0;
 let ui = null;
+let endFlip = null; // ends the wait for the binder flip at once, while it runs
 
 // ---- the path and the panels -----------------------------------------------
 
@@ -205,6 +212,7 @@ function resetImport() {
   ui.binder.setAttribute("aria-disabled", "false");
   ui.choose.disabled = false;
   ui.sample.disabled = false;
+  ui.doneRow.hidden = true;
   ui.announce.textContent = "";
   buildSlots();
   syncSkip();
@@ -345,10 +353,27 @@ async function load(path) {
   }
 }
 
+/** Put real cards of the new collection in the slots, with a flip stagger. */
+function fillSlots(cards) {
+  [...ui.slots.children].forEach((slot, i) => {
+    // Every row is read: each slot is lit. A slot without a card stays empty.
+    slot.classList.add("is-lit");
+    const card = cards[i];
+    if (!card) {
+      slot.replaceChildren();
+      return;
+    }
+    const face = h("span", { class: "welcome-slot-card" }, cardImg(card, { size: "small" }));
+    face.style.setProperty("--i", String(i));
+    slot.replaceChildren(face);
+  });
+}
+
 /**
- * Remember the new collection, read its shelves and insights, and show the
- * reveal at once. The fan and the ledger animate in the reveal; nothing waits
- * for them.
+ * Remember the new collection and read its shelves and insights. Real cards
+ * flip into the binder, and "Open the Vault →" shows under it at once, so
+ * nothing waits on the flip. When the flip ends, the reveal (step 3) shows.
+ * Without shelves, or under reduced motion, the reveal shows at once.
  */
 async function finishImport(result) {
   try {
@@ -372,7 +397,24 @@ async function finishImport(result) {
     const [shelves, insights] = base
       ? await Promise.all([load(`${base}/shelves`), load(`${base}/insights`)])
       : [null, null];
-    ui.view.classList.toggle("is-still", reducedMotion());
+    const still = reducedMotion();
+    ui.view.classList.toggle("is-still", still);
+    const picks = uniqueCards(shelves && shelves.valuable, SLOTS);
+    if (picks.length) {
+      fillSlots(picks);
+      if (!still) {
+        ui.doneRow.hidden = false;
+        holdFocus(ui.done);
+        await new Promise((resolve) => {
+          const timer = setTimeout(resolve, flipMs(picks.length));
+          endFlip = () => {
+            clearTimeout(timer);
+            resolve();
+          };
+        });
+        endFlip = null;
+      }
+    }
     screen.importing = false;
     reveal(insights, shelves);
   } finally {
@@ -463,6 +505,8 @@ function reveal(insights, shelves) {
 }
 
 function openVault() {
+  // The owner leaves during the flip: the flow ends now, not after the flip.
+  if (endFlip) endFlip();
   if (screen.job) {
     setActiveCollection(screen.job);
     setViewerSource(null);
@@ -503,6 +547,8 @@ function init() {
     row: $("welcome-row"),
     card: $("welcome-card"),
     announce: $("welcome-announce"),
+    doneRow: $("welcome-done-row"),
+    done: $("welcome-done"),
     revealTitle: $("welcome-reveal-title"),
     revealSub: $("welcome-reveal-sub"),
     fan: $("welcome-fan"),
@@ -533,6 +579,7 @@ function init() {
     if (files && files.length > 0) importFile(files[0]);
   });
   ui.open.addEventListener("click", openVault);
+  ui.done.addEventListener("click", openVault);
 }
 
 async function cardDataReady() {

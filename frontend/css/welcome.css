@@ -345,6 +345,7 @@
     border: 1.5px dashed var(--border-bright);
     border-radius: var(--radius-sm);
     background: repeating-linear-gradient(135deg, var(--glare-faint) 0 8px, transparent 8px 16px);
+    perspective: 800px;
 }
 
 /* A lit slot: the rows of the import reach it. A glow fades in. */
@@ -364,6 +365,41 @@
 
 .welcome-slot.is-lit::before {
     opacity: 1;
+}
+
+/* At the end of the import, real cards of the new collection flip into the
+   slots. The stagger and the flip end within var(--dur-slow): the last card
+   starts at 9 x 0.24 x --dur-fast and flips for --dur-base. welcome.js waits
+   the same time (FLIP_MS) before the reveal. */
+.welcome-slot-card {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    box-shadow: var(--shadow-1);
+    animation: welcome-flip var(--dur-base) var(--ease-out) both;
+    animation-delay: calc(var(--i, 0) * var(--dur-fast) * 0.24);
+}
+
+.welcome-slot-card .card-img {
+    width: 100%;
+    height: 100%;
+    border-radius: var(--radius-sm);
+}
+
+@keyframes welcome-flip {
+    from { opacity: 0; transform: translateY(-24px) rotateY(180deg); }
+    40%  { opacity: 1; }
+    to   { opacity: 1; transform: none; }
+}
+
+.welcome-done {
+    margin-top: 20px;
+}
+
+.welcome-done[hidden] {
+    display: none;
 }
 
 .welcome-drop {
@@ -605,6 +641,7 @@
 
 .welcome.is-still .welcome-spin,
 .welcome.is-still .welcome-panel,
+.welcome.is-still .welcome-slot-card,
 .welcome.is-still .welcome-fan-card {
     animation: none;
 }

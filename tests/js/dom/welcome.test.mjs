@@ -332,7 +332,7 @@ test("a file that is not a CSV gets a toast and no import", async () => {
   assert.ok(shown("#welcome-actions"));
 });
 
-test("a dropped CSV imports with live rows, then the reveal shows at once", async () => {
+test("a dropped CSV imports with live rows, real cards flip into the slots, then the reveal shows", async () => {
   const { addCollection } = await setup();
   const stream = openStream();
   app.route("POST /api/process/stream", () => stream.reply());
@@ -374,16 +374,27 @@ test("a dropped CSV imports with live rows, then the reveal shows at once", asyn
   stream.send(progress(25, 25, "Last Card", 1));
   stream.send(done(25, 1));
   stream.end();
-  // No timer holds the reveal: it shows as soon as the shelves and insights answer.
-  await app.until(() => $("#welcome-view").dataset.step === "3", 300);
-  assert.ok(shown("#welcome-reveal"));
-  assert.ok(shown("#welcome-open"));
-  const sources = $$("#welcome-fan img.card-img-sharp").map((img) => img.getAttribute("src"));
+  // At done, real cards of the new collection (from its shelves) flip into the slots.
+  await app.until(() => $$("#welcome-slots .welcome-slot-card").length === 10);
+  const slotSources = $$("#welcome-slots .welcome-slot-card img.card-img-sharp").map((img) => img.getAttribute("src"));
   // The unique names: card 2 shares the name of card 1, so it is skipped.
-  assert.deepEqual(sources, [1, 3, 4, 5, 6].map((i) => `/api/images/${ID(i)}/front?size=normal`));
+  assert.deepEqual(slotSources, [1, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((i) => `/api/images/${ID(i)}/front?size=small`));
+  // "Open the Vault" shows at once under the binder: nothing waits on the flip.
+  assert.equal($("#welcome-view").dataset.step, "2");
+  assert.ok(shown("#welcome-done"));
+  assert.equal(text("#welcome-done"), "Open the Vault →");
   assert.equal(text("#welcome-row"), "24 of 25 rows matched");
   assert.equal(text("#welcome-announce"), "Import done: 24 of 25 rows matched.");
   assert.equal(window.localStorage.getItem("lastJobId"), "job9");
+
+  // The flip of ten cards ends within 600 ms; then the reveal follows.
+  const started = Date.now();
+  await app.until(() => $("#welcome-view").dataset.step === "3", 1500);
+  assert.ok(Date.now() - started < 1000);
+  assert.ok(shown("#welcome-reveal"));
+  assert.ok(shown("#welcome-open"));
+  const sources = $$("#welcome-fan img.card-img-sharp").map((img) => img.getAttribute("src"));
+  assert.deepEqual(sources, [1, 3, 4, 5, 6].map((i) => `/api/images/${ID(i)}/front?size=normal`));
   assert.ok($(".welcome-step[data-step='2']").classList.contains("is-done"));
   assert.ok(!shown("#welcome-skip"), "Skip leaves once the collection exists");
 });
@@ -394,7 +405,20 @@ test("the sample button imports the sample collection", async () => {
   addCollection(NEW_BOX);
   await importSample(stream);
   assert.equal(posts("/api/process/stream").length, 0);
-  await app.until(() => $("#welcome-view").dataset.step === "3", 1000);
+  await app.until(() => $("#welcome-view").dataset.step === "3", 1500);
+});
+
+test("Open the Vault under the binder works while the cards flip in", async () => {
+  const { addCollection } = await setup();
+  addCollection(NEW_BOX);
+  await importSample(openStream());
+  const button = await app.until(() => (shown("#welcome-done") ? $("#welcome-done") : null));
+  assert.equal($("#welcome-view").dataset.step, "2");
+  button.click();
+  await app.until(() => window.location.hash === "#collection" && active("collection"));
+  assert.equal(window.localStorage.getItem("lastJobId"), "job9");
+  await app.until(() => $("#collection-view").dataset.vault === "ready");
+  assert.ok(app.fetchLog.some((r) => r.path === "/api/collection/job9/search"));
 });
 
 test("a double click on the sample button sends one import", async () => {
@@ -511,7 +535,7 @@ test("the reveal shows the fan, counts the ledger up, and opens the Vault", asyn
   const { addCollection } = await setup();
   addCollection(NEW_BOX);
   await importSample(openStream());
-  await app.until(() => $("#welcome-view").dataset.step === "3", 1000);
+  await app.until(() => $("#welcome-view").dataset.step === "3", 1500);
   assert.ok(!$("#welcome-view").classList.contains("is-still"));
 
   assert.equal(text("#welcome-reveal-title"), "Your vault is ready.");
@@ -536,11 +560,19 @@ test("the reveal shows the fan, counts the ledger up, and opens the Vault", asyn
   assert.ok(app.fetchLog.some((r) => r.path === "/api/collection/job9/search"));
 });
 
-test("a reveal without insights still opens the Vault", async () => {
+test("without shelves, the reveal shows at once and still opens the Vault", async () => {
   const { addCollection } = await setup({ insights: null, shelves: null });
   addCollection(NEW_BOX);
+  let slots = -1;
+  const observer = new window.MutationObserver(() => {
+    if ($("#welcome-view").dataset.step === "3" && slots < 0) slots = $$("#welcome-slots .welcome-slot-card").length;
+  });
+  observer.observe($("#welcome-view"), { attributes: true, attributeFilter: ["data-step"] });
   await importSample(openStream());
-  await app.until(() => $("#welcome-view").dataset.step === "3", 1000);
+  // No flip to wait for: step 3 follows the failed shelves request at once.
+  await app.until(() => $("#welcome-view").dataset.step === "3", 200);
+  observer.disconnect();
+  assert.equal(slots, 0, "no card flips in without shelves");
   assert.equal(text("#welcome-reveal-sub"), "Your cards are in the Vault.");
   assert.equal($$("#welcome-fan .welcome-fan-card").length, 0);
   assert.ok($("#welcome-ledger").hidden);
@@ -559,17 +591,21 @@ test("reduced motion shows each final state at once", async () => {
     assert.ok($("#welcome-view").classList.contains("is-still"));
     addCollection(NEW_BOX);
     let ledger = null;
+    let slots = 0;
     const observer = new window.MutationObserver(() => {
       if ($("#welcome-view").dataset.step === "3" && !ledger) {
         ledger = $$("#welcome-ledger .welcome-ledger-value").map((el) => el.textContent);
+        slots = $$("#welcome-slots .welcome-slot-card").length;
       }
     });
     observer.observe($("#welcome-view"), { attributes: true, attributeFilter: ["data-step"] });
     await importSample(openStream());
-    await app.until(() => $("#welcome-view").dataset.step === "3", 500);
+    // No flip pause: step 3 follows at once.
+    await app.until(() => $("#welcome-view").dataset.step === "3", 200);
     observer.disconnect();
-    // The counters show their final values when the step shows.
+    // The counters show their final values when the step shows, and the cards are in the slots.
     assert.deepEqual(ledger, ["$1,234.50", "1,002", "202"]);
+    assert.equal(slots, 10);
   } finally {
     window.matchMedia = media;
   }
