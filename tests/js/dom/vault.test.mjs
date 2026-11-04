@@ -195,6 +195,36 @@ test("the fan holds the spotlight in the middle and four valuable cards around i
   $(".vault-dclose").click();
 });
 
+test("the fan hovers the card of the resting layout, also through a lifted card", async () => {
+  await openVault();
+  const root = $("#vault-fan");
+  const fan = $$("#vault-fan .vault-fan-card");
+  // The fan is 600 px wide: the resting centres are 172, 236, 300, 364 and 428.
+  root.getBoundingClientRect = () => ({ left: 0, top: 0, width: 600, height: 420, right: 600, bottom: 420 });
+  const move = (target, x) => target.dispatchEvent(new window.MouseEvent("pointermove", {
+    bubbles: true, clientX: x, clientY: 300,
+  }));
+  const hovered = () => fan.filter((el) => el.classList.contains("is-hover"));
+
+  move(fan[2], 300);
+  assert.deepEqual(hovered(), [fan[2]]);
+  // The lifted middle card covers x = 190, but at rest the card at k = -1 is on
+  // top there. The nearest centre (172) is the card at k = -2: not that one.
+  move(fan[2], 190);
+  assert.deepEqual(hovered(), [fan[1]]);
+  move(fan[1], 100);
+  assert.deepEqual(hovered(), [fan[0]]);
+  move(fan[4], 500);
+  assert.deepEqual(hovered(), [fan[4]]);
+  // The empty fan area clears the hover, and so does leaving the fan.
+  move(root, 300);
+  assert.deepEqual(hovered(), []);
+  move(fan[3], 420);
+  assert.deepEqual(hovered(), [fan[3]]);
+  root.dispatchEvent(new window.MouseEvent("pointerleave"));
+  assert.deepEqual(hovered(), []);
+});
+
 test("the switcher lists the collections and the archive, and switches", async () => {
   await openVault();
   const title = $("#vault-title");

@@ -670,16 +670,29 @@
     box-shadow: 0 30px 60px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05);
 }
 
-.vault-fan-card:hover,
+/* The fan script sets is-hover from the resting layout, not :hover: the lifted
+   card covers its neighbors, and :hover would stick to it. */
+.vault-fan-card.is-hover,
 .vault-fan-card:focus-visible {
     z-index: 9;
     transform: translateX(calc(-50% + var(--k) * var(--fan-spread)))
         translateY(-26px) rotate(calc(var(--k) * 3.6deg)) scale(1.06);
 }
 
-.vault-fan.is-still .vault-fan-card:hover,
+.vault-fan.is-still .vault-fan-card.is-hover,
 .vault-fan.is-still .vault-fan-card:focus-visible {
     transform: var(--fan-pose);
+}
+
+/* The lift opens a gap under the card. The bridge fills it, so the pointer
+   stays on the card and the card does not drop back and forth. */
+.vault-fan-card.is-hover::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 100%;
+    height: 40px;
 }
 
 .vault-fan-card:focus-visible {
@@ -707,7 +720,7 @@
 }
 
 .vault-fan-card.is-spot .vault-fan-tag,
-.vault-fan-card:hover .vault-fan-tag,
+.vault-fan-card.is-hover .vault-fan-tag,
 .vault-fan-card:focus-visible .vault-fan-tag {
     opacity: 1;
 }

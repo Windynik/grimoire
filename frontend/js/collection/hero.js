@@ -223,7 +223,56 @@ export function renderFan(root, shelves, onOpen) {
     h("span", { class: "vault-fan-ring", "aria-hidden": "true" }),
     h("span", { class: "vault-fan-glow", "aria-hidden": "true" }),
     ...cards);
+  attachFanHover(root);
   return list.length;
+}
+
+// The fallback sizes of vault.css, for a root without computed styles.
+const FAN_CARD = 206;
+const FAN_SPREAD = 64;
+
+function fanSize(root, name, fallback) {
+  const value = parseFloat(window.getComputedStyle(root).getPropertyValue(name));
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+/**
+ * The fan card at clientX in the resting layout: the top card (lowest |k|)
+ * whose resting box holds x, else the card with the nearest centre. The lifted
+ * card covers its neighbors, so the pointer target cannot tell which card is
+ * under the pointer. The resting layout does not move, so the choice is stable.
+ */
+export function fanCardAt(root, clientX) {
+  const cards = [...root.querySelectorAll(".vault-fan-card")];
+  if (!cards.length) return null;
+  const box = root.getBoundingClientRect();
+  const half = fanSize(root, "--fan-card", FAN_CARD) / 2;
+  const spread = fanSize(root, "--fan-spread", FAN_SPREAD);
+  const centre = box.left + box.width / 2;
+  const away = (el) => Math.abs(clientX - centre - Number(el.style.getPropertyValue("--k")) * spread);
+  const top = cards.sort((a, b) => Number(a.style.getPropertyValue("--ak")) - Number(b.style.getPropertyValue("--ak")));
+  return top.find((el) => away(el) <= half)
+    || top.reduce((best, el) => (away(el) < away(best) ? el : best));
+}
+
+// The roots that already track the hover.
+const fanHovering = new WeakSet();
+
+/**
+ * Track the hovered fan card with the is-hover class. One set of listeners
+ * on root serves every render. Touch pointers do not hover.
+ */
+function attachFanHover(root) {
+  if (fanHovering.has(root)) return;
+  fanHovering.add(root);
+  const hover = (card) => {
+    for (const el of root.querySelectorAll(".vault-fan-card")) el.classList.toggle("is-hover", el === card);
+  };
+  root.addEventListener("pointermove", (event) => {
+    if (event.pointerType === "touch") return;
+    hover(event.target.closest(".vault-fan-card") ? fanCardAt(root, event.clientX) : null);
+  });
+  root.addEventListener("pointerleave", () => hover(null));
 }
 
 // ---- the shelves -----------------------------------------------------------
