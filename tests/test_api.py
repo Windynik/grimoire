@@ -364,3 +364,44 @@ def test_api_responses_keep_their_cache_headers():
     """The static cache rule does not touch the API."""
     response = client.get("/api/health")
     assert "cache-control" not in response.headers
+
+
+class FailingDownload:
+    """A bulk manager whose download fails with a reason."""
+    last_error = "Scryfall sent no download link for the card data."
+
+    async def download_bulk_data(self, progress_callback=None):
+        return False
+
+
+def test_a_failed_download_says_why():
+    app.dependency_overrides[get_bulk_data_manager] = lambda: FailingDownload()
+    try:
+        events = sse_events(client.post("/api/cache/download"))
+    finally:
+        app.dependency_overrides.pop(get_bulk_data_manager, None)
+    assert events[-1] == {
+        "error": "Download failed. Scryfall sent no download link for the card data."}
+
+
+class RunningDownload:
+    """A bulk manager with a download in progress."""
+    downloading = True
+
+    async def download_bulk_data(self, progress_callback=None):
+        raise AssertionError("a second download must not start")
+
+    def clear_cache(self):
+        raise AssertionError("a clear must not run during a download")
+
+
+def test_download_and_clear_are_refused_while_a_download_runs():
+    app.dependency_overrides[get_bulk_data_manager] = lambda: RunningDownload()
+    try:
+        events = sse_events(client.post("/api/cache/download"))
+        cleared = client.delete("/api/cache")
+    finally:
+        app.dependency_overrides.pop(get_bulk_data_manager, None)
+    assert events == [{"error": routes.DOWNLOAD_RUNNING}]
+    assert cleared.status_code == 409
+    assert cleared.json()["detail"] == routes.CLEAR_WHILE_DOWNLOADING

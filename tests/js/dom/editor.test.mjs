@@ -179,3 +179,33 @@ test("export after a failed save does not export", async () => {
   await app.until(() => toasts().some((text) => text.startsWith("Could not save the deck")), SAVE_WAIT);
   assert.ok(!app.fetchLog.some((req) => req.path === "/api/decks/d1/export"));
 });
+
+test("each save carries the tab id, a rising number and the loaded revision", async () => {
+  await openEditor({ "GET /api/decks/d1": () => ({ json: { ...deckRecord(), revision: 4 } }) });
+  saveReply = () => ({ json: { analysis: {}, revision: 5 } });
+  // The editor of an earlier test can save once more as it closes, so keep
+  // only the saves of this editor: the ones that saw revision 4 or later.
+  const mine = () => puts.filter((body) => body.edit && body.edit.base_revision >= 4);
+  click(document.querySelector('.deck-row [data-action="inc"]'));
+  await app.until(() => mine().length === 1, SAVE_WAIT);
+  const first = mine()[0].edit;
+  assert.equal(typeof first.client, "string");
+  assert.ok(first.client.length > 0);
+  assert.equal(first.base_revision, 4);
+  click(document.querySelector('.deck-row [data-action="inc"]'));
+  await app.until(() => mine().length === 2, SAVE_WAIT);
+  const second = mine()[1].edit;
+  assert.equal(second.client, first.client);
+  assert.ok(second.seq > first.seq);
+  // The next save names the revision of the last answer.
+  assert.equal(second.base_revision, 5);
+});
+
+test("a save refused because another tab changed the deck says so", async () => {
+  await openEditor();
+  saveReply = () => ({ status: 409, json: { detail: "This deck changed in another tab or window. Reload the page to get the newest version, then edit again." } });
+  click(document.querySelector('.deck-row [data-action="inc"]'));
+  const error = document.querySelector('[data-editor="error"]');
+  await app.until(() => error && !error.hidden, SAVE_WAIT);
+  assert.match(error.textContent, /changed in another tab/);
+});

@@ -286,3 +286,52 @@ def test_import_commander_copy_in_main_caps_at_250(overrides):
         assert r.status_code == 201
         main = r.json()["sections"]["main"]
         assert [(e["name"], e["count"]) for e in main] == [("Atraxa Test", 250)]
+
+
+def _new_deck(client):
+    return client.post("/api/decks", json={"name": "Test", "format": "modern",
+                                           "collection_job_id": "aaa1"}).json()
+
+
+def _count(client, deck_id):
+    return client.get("/api/decks/%s" % deck_id).json()["sections"]["main"][0]["count"]
+
+
+def _counted(count, client_id, seq, base=0):
+    sac = _sac()
+    return _body(sections={"main": [{"scryfall_id": sac["id"], "name": "Sac Outlet 0", "count": count}]},
+                 edit={"client": client_id, "seq": seq, "base_revision": base})
+
+
+def test_an_older_save_of_the_same_tab_that_lands_late_is_ignored(overrides):
+    with TestClient(app) as client:
+        deck = _new_deck(client)
+        assert deck["revision"] == 0
+        url = "/api/decks/%s" % deck["id"]
+        newer = client.put(url, json=_counted(3, "tab-a", 2))
+        assert newer.status_code == 200 and newer.json()["revision"] == 1
+        late = client.put(url, json=_counted(1, "tab-a", 1))
+        assert late.status_code == 200
+        assert late.json()["revision"] == 1
+        assert _count(client, deck["id"]) == 3
+
+
+def test_a_save_from_a_tab_that_missed_a_newer_save_is_refused(overrides):
+    with TestClient(app) as client:
+        deck = _new_deck(client)
+        url = "/api/decks/%s" % deck["id"]
+        assert client.put(url, json=_counted(3, "tab-a", 1, base=0)).status_code == 200
+        stale = client.put(url, json=_counted(2, "tab-b", 1, base=0))
+        assert stale.status_code == 409
+        assert "another tab" in stale.json()["detail"]
+        assert _count(client, deck["id"]) == 3
+        # A tab that saw the newest save may write.
+        assert client.put(url, json=_counted(2, "tab-b", 2, base=1)).status_code == 200
+        assert _count(client, deck["id"]) == 2
+
+
+def test_a_save_without_an_edit_mark_still_works_and_counts(overrides):
+    with TestClient(app) as client:
+        deck = _new_deck(client)
+        r = client.put("/api/decks/%s" % deck["id"], json=_body())
+        assert r.status_code == 200 and r.json()["revision"] == 1

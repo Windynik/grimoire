@@ -41,6 +41,17 @@ class CommanderIn(BaseModel):
     name: str = Field(max_length=200)
 
 
+class EditIn(BaseModel):
+    """The order mark of an editor save.
+
+    client: a random id of one editor tab. seq: rises with each save of that
+    tab. base_revision: the deck revision the tab last saw.
+    """
+    client: str = Field(min_length=1, max_length=64)
+    seq: int = Field(ge=0)
+    base_revision: int = Field(0, ge=0)
+
+
 class DeckIn(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     format: str = Field(max_length=40)
@@ -49,6 +60,23 @@ class DeckIn(BaseModel):
     deck_size: Optional[int] = Field(None, ge=40, le=250)
     max_copies: Optional[int] = Field(None, ge=1, le=4)
     sections: SectionsIn
+    edit: Optional[EditIn] = None
+
+
+def edit_check(stored: dict, edit: Optional[EditIn]) -> str:
+    """Decide what to do with a save: "write", "stale" or "conflict".
+
+    A save of the tab that wrote last is "write" when it is newer, else "stale"
+    (an older request that landed late). A save of another tab is "write" only
+    when the tab saw the newest revision, else "conflict". A save without a
+    mark (an older client) is "write".
+    """
+    if edit is None:
+        return "write"
+    last = stored.get("edit") or {}
+    if last.get("client") == edit.client:
+        return "write" if edit.seq > int(last.get("seq", -1)) else "stale"
+    return "write" if edit.base_revision == int(stored.get("revision", 0)) else "conflict"
 
 
 class CreateDeck(BaseModel):
@@ -122,6 +150,9 @@ def apply_update(stored: dict, incoming: DeckIn) -> dict:
     for key in EDITABLE:
         record[key] = data[key]
     record["sections"] = sections
+    record["revision"] = int(stored.get("revision", 0)) + 1
+    if incoming.edit is not None:
+        record["edit"] = {"client": incoming.edit.client, "seq": incoming.edit.seq}
     return record
 
 

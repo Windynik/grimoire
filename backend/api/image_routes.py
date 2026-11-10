@@ -1,6 +1,6 @@
 import asyncio
 import json
-from typing import Dict
+from typing import Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
@@ -106,6 +106,7 @@ async def get_image(
     scryfall_id: str,
     face: str,
     size: str = "normal",
+    v: Optional[str] = None,
     store: ImageStore = Depends(get_image_store),
     bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager),
 ):
@@ -121,6 +122,13 @@ async def get_image(
     index: Dict[str, dict] = await bulk_data_manager.load_bulk_data()
     card = index.get(scryfall_id)
     url = (card or {}).get("image_url" if face == "front" else "back_image_url")
+    if card is None:
+        # The card data is missing, for example after "Clear card data". A
+        # stored image still shows: the page's stamp "v" picks the copy.
+        stored = store.stored_path(scryfall_id, face, size, v)
+        if stored is not None:
+            return FileResponse(str(stored), media_type="image/jpeg",
+                                headers={"Cache-Control": STALE_CACHE_CONTROL})
     if not url or not size_url(url, size):
         raise HTTPException(status_code=404, detail="No image for this card")
     stamp = stamp_of(url)

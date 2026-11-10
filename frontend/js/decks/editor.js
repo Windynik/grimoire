@@ -162,6 +162,16 @@ function preloadDeck(state) {
   return preload(small.concat(normal), PRELOAD_LIMIT);
 }
 
+/** A random id for one editor tab. */
+function randomId() {
+  try {
+    if (globalThis.crypto && globalThis.crypto.randomUUID) return globalThis.crypto.randomUUID();
+  } catch (e) {
+    // Fall back below.
+  }
+  return `tab-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 function createSession(host, deckId, options) {
   const view = mount(host);
   const history = new History();
@@ -172,6 +182,12 @@ function createSession(host, deckId, options) {
   let status = "saved";
   let retryTimer = null;
   let stopPreload = () => {};
+  // The order mark of each save (see edit_check on the server): a random id of
+  // this tab, a number that rises with each save, and the newest deck revision.
+  const clientId = randomId();
+  let seq = 0;
+  let revision = 0;
+  let shownSeq = -1; // The save whose analysis is on screen.
 
   const state = {
     deckId,
@@ -242,6 +258,7 @@ function createSession(host, deckId, options) {
       deck_size: deck.deck_size,
       max_copies: deck.max_copies,
       sections,
+      edit: { client: clientId, seq: ++seq, base_revision: revision },
     };
   }
 
@@ -252,9 +269,17 @@ function createSession(host, deckId, options) {
   }
 
   async function send(snapshot, sendOptions) {
+    // The revision can rise while the save waits in the queue.
+    snapshot.edit.base_revision = revision;
     const response = await api.saveDeck(deckId, snapshot, sendOptions);
     if (closed) return;
-    if (response && response.analysis) state.analysis = response.analysis;
+    if (response && Number.isInteger(response.revision)) revision = Math.max(revision, response.revision);
+    // A hidden tab sends its newest save at once, so an older save can answer
+    // last. Its analysis must not replace the newer one.
+    if (response && response.analysis && snapshot.edit.seq >= shownSeq) {
+      shownSeq = snapshot.edit.seq;
+      state.analysis = response.analysis;
+    }
     if (snapshot === lastBody) {
       setStatus("saved");
       view.error.hidden = true;
@@ -433,6 +458,7 @@ function createSession(host, deckId, options) {
         api.getCollections().catch(() => ({ collections: [] })),
       ]);
       if (closed) return;
+      revision = Number.isInteger(record.revision) ? record.revision : 0;
       deck = {
         name: record.name || "Untitled deck",
         format: record.format,

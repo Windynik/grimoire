@@ -1,5 +1,7 @@
 import asyncio
+import gzip
 import json
+import logging
 import os
 import ssl
 from datetime import datetime, timezone
@@ -11,6 +13,8 @@ import httpx
 
 from backend.core.paths import cache_root
 from backend.models.schemas import CacheStatus
+
+logger = logging.getLogger(__name__)
 
 
 # Formats whose legality we keep in the compact index
@@ -72,14 +76,43 @@ def compact_card(card: dict) -> dict:
     }
 
 
+def _reason(error: Exception) -> str:
+    """A short reason for a failed download that the owner can act on."""
+    if isinstance(error, httpx.HTTPStatusError):
+        return f"Scryfall answered {error.response.status_code}. Try again later."
+    if isinstance(error, httpx.TransportError):
+        return "Grimoire could not reach Scryfall. Check the internet connection."
+    if isinstance(error, OSError):
+        return f"Grimoire could not write the card data: {error.strerror or error}."
+    return str(error) or error.__class__.__name__
+
+
+def _open_text(path: Path):
+    """Open a bulk file as text. A gzipped file is read through gzip."""
+    with open(path, "rb") as f:
+        gzipped = f.read(2) == b"\x1f\x8b"
+    if gzipped:
+        return gzip.open(path, "rt", encoding="utf-8")
+    return open(path, "r", encoding="utf-8")
+
+
 def iter_bulk_cards(path: Path) -> Iterator[dict]:
     """Yield raw cards from a Scryfall bulk file without loading it whole.
 
-    Scryfall writes one card object per line inside a JSON array; if a file
-    ever arrives in another shape, fall back to a full parse.
+    Scryfall wrote a JSON array with one card object on each line. Since
+    November 2026 it writes gzipped JSON lines: one card object on each line,
+    with no array. Both shapes stream, gzipped or not. A file in another
+    shape falls back to a full parse.
     """
-    with open(path, "r", encoding="utf-8") as f:
+    with _open_text(path) as f:
         first = f.readline().strip()
+        if first.startswith("{"):
+            yield json.loads(first)
+            for line in f:
+                line = line.strip()
+                if line:
+                    yield json.loads(line)
+            return
         if first != "[":
             f.seek(0)
             yield from json.load(f)
@@ -96,11 +129,13 @@ class BulkDataManager:
 
     BULK_DATA_API = "https://api.scryfall.com/bulk-data/default-cards"
 
-    def __init__(self, cache_dir: Optional[str] = None):
+    def __init__(self, cache_dir: Optional[str] = None,
+                 transport: Optional[httpx.AsyncBaseTransport] = None):
         """Initialize bulk data manager.
 
         Args:
             cache_dir: Directory to store cached bulk data
+            transport: Optional HTTP transport, for tests
         """
         self.cache_dir = Path(cache_dir) if cache_dir else cache_root()
         # Raw Scryfall download; only kept on disk while the index is built
@@ -112,6 +147,19 @@ class BulkDataManager:
         self._bulk_data_cache: Optional[Dict[str, dict]] = None
         # Created lazily so it binds to the running event loop
         self._load_lock: Optional[asyncio.Lock] = None
+        self._transport = transport
+        # The reason of the last failed download, for the page to show
+        self.last_error: Optional[str] = None
+        # One download at a time: two runs would write the same files.
+        self._downloading = False
+        # A clear or a new download raises the generation, so a load that
+        # started before it does not put old cards back in memory.
+        self._generation = 0
+
+    @property
+    def downloading(self) -> bool:
+        """True while a download or its index build runs."""
+        return self._downloading
 
     def get_cache_status(self) -> CacheStatus:
         """Get current cache status.
@@ -156,18 +204,29 @@ class BulkDataManager:
             if progress_callback:
                 progress_callback(max(0, min(100, percentage)))
 
+        if self._downloading:
+            self.last_error = "A card data download is already running."
+            return False
+        self._downloading = True
+        self.last_error = None
         try:
             self.cache_dir.mkdir(parents=True, exist_ok=True)
             ssl_context = ssl.create_default_context(cafile=certifi.where())
 
-            async with httpx.AsyncClient(timeout=30.0, verify=ssl_context) as client:
+            async with httpx.AsyncClient(timeout=30.0, verify=ssl_context,
+                                         transport=self._transport) as client:
                 response = await client.get(self.BULK_DATA_API)
                 response.raise_for_status()
                 bulk_info = response.json()
 
-            download_url = bulk_info["download_uri"]
+            # Scryfall gave a JSON array at "download_uri" until November 2026.
+            # Now it gives gzipped JSON lines at "jsonl_download_uri".
+            download_url = bulk_info.get("download_uri") or bulk_info.get("jsonl_download_uri")
+            if not download_url:
+                raise ValueError("Scryfall sent no download link for the card data.")
 
-            async with httpx.AsyncClient(timeout=300.0, verify=ssl_context) as client:
+            async with httpx.AsyncClient(timeout=300.0, verify=ssl_context,
+                                         transport=self._transport) as client:
                 async with client.stream("GET", download_url) as response:
                     response.raise_for_status()
                     total_size = int(response.headers.get("content-length", 0))
@@ -188,27 +247,41 @@ class BulkDataManager:
 
             self._write_metadata(card_count, bulk_info.get("updated_at"))
             self._bulk_data_cache = None
+            self._generation += 1
             report(100)
             return True
 
         except Exception as e:
-            print(f"Error downloading bulk data: {e}")
+            logger.exception("Could not download the card data")
+            self.last_error = _reason(e)
             self.download_file.unlink(missing_ok=True)
+            self.bulk_data_file.unlink(missing_ok=True)
             return False
+        finally:
+            self._downloading = False
 
     def _build_index(self) -> int:
         """Convert the raw bulk file into the compact JSON-lines index."""
-        tmp = self.index_file.with_suffix(".jsonl.part")
+        tmp = self._index_part
         count = 0
-        with open(tmp, "w", encoding="utf-8") as out:
-            for card in iter_bulk_cards(self.bulk_data_file):
-                if "id" not in card:
-                    continue
-                out.write(json.dumps(compact_card(card), separators=(",", ":")))
-                out.write("\n")
-                count += 1
-        os.replace(tmp, self.index_file)
+        try:
+            with open(tmp, "w", encoding="utf-8") as out:
+                for card in iter_bulk_cards(self.bulk_data_file):
+                    if "id" not in card:
+                        continue
+                    out.write(json.dumps(compact_card(card), separators=(",", ":")))
+                    out.write("\n")
+                    count += 1
+            os.replace(tmp, self.index_file)
+        except BaseException:
+            # A partial index can be about 100 MB, often on a full disk.
+            tmp.unlink(missing_ok=True)
+            raise
         return count
+
+    @property
+    def _index_part(self) -> Path:
+        return self.index_file.with_suffix(".jsonl.part")
 
     def _write_metadata(self, card_count: int, scryfall_updated_at: Optional[str] = None,
                         download_date: Optional[str] = None):
@@ -259,12 +332,20 @@ class BulkDataManager:
                 return self._bulk_data_cache
             if not self.index_file.exists() and not self.bulk_data_file.exists():
                 return {}
-            try:
-                self._bulk_data_cache = await asyncio.to_thread(self._read_index)
-            except Exception as e:
-                print(f"Error loading bulk data: {e}")
+            if not self.index_file.exists() and self._downloading:
+                # The download builds the index from the raw file right now.
                 return {}
-            return self._bulk_data_cache
+            generation = self._generation
+            try:
+                cards = await asyncio.to_thread(self._read_index)
+            except Exception:
+                logger.exception("Could not load the card data")
+                return {}
+            if generation != self._generation:
+                # A clear or a download ran during the read: these cards are old.
+                return {}
+            self._bulk_data_cache = cards
+            return cards
 
     def validate_bulk_data(self) -> bool:
         """Validate that the card index exists and its first record parses.
@@ -287,12 +368,16 @@ class BulkDataManager:
         Returns:
             True if successful
         """
+        if self._downloading:
+            # The download would write the card data back after the clear.
+            return False
         try:
             for path in (self.bulk_data_file, self.download_file, self.index_file,
-                         self.metadata_file):
+                         self._index_part, self.metadata_file):
                 path.unlink(missing_ok=True)
             self._bulk_data_cache = None
+            self._generation += 1
             return True
-        except Exception as e:
-            print(f"Error clearing cache: {e}")
+        except Exception:
+            logger.exception("Could not clear the card data")
             return False

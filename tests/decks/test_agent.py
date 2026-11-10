@@ -149,3 +149,25 @@ async def test_unknown_card_line_is_kept_and_cannot_be_swapped_or_cut(playbook):
     assert result["swaps"] == [] and result["cuts"] == []
     assert result["sections"]["main"] == record["sections"]["main"]
     assert ghost in result["sections"]["main"]
+
+
+@pytest.mark.asyncio
+async def test_a_cut_cannot_remove_the_card_a_swap_brought_in(playbook):
+    record, index, collection = _world()
+    reply = {"reply": "ok", "swaps": [{"out": "Weak A", "in": "Strong B", "why": "x"}],
+             "cuts": [{"name": "Strong B", "why": "contradiction"}, {"name": "Weak E", "why": "slow"}]}
+    result = await run_agent(record, "m", "m", index, collection, playbook, _client(reply))
+    assert result["swaps"] == [{"out": "Weak A", "in": "Strong B", "why": "x"}]
+    assert result["cuts"] == [{"name": "Weak E", "why": "slow"}]
+    assert "Strong B" in [e["name"] for e in result["sections"]["main"]]
+
+
+@pytest.mark.asyncio
+async def test_a_swap_cannot_bring_in_copies_that_the_sideboard_holds(playbook):
+    record, index, collection = _world()
+    strong_d = next(r for r in index.values() if r["name"] == "Strong D")
+    record["sections"]["sideboard"].append(_line(strong_d))
+    reply = {"reply": "ok", "swaps": [{"out": "Weak A", "in": "Strong D", "why": "x"}], "cuts": []}
+    result = await run_agent(record, "m", "m", index, collection, playbook, _client(reply))
+    assert result["swaps"] == []
+    assert "Strong D" not in [e["name"] for e in result["sections"]["main"]]

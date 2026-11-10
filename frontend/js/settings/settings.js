@@ -55,7 +55,7 @@ async function clearCardData() {
     await del("/cache");
     showToast("Card data cleared", "success");
   } catch (e) {
-    showToast("Could not clear the card data", "error");
+    showToast(e && e.status === 409 ? e.message : "Could not clear the card data", "error");
   }
   // The image counts need the card data, so the images line changes too.
   refreshImages();

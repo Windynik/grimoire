@@ -179,6 +179,15 @@ def test_duplicate_copies_with_new_id_and_name(tmp_path, playbook):
     assert store.duplicate("../x") is None
 
 
+def test_duplicate_of_a_long_name_fits_the_name_limit(tmp_path, playbook):
+    store = DeckStore(str(tmp_path))
+    record = _record(playbook)
+    record["name"] = "A" * 120
+    copy = store.get(store.duplicate(store.save(record)))
+    assert len(copy["name"]) <= 120
+    assert copy["name"].endswith(" (copy)")
+
+
 def test_list_summary_has_image_and_job(tmp_path, playbook):
     store = DeckStore(str(tmp_path))
     rec = _record(playbook)

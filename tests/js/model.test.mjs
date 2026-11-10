@@ -422,4 +422,16 @@ test("applyOp add and move never pass 250 copies", () => {
   assert.equal(added.sections.main[0].count, 250);
   const moved = applyOp(s0, { type: "move", from: "sideboard", to: "main", key: "bolt", count: 5 });
   assert.equal(moved.sections.main[0].count, 250);
+  // A full line takes no copies, so the source keeps them all.
+  assert.equal(moved.sections.sideboard[0].count, 5);
+});
+
+test("a move onto a nearly full line moves only what fits", () => {
+  const s0 = { sections: { main: [{ ...bolt, count: 245 }], sideboard: [{ ...bolt, count: 10 }], maybeboard: [] },
+    commander: null };
+  const moved = applyOp(s0, { type: "move", from: "sideboard", to: "main", key: "bolt", count: 10 });
+  assert.equal(moved.sections.main[0].count, 250);
+  assert.equal(moved.sections.sideboard[0].count, 5);
+  const total = (s) => s.sections.main[0].count + s.sections.sideboard[0].count;
+  assert.equal(total(moved), total(s0));
 });

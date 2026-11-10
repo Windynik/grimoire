@@ -40,7 +40,7 @@ function toResponse(reply) {
   return new Response(reply.body ?? null, { status, headers: reply.headers || {} });
 }
 
-export async function loadApp({ hash = "", routes = {}, storage = {}, reducedMotion = false } = {}) {
+export async function loadApp({ hash = "", routes = {}, storage = {}, reducedMotion = false, blockStorage = false } = {}) {
   const html = readFileSync(join(FRONTEND, "index.html"), "utf8");
   const dom = new JSDOM(html, {
     url: "http://127.0.0.1:8133/" + hash,
@@ -53,6 +53,15 @@ export async function loadApp({ hash = "", routes = {}, storage = {}, reducedMot
   for (const name of WINDOW_GLOBALS) {
     const value = window[name];
     setGlobal(name, typeof value === "function" && !/^[A-Z]/.test(name) ? value.bind(window) : value);
+  }
+  // A browser that blocks site data throws on each read of the storage objects.
+  if (blockStorage) {
+    for (const name of ["localStorage", "sessionStorage"]) {
+      Object.defineProperty(globalThis, name, {
+        configurable: true,
+        get() { throw new window.DOMException("Access is denied for this document.", "SecurityError"); },
+      });
+    }
   }
   setGlobal("DragEvent", window.DragEvent || class DragEvent extends window.MouseEvent {});
   window.DragEvent = globalThis.DragEvent;

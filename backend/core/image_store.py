@@ -106,6 +106,20 @@ class ImageStore:
             found.append(folder / ("%s-%s.jpg" % (scryfall_id, face)))  # Task 1 name
         return [p for p in found if p.is_file()]
 
+    def stored_path(self, scryfall_id: str, face: str, size: str = "normal",
+                    stamp: Optional[str] = None) -> Optional[Path]:
+        """Return a stored file of an id, face and size, or None.
+
+        The file with the given stamp comes first, then any other stamp.
+        The image route uses this when the card data is missing.
+        """
+        if stamp and STAMP_CHECK.fullmatch(stamp):
+            exact = self.path_for(scryfall_id, face, size, stamp)
+            if exact.is_file():
+                return exact
+        found = sorted(self._siblings(scryfall_id, face, size))
+        return found[-1] if found else None
+
     def stale_path(self, scryfall_id: str, face: str, size: str = "normal",
                    stamp: str = "0") -> Optional[Path]:
         """Return a stored file with another stamp, or None."""

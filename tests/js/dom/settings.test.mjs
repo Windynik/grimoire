@@ -220,6 +220,15 @@ test("Remove images sends nothing when the owner cancels", async () => {
   assert.equal(app.fetchLog.filter((r) => r.method === "DELETE").length, 0);
 });
 
+test("a clear during a download shows the reason of the server", async () => {
+  await setup();
+  app.route("DELETE /api/cache", () => ({ status: 409, json: { detail: "Wait for the card data download to end, then clear the card data." } }));
+  $("settings-clear-cache").click();
+  await app.until(() => document.querySelector("dialog"));
+  [...document.querySelectorAll("dialog button")].find((b) => b.type === "submit").click();
+  await app.until(() => toasts().includes("Wait for the card data download to end, then clear the card data."));
+});
+
 test("Clear card data sends nothing when the owner cancels", async () => {
   await setup();
   $("settings-clear-cache").click();

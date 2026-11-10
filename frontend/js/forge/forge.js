@@ -88,8 +88,11 @@ function currentFormat() {
   return state.formats.find((f) => f.key === key) || null;
 }
 
-function store(area, key, value) {
+// Read or write one sessionStorage value. A blocked browser throws on a read
+// of sessionStorage itself, so the read happens inside the try.
+function store(key, value) {
   try {
+    const area = globalThis.sessionStorage;
     if (value === null) area.removeItem(key);
     else if (value !== undefined) area.setItem(key, value);
     return area.getItem(key);
@@ -669,17 +672,17 @@ function finish(type, data) {
   state.running = false;
   state.source = null;
   if (type === "done" && data && typeof data.deck_id === "string") {
-    store(sessionStorage, DECK_KEY, JSON.stringify({ forge_id: state.forgeId, deck_id: data.deck_id }));
+    store(DECK_KEY, JSON.stringify({ forge_id: state.forgeId, deck_id: data.deck_id }));
   } else if (type !== "done") {
-    store(sessionStorage, STORAGE_KEY, null);
-    store(sessionStorage, COMMANDER_KEY, null);
+    store(STORAGE_KEY, null);
+    store(COMMANDER_KEY, null);
   }
 }
 
 /** Return the saved deck id of a finished forge, or null. */
 function savedDeckId(forgeId) {
   try {
-    const saved = JSON.parse(store(sessionStorage, DECK_KEY) || "null");
+    const saved = JSON.parse(store(DECK_KEY) || "null");
     return saved && saved.forge_id === forgeId && typeof saved.deck_id === "string"
       ? saved.deck_id : null;
   } catch (e) {
@@ -713,7 +716,7 @@ function attach(forgeId, opts = {}) {
   destroyRun();
   state.forgeId = forgeId;
   state.running = true;
-  store(sessionStorage, STORAGE_KEY, forgeId);
+  store(STORAGE_KEY, forgeId);
   $("forge-setup").hidden = true;
   $("forge-stage").hidden = false;
   $("forge-run").hidden = false;
@@ -724,7 +727,7 @@ function attach(forgeId, opts = {}) {
   let commander = opts.commander;
   if (commander === undefined) {
     try {
-      commander = JSON.parse(store(sessionStorage, COMMANDER_KEY) || "null");
+      commander = JSON.parse(store(COMMANDER_KEY) || "null");
     } catch (e) {
       commander = null;
     }
@@ -776,7 +779,7 @@ async function startForge(body) {
     image_url: (tile && tile.dataset.image) || "",
     scryfall_id: (tile && tile.dataset.id) || "",
   } : null;
-  store(sessionStorage, COMMANDER_KEY, commander ? JSON.stringify(commander) : null);
+  store(COMMANDER_KEY, commander ? JSON.stringify(commander) : null);
   attach(forgeId, { commander });
   return forgeId;
 }
@@ -817,9 +820,9 @@ function showSetup() {
   state.forgeId = null;
   state.modelTouched = false;
   state.askTouched = false;
-  store(sessionStorage, STORAGE_KEY, null);
-  store(sessionStorage, COMMANDER_KEY, null);
-  store(sessionStorage, DECK_KEY, null);
+  store(STORAGE_KEY, null);
+  store(COMMANDER_KEY, null);
+  store(DECK_KEY, null);
   $("forge-stage").hidden = true;
   $("forge-setup").hidden = false;
 }
@@ -841,7 +844,7 @@ function onEvent(type, handler) {
 
 /** Show the screen: attach to a saved run, or load the setup. */
 export async function open() {
-  const saved = store(sessionStorage, STORAGE_KEY);
+  const saved = store(STORAGE_KEY);
   if (saved && saved !== state.forgeId) {
     attach(saved, { replay: true });
     return;

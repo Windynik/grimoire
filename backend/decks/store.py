@@ -8,6 +8,9 @@ import uuid
 
 from backend.core.paths import cache_path
 
+# The longest deck name the editor can save (DeckIn.name).
+NAME_MAX = 120
+
 _ID = re.compile(r"^[a-f0-9-]+$")
 
 
@@ -124,7 +127,10 @@ class DeckStore:
             return None
         record.pop("id", None)
         record.pop("created", None)
-        record["name"] = f"{record.get('name', '')} (copy)"
+        # The name must fit DeckIn's limit, or the copy could never save.
+        suffix = " (copy)"
+        base = record.get("name", "")[:NAME_MAX - len(suffix)].rstrip()
+        record["name"] = f"{base}{suffix}"
         return self.save(record)
 
     def list(self) -> List[Dict]:

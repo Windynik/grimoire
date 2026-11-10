@@ -85,10 +85,13 @@ export function applyOp(state, op) {
       const at = find(op.from, op.key);
       if (at < 0 || op.from === op.to) break;
       const source = lines(op.from)[at];
-      const amount = Math.min(source.count, op.count > 0 ? op.count : source.count);
+      let amount = Math.min(source.count, op.count > 0 ? op.count : source.count);
       const target = find(op.to, op.key);
       if (target >= 0) {
-        lines(op.to)[target].count = Math.min(MAX_COUNT, lines(op.to)[target].count + amount);
+        // Move only what fits under the line limit; the rest stays in the source.
+        amount = Math.min(amount, MAX_COUNT - lines(op.to)[target].count);
+        if (amount <= 0) break;
+        lines(op.to)[target].count += amount;
       } else {
         const moved = clone(source);
         moved.count = amount;

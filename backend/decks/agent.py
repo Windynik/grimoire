@@ -6,8 +6,9 @@ UI applies as one undoable edit. This module does not save anything.
 """
 
 import copy
+import dataclasses
 import json
-from typing import Dict, List
+from typing import Dict, List, Set
 
 from backend.core.ollama_client import OllamaClient
 from backend.decks.analysis import deck_from_record, owned_counts, rules_for
@@ -127,8 +128,12 @@ def _line_key(line: dict) -> str:
     return line.get("scryfall_id") or "basic:" + line["name"]
 
 
-def _apply_cuts(deck: BuiltDeck, cuts, protected: str) -> List[dict]:
-    """Remove the cut cards from the deck. Only nonland, non-commander entries go."""
+def _apply_cuts(deck: BuiltDeck, cuts, protected: Set[str]) -> List[dict]:
+    """Remove the cut cards from the deck. Only nonland, non-commander entries go.
+
+    protected holds lowercase names that stay: the commander, and each card
+    that a swap just brought in (a cut of it would undo the swap).
+    """
     applied = []  # type: List[dict]
     for cut in cuts if isinstance(cuts, list) else []:
         if len(applied) >= MAX_CUTS:
@@ -137,13 +142,29 @@ def _apply_cuts(deck: BuiltDeck, cuts, protected: str) -> List[dict]:
             continue
         name = str(cut.get("name") or "").strip().lower()
         found = [e for e in deck.nonland_entries() if e.name.lower() == name]
-        if not found or name == protected:
+        if not found or name in protected:
             continue
         for entry in found:  # a stored deck may hold the same card on two lines
             deck.entries.remove(entry)
         applied.append({"name": found[0].name,
                         "why": str(cut.get("why") or "").strip()[:WHY_LIMIT]})
     return applied
+
+
+def _without_sideboard(pool: List[OwnedCard], record: dict,
+                       index: Dict[str, dict]) -> List[OwnedCard]:
+    """Return the pool with the sideboard copies taken off each card's owned count."""
+    used = {}  # type: Dict[str, int]
+    for line in (record.get("sections") or {}).get("sideboard") or []:
+        info = index.get(line.get("scryfall_id") or "")
+        if info is None:
+            continue
+        key = info.get("oracle_id") or info["id"]
+        used[key] = used.get(key, 0) + int(line.get("count") or 0)
+    if not used:
+        return pool
+    return [dataclasses.replace(card, owned=max(0, card.owned - used.get(card.oracle_id or card.id, 0)))
+            if (card.oracle_id or card.id) in used else card for card in pool]
 
 
 def _totals(entries) -> Dict[str, int]:
@@ -211,7 +232,8 @@ async def run_agent(record: dict, message: str, model: str, index: Dict[str, dic
     fmt = rules_for(record, playbook)
     owned = owned_counts(collection, index)
     deck = deck_from_record(record, index, owned, fmt, playbook)
-    pool = hydrate(collection, index, fmt)
+    # Copies in the sideboard are not free for the main deck.
+    pool = _without_sideboard(hydrate(collection, index, fmt), record, index)
     tag_cards(pool, playbook)
     graph = build_graph(pool, playbook)
     bench = bench_for(deck, pool, graph)
@@ -224,7 +246,10 @@ async def run_agent(record: dict, message: str, model: str, index: Dict[str, dic
     swaps = data.get("swaps")
     applied = apply_swaps(deck, swaps if isinstance(swaps, list) else [],
                           {c.name.lower(): c for c in pool}, {protected} if protected else set())
-    cuts = _apply_cuts(deck, data.get("cuts"), protected)
+    kept = {swap["in"].lower() for swap in applied}
+    if protected:
+        kept.add(protected)
+    cuts = _apply_cuts(deck, data.get("cuts"), kept)
     sections = copy.deepcopy(record.get("sections") or {})
     sections["main"] = _new_main(record, before, deck)
     return {"reply": str(data.get("reply") or "").strip()[:REPLY_LIMIT], "swaps": applied,

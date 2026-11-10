@@ -95,6 +95,25 @@ def test_status_counts(setup):
                      "owned_small": 0, "owned_normal": 1, "card_data": True}
 
 
+def test_a_stored_image_is_served_without_card_data(setup):
+    store, calls, state = setup
+    for stamp, data in (("5", JPEG), ("6", JPEG + b"new")):
+        path = store.path_for(A, "front", "normal", stamp)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+    state["index"] = {}
+    with TestClient(app) as client:
+        exact = client.get("/api/images/%s/front?v=6" % A)
+        any_copy = client.get("/api/images/%s/front" % A)
+        missing = client.get("/api/images/%s/back" % A)
+    assert exact.status_code == 200 and exact.content == JPEG + b"new"
+    assert any_copy.status_code == 200
+    # Without the card data the page cannot know the copy is current.
+    assert any_copy.headers["cache-control"] == "no-cache"
+    assert missing.status_code == 404
+    assert calls == []
+
+
 def test_status_says_when_the_card_data_is_missing(setup):
     _, _, state = setup
     with TestClient(app) as client:

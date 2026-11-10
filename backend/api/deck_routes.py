@@ -1,3 +1,4 @@
+import asyncio
 import re
 from typing import Dict, List, Optional, Tuple
 
@@ -20,6 +21,7 @@ from backend.decks.records import (
     CreateDeck,
     DeckIn,
     apply_update,
+    edit_check,
     hydrate_record,
     new_record,
     strip_display,
@@ -32,6 +34,18 @@ from backend.forge.playbook import load_playbook
 
 
 router = APIRouter(prefix="/api")
+
+DECK_CHANGED = ("This deck changed in another tab or window. "
+                "Reload the page to get the newest version, then edit again.")
+_DECK_LOCKS: Dict[str, asyncio.Lock] = {}
+
+
+def _deck_lock(deck_id: str) -> asyncio.Lock:
+    """The lock of one deck's saves. A lock binds to the running event loop."""
+    lock = _DECK_LOCKS.get(deck_id)
+    if lock is None:
+        lock = _DECK_LOCKS[deck_id] = asyncio.Lock()
+    return lock
 
 _PLAYBOOK = load_playbook()
 _FORMATS = _PLAYBOOK.formats
@@ -61,6 +75,8 @@ def deck_response(record: dict, index: Dict[str, dict], collections: CollectionS
         The hydrated record plus the key "analysis" (see backend.decks.analysis.analyze)
     """
     deck = hydrate_record(record, index)
+    deck.setdefault("revision", 0)
+    deck.pop("edit", None)
     rows, meta = _collection_for(record, collections)
     deck["analysis"] = analyze(record, index, rows, meta, _PLAYBOOK)
     return deck
@@ -195,13 +211,25 @@ async def update_deck(
     bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager),
     collections: CollectionStore = Depends(get_collection_store),
 ):
-    """Replace the editable parts of a saved deck."""
-    stored = _stored(store, deck_id)
+    """Replace the editable parts of a saved deck.
+
+    The order mark of the editor (see edit_check) keeps a late, older save from
+    replacing a newer one, and refuses a save from a tab that missed another
+    tab's save.
+    """
     _check_format(request.format)
     index = await bulk_data_manager.load_bulk_data()
-    # Hydrate before the strip so the saved entries keep their art URL
-    record = strip_display(hydrate_record(apply_update(stored, request), index))
-    store.save(record)
+    # One save of a deck at a time, so the check and the write cannot interleave.
+    async with _deck_lock(deck_id):
+        stored = _stored(store, deck_id)
+        decision = edit_check(stored, request.edit)
+        if decision == "conflict":
+            raise HTTPException(status_code=409, detail=DECK_CHANGED)
+        if decision == "stale":
+            return deck_response(stored, index, collections)
+        # Hydrate before the strip so the saved entries keep their art URL
+        record = strip_display(hydrate_record(apply_update(stored, request), index))
+        store.save(record)
     return deck_response(record, index, collections)
 
 

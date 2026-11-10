@@ -180,11 +180,22 @@ async def get_cache_status(
     return bulk_data_manager.get_cache_status()
 
 
+DOWNLOAD_RUNNING = ("A card data download is already running. "
+                    "Wait for it to end, then reload the page.")
+CLEAR_WHILE_DOWNLOADING = "Wait for the card data download to end, then clear the card data."
+
+
 @router.post("/cache/download")
 async def download_cache(
     bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager)
 ):
     """Download bulk data with SSE progress updates."""
+
+    if getattr(bulk_data_manager, "downloading", False):
+        # A reload or a second tab must not start a second run on the same files.
+        async def busy():
+            yield f"data: {json.dumps({'error': DOWNLOAD_RUNNING})}\n\n"
+        return StreamingResponse(busy(), media_type="text/event-stream")
 
     async def generate_progress():
         progress_updates = []
@@ -212,7 +223,9 @@ async def download_cache(
         if success:
             yield f"data: {json.dumps({'percentage': 100, 'status': 'complete'})}\n\n"
         else:
-            yield f"data: {json.dumps({'error': 'Download failed'})}\n\n"
+            reason = bulk_data_manager.last_error
+            message = f"Download failed. {reason}" if reason else "Download failed"
+            yield f"data: {json.dumps({'error': message})}\n\n"
 
     return StreamingResponse(
         generate_progress(),
@@ -224,7 +237,9 @@ async def download_cache(
 async def clear_cache(
     bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager)
 ):
-    """Clear bulk data cache."""
+    """Clear bulk data cache. Refused while a download runs, which would write it back."""
+    if getattr(bulk_data_manager, "downloading", False):
+        raise HTTPException(status_code=409, detail=CLEAR_WHILE_DOWNLOADING)
     success = bulk_data_manager.clear_cache()
     return {"success": success}
 
