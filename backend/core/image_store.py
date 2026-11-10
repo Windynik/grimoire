@@ -144,6 +144,21 @@ class ImageStore:
             count += 1
         return {"count": count, "bytes": size}
 
+    def clear(self) -> int:
+        """Delete every stored image and temporary file. Return the number of images.
+
+        The caller runs it off the event loop, and only while no prefetch runs.
+        """
+        removed = 0
+        for pattern in ("*/*/*.jpg", "*/*/*.tmp"):
+            for path in self.root.glob(pattern):
+                try:
+                    path.unlink()
+                except OSError:
+                    continue
+                removed += path.suffix == ".jpg"
+        return removed
+
     def _semaphore(self, lane: str) -> asyncio.Semaphore:
         """Return the lane limit. Create it inside the running loop."""
         loop = asyncio.get_running_loop()

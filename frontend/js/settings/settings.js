@@ -47,7 +47,7 @@ function saved(patch) {
 async function clearCardData() {
   const ok = await confirmDialog({
     title: "Clear card data",
-    message: "Remove the downloaded card data? Your collections and decks stay.",
+    message: "Remove the downloaded card data? Your collections, decks, and card images stay.",
     confirmLabel: "Clear card data",
   });
   if (!ok) return;
@@ -57,6 +57,25 @@ async function clearCardData() {
   } catch (e) {
     showToast("Could not clear the card data", "error");
   }
+  // The image counts need the card data, so the images line changes too.
+  refreshImages();
+}
+
+async function removeImages() {
+  const megabytesText = images && images.bytes !== null ? ` (${megabytes(images.bytes)} MB)` : "";
+  const ok = await confirmDialog({
+    title: "Remove card images",
+    message: `Remove the card images on this Mac${megabytesText}? The app downloads an image again when a screen shows the card.`,
+    confirmLabel: "Remove images",
+  });
+  if (!ok) return;
+  try {
+    await del("/images");
+    showToast("Card images removed", "success");
+  } catch (e) {
+    showToast(e && e.status === 409 ? "Wait for the image download to end." : "Could not remove the card images", "error");
+  }
+  refreshImages();
 }
 
 function imagesGroup() {
@@ -69,18 +88,22 @@ function imagesGroup() {
     id: "settings-images-now", type: "button", class: "btn btn-secondary", text: "Download now",
     onclick: downloadNow,
   });
+  const remove = h("button", {
+    id: "settings-images-remove", type: "button", class: "btn btn-danger", text: "Remove images",
+    onclick: removeImages,
+  });
   auto.checked = readSettings().autoImages;
   auto.addEventListener("change", () => {
     saved({ autoImages: auto.checked });
     if (auto.checked) autoStartImageSync();
   });
-  images = { auto, fill, bar, text, status, now };
+  images = { auto, fill, bar, text, status, now, remove, bytes: null };
   return group("Card images",
     h("label", { class: "settings-switch settings-switch-on" },
       auto,
       h("span", { class: "settings-switch-label", text: "Download images for my cards in the background" })),
     status, bar, text,
-    h("div", { class: "settings-actions" }, now));
+    h("div", { class: "settings-actions" }, now, remove));
 }
 
 async function downloadNow() {
@@ -101,8 +124,11 @@ async function refreshImages() {
     return;
   }
   if (request !== imageChecking || !images) return;
-  images.status.textContent =
-    `Thumbnails: ${s.owned_small} of ${s.owned_total}. Full images: ${s.owned_normal} of ${s.owned_total}. (${megabytes(s.bytes)} MB on this Mac)`;
+  images.bytes = s.bytes;
+  // Without the card data the server cannot tell which images the cards need.
+  images.status.textContent = s.card_data === false
+    ? `The card data is not on this Mac, so Grimoire cannot count the images of your cards. (${megabytes(s.bytes)} MB of images on this Mac)`
+    : `Thumbnails: ${s.owned_small} of ${s.owned_total}. Full images: ${s.owned_normal} of ${s.owned_total}. (${megabytes(s.bytes)} MB on this Mac)`;
 }
 
 function renderImages(sync) {
@@ -121,6 +147,7 @@ function renderImages(sync) {
   const handled = sync.done + (sync.failed || 0);
   images.fill.style.transform = `scaleX(${sync.total > 0 ? Math.min(1, handled / sync.total) : 0})`;
   images.now.disabled = sync.running;
+  images.remove.disabled = sync.running;
   images.now.textContent = sync.running ? "Downloading\u2026" : "Download now";
   if (sync.running) {
     const what = sync.phase === "small" ? "thumbnails" : "full images";
@@ -156,7 +183,7 @@ function build() {
     group("Questions",
       field("Ask me", ask)),
     group("Card data",
-      h("p", { class: "settings-help", text: "Removes the downloaded card data. Your collections and decks stay." }),
+      h("p", { class: "settings-help", text: "Removes the downloaded card data. Your collections, decks, and card images stay." }),
       h("button", {
         id: "settings-clear-cache", type: "button", class: "btn btn-danger", text: "Clear card data",
         onclick: clearCardData,

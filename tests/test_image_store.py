@@ -600,3 +600,19 @@ def test_stats_removes_old_tmp_files_once(tmp_path):
     os.utime(later, (past, past))
     store.stats()
     assert later.exists()
+
+
+def test_clear_removes_every_image_and_temp_file(tmp_path):
+    store = ImageStore(root=tmp_path / "images")
+    for size in ("small", "normal"):
+        path = store.path_for(A, "front", size)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(JPEG)
+    (store.path_for(A, "front").parent / "x.tmp").write_bytes(b"part")
+    assert store.clear() == 2
+    assert store.stats() == {"count": 0, "bytes": 0}
+    assert list((tmp_path / "images").rglob("*.*")) == []
+
+
+def test_clear_of_an_empty_store(tmp_path):
+    assert ImageStore(root=tmp_path / "images").clear() == 0

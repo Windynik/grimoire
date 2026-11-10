@@ -88,11 +88,44 @@ def test_status_counts(setup):
     with TestClient(app) as client:
         before = client.get("/api/images/status").json()
         assert before == {"count": 0, "bytes": 0, "owned_total": 3,
-                          "owned_small": 0, "owned_normal": 0}
+                          "owned_small": 0, "owned_normal": 0, "card_data": True}
         client.get("/api/images/%s/front" % A)
         after = client.get("/api/images/status").json()
     assert after == {"count": 1, "bytes": len(JPEG), "owned_total": 3,
-                     "owned_small": 0, "owned_normal": 1}
+                     "owned_small": 0, "owned_normal": 1, "card_data": True}
+
+
+def test_status_says_when_the_card_data_is_missing(setup):
+    _, _, state = setup
+    with TestClient(app) as client:
+        assert client.get("/api/images/status").json()["card_data"] is True
+        state["index"] = {}
+        missing = client.get("/api/images/status").json()
+    assert missing["card_data"] is False
+    assert missing["owned_total"] == 0
+
+
+def test_delete_removes_the_stored_images(setup):
+    store, _, _ = setup
+    with TestClient(app) as client:
+        client.get("/api/images/%s/front" % A)
+        assert client.get("/api/images/status").json()["count"] == 1
+        response = client.delete("/api/images")
+        after = client.get("/api/images/status").json()
+    assert response.status_code == 200
+    assert response.json() == {"removed": 1}
+    assert after["count"] == 0 and after["bytes"] == 0
+
+
+def test_delete_refuses_while_a_download_runs(setup):
+    store, _, _ = setup
+    assert store.begin_prefetch()
+    try:
+        with TestClient(app) as client:
+            response = client.delete("/api/images")
+    finally:
+        store.end_prefetch()
+    assert response.status_code == 409
 
 
 def test_status_counts_by_size_and_ignores_stale(setup):

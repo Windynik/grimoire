@@ -245,8 +245,20 @@ async function loadDecks() {
 // Entry
 // ---------------------------------------------------------------------------
 
+/**
+ * Check the card data again when Home comes back into view. Another tab or
+ * window can clear or download the card data while this page shows Home.
+ */
+function recheckInView() {
+  if (document.visibilityState === "hidden") return;
+  if (!$("home-view").classList.contains("active") || downloading) return;
+  checkCacheStatus();
+}
+
 function init() {
   $("download-cache").addEventListener("click", downloadCache);
+  document.addEventListener("visibilitychange", recheckInView);
+  window.addEventListener("focus", recheckInView);
 }
 
 /**

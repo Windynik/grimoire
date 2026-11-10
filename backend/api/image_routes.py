@@ -49,10 +49,23 @@ async def image_status(
             for size in SIZES:
                 if size_url(url, size) and store.has(sid, face, size, stamp):
                     owned[size] += 1
+        # Without the card data, the store cannot tell which images the owned
+        # cards need, so "card_data" lets the page say why the counts are 0.
         return {**store.stats(), "owned_total": len(targets),
-                "owned_small": owned["small"], "owned_normal": owned["normal"]}
+                "owned_small": owned["small"], "owned_normal": owned["normal"],
+                "card_data": bool(index)}
 
     return await asyncio.to_thread(count)
+
+
+@router.delete("/images")
+async def delete_images(store: ImageStore = Depends(get_image_store)):
+    """Delete the stored card images. Refused while a download runs."""
+    if store.prefetch_running:
+        return JSONResponse(status_code=409,
+                            content={"detail": "Wait for the image download to end."})
+    removed = await asyncio.to_thread(store.clear)
+    return {"removed": removed}
 
 
 @router.post("/images/prefetch")

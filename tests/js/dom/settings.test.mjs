@@ -57,6 +57,7 @@ async function setup({ ai = AI_UP, saved = null, status = STATUS_MISSING, keepRu
   imageStatus = status;
   app.route("GET /api/ai/status", () => ({ json: ai }));
   app.route("DELETE /api/cache", () => ({ json: { ok: true } }));
+  app.route("DELETE /api/images", () => ({ json: { removed: 2 } }));
   window.localStorage.clear();
   if (saved) window.localStorage.setItem(KEY, JSON.stringify(saved));
   app.fetchLog.length = 0;
@@ -171,10 +172,52 @@ test("Clear card data asks, then deletes the cache only", async () => {
   await setup();
   $("settings-clear-cache").click();
   await app.until(() => document.querySelector("dialog"));
-  assert.match(document.querySelector("dialog").textContent, /collections and decks stay/i);
+  assert.match(document.querySelector("dialog").textContent, /collections, decks, and card images stay/i);
   [...document.querySelectorAll("dialog button")].find((b) => b.type === "submit").click();
   await app.until(() => app.fetchLog.some((r) => r.method === "DELETE"));
   assert.deepEqual(app.fetchLog.filter((r) => r.method === "DELETE").map((r) => r.path), ["/api/cache"]);
+});
+
+test("Clear card data says that images stay, and then shows the images line again", async () => {
+  await setup();
+  await app.until(() => $("settings-images-status").textContent !== "");
+  $("settings-clear-cache").click();
+  await app.until(() => document.querySelector("dialog"));
+  assert.match(document.querySelector("dialog").textContent, /card images stay/i);
+  imageStatus = { count: 2, bytes: 3145728, owned_total: 0, owned_small: 0, owned_normal: 0, card_data: false };
+  const before = app.fetchLog.length;
+  [...document.querySelectorAll("dialog button")].find((b) => b.type === "submit").click();
+  await app.until(() => app.fetchLog.slice(before).some((r) => r.path === "/api/images/status"));
+  await app.until(() => /cannot count/.test($("settings-images-status").textContent));
+});
+
+test("without card data the images line says why it cannot count", async () => {
+  await setup({ status: { count: 2, bytes: 3145728, owned_total: 0, owned_small: 0, owned_normal: 0, card_data: false } });
+  await app.until(() => $("settings-images-status").textContent !== "");
+  assert.equal($("settings-images-status").textContent,
+    "The card data is not on this Mac, so Grimoire cannot count the images of your cards. (3.0 MB of images on this Mac)");
+});
+
+test("Remove images asks, deletes the images, and shows the line again", async () => {
+  await setup({ saved: { model: "", askMode: "countdown", autoImages: false } });
+  await app.until(() => $("settings-images-status").textContent !== "");
+  $("settings-images-remove").click();
+  await app.until(() => document.querySelector("dialog"));
+  assert.match(document.querySelector("dialog").textContent, /3\.0 MB/);
+  imageStatus = { count: 0, bytes: 0, owned_total: 10, owned_small: 0, owned_normal: 0, card_data: true };
+  [...document.querySelectorAll("dialog button")].find((b) => b.type === "submit").click();
+  await app.until(() => toasts().includes("Card images removed"));
+  assert.deepEqual(app.fetchLog.filter((r) => r.method === "DELETE").map((r) => r.path), ["/api/images"]);
+  await app.until(() => /\(0\.0 MB on this Mac\)/.test($("settings-images-status").textContent));
+});
+
+test("Remove images sends nothing when the owner cancels", async () => {
+  await setup();
+  $("settings-images-remove").click();
+  await app.until(() => document.querySelector("dialog"));
+  document.querySelector("dialog").dispatchEvent(new window.Event("cancel", { cancelable: true }));
+  await app.settle();
+  assert.equal(app.fetchLog.filter((r) => r.method === "DELETE").length, 0);
 });
 
 test("Clear card data sends nothing when the owner cancels", async () => {

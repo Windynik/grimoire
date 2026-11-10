@@ -117,3 +117,23 @@ test("Import cards goes to the import screen", async () => {
   await app.until(() => document.getElementById("import-view").classList.contains("active"));
   assert.equal(window.location.hash, "#import");
 });
+
+test("Home checks the card data again when its page comes back into view", async () => {
+  await setup();
+  await app.until(() => /Card data ready/.test(text("#home-status-text")));
+  app.route("GET /api/cache/status", () => ({ json: { status: "missing" } }));
+  window.dispatchEvent(new window.Event("focus"));
+  await app.until(() => /not downloaded yet/.test(text("#home-status-text")));
+  assert.equal(text("#card-count"), "\u2014");
+});
+
+test("a page in view on another screen does not check the card data", async () => {
+  await setup();
+  window.location.hash = "#settings";
+  await app.until(() => document.getElementById("settings-view").classList.contains("active"));
+  app.fetchLog.length = 0;
+  document.dispatchEvent(new window.Event("visibilitychange"));
+  window.dispatchEvent(new window.Event("focus"));
+  await app.settle();
+  assert.equal(app.fetchLog.filter((r) => r.path === "/api/cache/status").length, 0);
+});
