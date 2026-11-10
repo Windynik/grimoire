@@ -9,7 +9,7 @@ from typing import Dict
 
 from backend.decks.textio import export_text
 from backend.forge.builder import BuiltDeck
-from backend.forge.metrics import curve
+from backend.forge.metrics import display_curve
 
 
 def _main_line(entry, reason: str) -> dict:
@@ -72,7 +72,7 @@ def deck_to_record(deck: BuiltDeck, name: str, job_id: str, backbone_info: dict,
         },
         "explanation": explanation,
         "metrics": dict(metrics),
-        "curve": curve(deck),
+        "curve": display_curve(deck),
         "warnings": list(deck.warnings),
         "notes": list(deck.notes),
         "game_changers": game_changers,

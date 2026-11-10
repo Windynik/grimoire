@@ -15,7 +15,7 @@ const METRICS = [
   ["mana_consistency", "Mana"],
   ["avg_quality", "Quality"],
 ];
-const CURVE_KEYS = ["0", "1", "2", "3", "4", "5", "6", "6+"];
+const CURVE_KEYS = ["0", "1", "2", "3", "4", "5", "6+"];
 const COLOR_NAMES = { W: "White", U: "Blue", B: "Black", R: "Red", G: "Green" };
 const ISSUE_LABELS = {
   not_a_card: "unknown", not_owned: "not owned", short: "short on copies", banned: "banned",

@@ -15,6 +15,19 @@ from backend.forge.playbook import FormatRules
 
 COLORS = "WUBRG"
 ANY_NUMBER_PHRASE = "a deck can have any number of cards named"
+# Seven Dwarves and Nazgûl: "A deck can have up to seven cards named ...".
+_UP_TO = re.compile(r"a deck can have up to (\w+) cards named", re.IGNORECASE)
+_NUMBER_WORDS = {"two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8,
+                 "nine": 9, "ten": 10}
+
+
+def named_copy_limit(oracle_text: str) -> Optional[int]:
+    """Return the copy limit that a card's own text sets, or None when it sets none."""
+    match = _UP_TO.search(oracle_text or "")
+    if not match:
+        return None
+    word = match.group(1).lower()
+    return int(word) if word.isdigit() else _NUMBER_WORDS.get(word)
 _SYMBOL = re.compile(r"\{([^}]*)\}")
 _LAND_WORD = re.compile(r"\bLand\b")
 
@@ -171,7 +184,7 @@ def _quantity(value) -> int:
 
 
 def _best_price(prices: dict) -> Optional[float]:
-    for key in ("usd", "usd_foil", "eur", "tix"):
+    for key in ("usd", "usd_foil"):
         try:
             return float(prices.get(key))
         except (TypeError, ValueError):

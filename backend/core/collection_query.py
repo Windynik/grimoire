@@ -6,6 +6,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set, Tuple
 
+from backend.core.prices import unit_price  # noqa: F401  (part of this module's API)
 from backend.forge.cards import is_game_card
 from backend.forge.playbook import load_playbook
 
@@ -13,8 +14,6 @@ RARITIES = ("common", "uncommon", "rare", "mythic")
 COLOR_BUCKETS = ("W", "U", "B", "R", "G", "C", "M")
 CURVE_BUCKETS = ("0", "1", "2", "3", "4", "5", "6", "7+")
 
-_NON_FOIL_ORDER = ("usd", "usd_foil", "eur", "tix")
-_FOIL_ORDER = ("usd_foil", "usd", "eur", "tix")
 
 
 def _is_foil(value) -> bool:
@@ -35,16 +34,6 @@ def _number(value) -> float:
         return float(value)
     except (TypeError, ValueError):
         return 0.0
-
-
-def unit_price(prices: Optional[dict], foil: bool) -> float:
-    """First numeric price above zero in the foil or non-foil order, else 0."""
-    prices = prices or {}
-    for key in (_FOIL_ORDER if foil else _NON_FOIL_ORDER):
-        number = _number(prices.get(key))
-        if number > 0:
-            return number
-    return 0
 
 
 def collection_set_names(original_rows: Optional[list]) -> Dict[str, str]:
@@ -76,7 +65,7 @@ def owned_cards(stored: list, index: dict, csv_set_names: Optional[Dict[str, str
         quantity = _quantity(row.get("quantity"))
         prices = entry.get("prices") if indexed else row.get("prices")
         prices = prices or row.get("prices") or {}
-        price = unit_price(prices, foil)
+        price = unit_price(prices, row.get("foil"))
         if not price and not indexed:
             price = _number(row.get("price"))
         set_code = entry.get("set") or row.get("set") or ""
@@ -163,6 +152,33 @@ def insights(cards: list) -> dict:
         "curve": curve,
         "sets": len(sets),
     }
+
+
+# An older collection counts as the previous import of this one when at least
+# this share of its cards are still in this one. A trade binder or a friend's
+# collection shares few cards, so it is not the previous import.
+SAME_COLLECTION_SHARE = 0.5
+# The number of older collections to compare.
+MAX_PREVIOUS = 10
+
+
+def previous_import(current: list, olders: List[list]) -> Optional[int]:
+    """Return the position in `olders` (newest first) of this collection's previous import.
+
+    That is the older collection with the largest share of its card ids still
+    in `current`, at least SAME_COLLECTION_SHARE; a tie takes the newer one.
+    None when no older collection shares enough cards.
+    """
+    ids = {row.get("scryfall_id") for row in current}
+    best = None  # type: Optional[Tuple[float, int]]
+    for position, rows in enumerate(olders):
+        before = {row.get("scryfall_id") for row in rows or []}
+        if not before:
+            continue
+        share = len(before & ids) / len(before)
+        if share >= SAME_COLLECTION_SHARE and (best is None or share > best[0]):
+            best = (share, position)
+    return best[1] if best is not None else None
 
 
 def new_since(current: list, previous: Optional[list]) -> Set[Tuple[str, bool]]:
@@ -329,6 +345,9 @@ def _query_passes(card: dict, query: Query, new_keys) -> bool:
         if not all(f in legal for f in query.formats):
             return False
     price = _number(card.get("price"))
+    if query.prices and price <= 0:
+        # A card with no price is not cheap: no price comparison matches it.
+        return False
     for op, ref in query.prices:
         if not _cmp(op, price, ref):
             return False

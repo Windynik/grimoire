@@ -6,6 +6,17 @@ import json
 from backend.core.paths import cache_path
 
 
+def copies_of(cards: List[Dict]) -> int:
+    """The number of card copies: the sum of the quantities, one for a bad quantity."""
+    total = 0
+    for card in cards:
+        try:
+            total += max(0, int(float(card.get("quantity", 1))))
+        except (TypeError, ValueError):
+            total += 1
+    return total
+
+
 class CollectionStore:
     """Store and retrieve processed collection data for viewing."""
 
@@ -61,7 +72,7 @@ class CollectionStore:
                 "job_id": job_id,
                 "name": name or f"Collection {job_id[:8]}",
                 "created": datetime.now(timezone.utc).isoformat(),
-                "card_count": len(collection_data),
+                "card_count": copies_of(collection_data),
             },
             "cards": collection_data,
         }
@@ -136,7 +147,9 @@ class CollectionStore:
                 continue
 
             if isinstance(data, dict):
-                meta = data.get("meta", {})
+                meta = dict(data.get("meta", {}))
+                # Older files counted rows. "cards" means copies on every screen.
+                meta["card_count"] = copies_of(data.get("cards") or [])
             else:
                 # Legacy list format: synthesize metadata
                 meta = {
@@ -145,7 +158,7 @@ class CollectionStore:
                     "created": datetime.fromtimestamp(
                         path.stat().st_mtime, timezone.utc
                     ).isoformat(),
-                    "card_count": len(data),
+                    "card_count": copies_of(data),
                 }
             if meta.get("job_id"):
                 collections.append(meta)

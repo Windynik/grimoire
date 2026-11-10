@@ -72,7 +72,7 @@ def compact_card(card: dict) -> dict:
         "edhrec_rank": card.get("edhrec_rank"),
         "game_changer": card.get("game_changer", False),
         "legalities": {f: legalities.get(f, "not_legal") for f in INDEXED_FORMATS},
-        "prices": {k: prices.get(k) for k in ("usd", "usd_foil", "eur", "tix")},
+        "prices": {k: prices.get(k) for k in ("usd", "usd_foil", "usd_etched", "eur", "tix")},
     }
 
 

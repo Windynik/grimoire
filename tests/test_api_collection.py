@@ -449,3 +449,15 @@ def test_token_only_set_has_total_zero_and_sorts_last(set_env):
     sets = get("/api/collection/toks/sets")
     assert [s["code"] for s in sets][-1] == "ttok"
     assert sets[-1]["total"] == 0 and sets[-1]["owned"] == 1
+
+
+def test_new_cards_compare_with_the_same_collection(env):
+    store, _ = env
+    # A trade binder imported between the two imports of the main collection.
+    write(store, "trade", "Trade binder", "2026-01-15T00:00:00+00:00",
+          [row("id-other", "Other Card"), row("id-more", "More Card")])
+    cards = {c["name"]: c for c in get("/api/collection/cur/search")["cards"]}
+    assert cards["Bolt"]["new"] is True and cards["Gold Wurm"]["new"] is True
+    assert cards["Elf"]["new"] is False
+    # The trade binder itself has no earlier import of the same cards.
+    assert get("/api/collection/trade/insights")["has_previous"] is False

@@ -106,7 +106,7 @@ function fact(label, value) {
 function factsOf(card) {
   const copies = Math.floor(Number(card.quantity));
   const owned = Number.isFinite(copies) && copies > 0;
-  const price = typeof card.price === "number" ? card.price : unitPrice(card.prices, Boolean(card.foil));
+  const price = typeof card.price === "number" ? card.price : unitPrice(card.prices, card.foil);
   const nodes = [];
   if (owned) {
     nodes.push(fact("Owned", `×${copies}${card.foil ? " foil" : ""}`));

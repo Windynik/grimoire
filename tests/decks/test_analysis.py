@@ -187,7 +187,7 @@ def test_analysis_without_collection(playbook):
 def test_analysis_empty_deck_has_no_metrics(playbook):
     result = analyze(_deck([_forest(10)]), {}, None, None, playbook)
     assert result["metrics"] == {} and result["mana"] == []
-    assert result["curve"] == {"1": 0, "2": 0, "3": 0, "4": 0, "5": 0, "6+": 0}
+    assert result["curve"] == {"0": 0, "1": 0, "2": 0, "3": 0, "4": 0, "5": 0, "6+": 0}
 
 
 def test_casual_rules_use_record_size(playbook):
@@ -210,3 +210,54 @@ def test_owned_counts_merge_printings():
     rows = [{"scryfall_id": a["id"], "quantity": 2}, {"scryfall_id": "other-printing",
             "quantity": "3"}, {"scryfall_id": "gone", "quantity": 9}]
     assert owned_counts(rows, index) == {a["oracle_id"]: 5}
+
+
+def _printing(record, card_id):
+    """Another printing of a card: a new Scryfall id with the same oracle id."""
+    return dict(record, id=card_id)
+
+
+def test_copy_limits_count_every_printing_of_a_card(playbook):
+    bolt = make_record("Lightning Bolt", mana_cost="{R}", color_identity=("R",))
+    reprint = _printing(bolt, "bolt-2xm")
+    index = _pool(bolt, reprint)
+    record = _deck([_line(bolt, 3), _line(reprint, 3)])
+    cards = _run(record, index, playbook)["cards"]
+    assert "too_many" in cards[bolt["id"]]["issues"]
+    assert "too_many" in cards[reprint["id"]]["issues"]
+
+
+def test_owned_copies_count_every_printing_of_a_card(playbook):
+    bolt = make_record("Lightning Bolt", mana_cost="{R}", color_identity=("R",))
+    reprint = _printing(bolt, "bolt-2xm")
+    index = _pool(bolt, reprint)
+    record = _deck([_line(bolt, 2), _line(reprint, 2)])
+    rows = [{"scryfall_id": bolt["id"], "quantity": 3}]
+    cards = _run(record, index, playbook, rows=rows)["cards"]
+    assert "short" in cards[bolt["id"]]["issues"]
+    assert "short" in cards[reprint["id"]]["issues"]
+
+
+def test_seven_dwarves_and_nazgul_allow_their_own_numbers(playbook):
+    dwarves = make_record("Seven Dwarves", mana_cost="{1}{R}", color_identity=("R",),
+                          oracle_text="A deck can have up to seven cards named Seven Dwarves.")
+    nazgul = make_record("Nazgûl", mana_cost="{2}{B}", color_identity=("B",),
+                         oracle_text="A deck can have up to nine cards named Nazgûl.")
+    index = _pool(dwarves, nazgul)
+    seven = _run(_deck([_line(dwarves, 7), _line(nazgul, 9)]), index, playbook,
+                 rows=_rows(index, 9))["cards"]
+    assert "too_many" not in seven[dwarves["id"]]["issues"]
+    assert "too_many" not in seven[nazgul["id"]]["issues"]
+    eight = _run(_deck([_line(dwarves, 8)]), index, playbook, rows=_rows(index, 9))["cards"]
+    assert "too_many" in eight[dwarves["id"]]["issues"]
+
+
+def test_the_curve_shows_zero_drops_apart(playbook):
+    ornithopter = make_record("Ornithopter", type_line="Artifact Creature — Thopter",
+                              mana_cost="{0}", cmc=0, color_identity=())
+    bear = make_record("Bear", cmc=1, mana_cost="{G}")
+    index = _pool(ornithopter, bear)
+    curve = _run(_deck([_line(ornithopter, 4), _line(bear, 2), _forest(20)]), index,
+                 playbook)["curve"]
+    assert list(curve) == ["0", "1", "2", "3", "4", "5", "6+"]
+    assert curve["0"] == 4 and curve["1"] == 2

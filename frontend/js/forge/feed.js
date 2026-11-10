@@ -275,7 +275,7 @@ export class ThoughtFeed {
 
   /**
    * Show the mana curve as bars that grow one after another.
-   * @param {Object<string, number>} curve Cards per mana value bucket ("1" to "6+").
+   * @param {Object<string, number>} curve Cards per mana value bucket ("0" to "6+").
    */
   curve(curve) {
     const buckets = Object.keys(curve || {});

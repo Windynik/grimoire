@@ -12,10 +12,10 @@ from backend.forge.builder import (
     SOURCE_RANKS, BuildPlan, BuiltDeck, DeckEntry, color_ranks, color_sources,
 )
 from backend.forge.cards import (
-    ANY_NUMBER_PHRASE, OwnedCard, build_card, fits_colors, is_game_card,
+    ANY_NUMBER_PHRASE, OwnedCard, build_card, fits_colors, is_game_card, named_copy_limit,
 )
 from backend.forge.graph import Backbone, build_graph
-from backend.forge.metrics import _pip_demand, curve, deck_metrics
+from backend.forge.metrics import _pip_demand, deck_metrics, display_curve
 from backend.forge.playbook import FormatRules, Playbook
 from backend.forge.tagging import tag_cards
 
@@ -164,7 +164,12 @@ def _limit(info: dict, fmt: FormatRules) -> Optional[int]:
         return None
     if "Basic" in (info.get("type_line") or "").split("—")[0].split():
         return None
-    return fmt.copies_allowed(_legality(info, fmt))
+    allowed = fmt.copies_allowed(_legality(info, fmt))
+    own = named_copy_limit(info.get("oracle_text") or "")
+    if own is not None and allowed > 1:
+        # The card's own text raises the limit; singleton formats keep 1.
+        return max(allowed, own)
+    return allowed
 
 
 def _card_issues(info: Optional[dict], copies: int, owned: int, fmt: FormatRules,
@@ -202,14 +207,24 @@ def _card_report(record: dict, index: Dict[str, dict], owned: Dict[str, int],
     commander = record.get("commander")
     copies = {}  # type: Dict[str, int]
     lines = {}  # type: Dict[str, dict]
+    # The copy limit and the owned copies count every printing of a card, so
+    # the copies also add up per card (oracle id), not only per line.
+    per_card = {}  # type: Dict[str, int]
+
+    def card_key(line: dict) -> str:
+        info = index.get(line.get("scryfall_id") or "")
+        return _oracle_key(info) if info is not None else entry_key(line)
+
     for section in ("main", "sideboard"):
         for line in sections.get(section) or []:
             key = entry_key(line)
             copies[key] = copies.get(key, 0) + line["count"]
+            per_card[card_key(line)] = per_card.get(card_key(line), 0) + line["count"]
             lines.setdefault(key, line)
     if commander:
         key = entry_key(commander)
         copies[key] = copies.get(key, 0) + 1
+        per_card[card_key(commander)] = per_card.get(card_key(commander), 0) + 1
         lines.setdefault(key, commander)
     for line in sections.get("maybeboard") or []:
         lines.setdefault(entry_key(line), line)
@@ -229,8 +244,8 @@ def _card_report(record: dict, index: Dict[str, dict], owned: Dict[str, int],
         if basic:
             issues = []  # type: List[str]
         else:
-            issues = _card_issues(info, copies.get(key, 0), have, fmt, commander_colors,
-                                  key in copies)
+            issues = _card_issues(info, per_card.get(card_key(line), 0), have, fmt,
+                                  commander_colors, key in copies)
         report[key] = {"owned": have, "issues": issues,
                        "roles": roles.get(line.get("scryfall_id"), [])}
     return report
@@ -319,7 +334,7 @@ def analyze(record: dict, index: Dict[str, dict], collection: Optional[List[dict
                    "commander": fmt.commander, "singleton": fmt.singleton,
                    "max_copies": fmt.max_copies},
         "count": count,
-        "curve": curve(deck),
+        "curve": display_curve(deck),
         "colors": sorted(colors, key=COLOR_ORDER.index),
         "mana": mana,
         "price": price,

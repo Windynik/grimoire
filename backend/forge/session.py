@@ -34,7 +34,7 @@ from backend.forge.graph import (
 from backend.forge.llm import (
     ForgeModel, backbone_prompt, borderline_prompt, explanation_prompt, reasons_prompt,
 )
-from backend.forge.metrics import curve, deck_metrics
+from backend.forge.metrics import deck_metrics, display_curve
 from backend.forge.playbook import PLAYSTYLES, FormatRules, Playbook
 from backend.forge.swaps import apply_swaps
 from backend.forge.tagging import TRIBAL_PREFIX, plural_forms, tag_cards, tribe_plural
@@ -602,7 +602,7 @@ class ForgeSession:
             deck.warnings.insert(0, misfit)
         self._status("Checking the deck.")
         metrics = deck_metrics(deck, graph, self.playbook)
-        self._emit("review", curve=curve(deck), metrics=metrics, warnings=list(deck.warnings))
+        self._emit("review", curve=display_curve(deck), metrics=metrics, warnings=list(deck.warnings))
         self._stage(4, 0.3)
         explanation = await self._explain(deck, thesis, interactions)
         self._stage(4, 0.8)

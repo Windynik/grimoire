@@ -19,12 +19,28 @@ const FRAME = ".vault-frame";
 const FALLOFF = 0.3;
 const POINTER_PROPS = ["--mx", "--my", "--hx", "--hy"];
 
+// The US dollar price keys of each finish, best first (backend/core/prices.py).
+// EUR and MTGO ticket prices are other units, so they never count.
+const PRICE_ORDER = {
+  normal: ["usd", "usd_foil"],
+  foil: ["usd_foil", "usd"],
+  etched: ["usd_etched", "usd_foil", "usd"],
+};
+
+/** The finish of a stored foil value: "normal", "foil" or "etched". */
+function finishOf(foil) {
+  if (typeof foil === "boolean") return foil ? "foil" : "normal";
+  const text = String(foil || "").trim().toLowerCase();
+  if (text.includes("etch")) return "etched";
+  return ["", "none", "normal", "false"].includes(text) ? "normal" : "foil";
+}
+
 /**
- * The unit price of a card (spec §7.1): foil asks usd_foil, usd, eur, tix;
- * non-foil asks usd, usd_foil, eur, tix. The first number above 0, else 0.
+ * The US dollar price of one copy in its finish: the first number above 0, else 0.
+ * `foil` is the stored value ("normal", "foil", "etched") or a boolean.
  */
 export function unitPrice(prices, foil) {
-  const order = foil ? ["usd_foil", "usd", "eur", "tix"] : ["usd", "usd_foil", "eur", "tix"];
+  const order = PRICE_ORDER[finishOf(foil)];
   for (const key of order) {
     const value = parseFloat(prices && prices[key]);
     if (Number.isFinite(value) && value > 0) return value;
@@ -60,7 +76,7 @@ function label(card, copies, price) {
 export function vaultTile(card, { index, onOpen } = {}) {
   const copies = copiesOf(card);
   const foil = Boolean(card.foil);
-  const price = typeof card.price === "number" ? card.price : unitPrice(card.prices, foil);
+  const price = typeof card.price === "number" ? card.price : unitPrice(card.prices, card.foil);
 
   const face = h("div", { class: "vault-face" });
   if (copies > 1) face.append(h("span", { class: "vault-stack s1", "aria-hidden": "true" }));

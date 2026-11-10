@@ -20,6 +20,23 @@ WEIGHT_KEYS = {"synergy_density": "synergy", "role_coverage": "roles", "curve_fi
                "mana_consistency": "mana", "avg_quality": "quality"}
 
 
+# The buckets that the owner sees: 0-drops apart from 1-drops.
+DISPLAY_BUCKETS = ("0", "1", "2", "3", "4", "5", "6+")
+
+
+def display_curve(deck: BuiltDeck) -> Dict[str, int]:
+    """Return the nonland cards per mana value for the owner: "0" to "5", then "6+".
+
+    The curve targets of the builder join 0 and 1 (see curve); a 0-drop must
+    still show as a 0-drop.
+    """
+    counts = {bucket: 0 for bucket in DISPLAY_BUCKETS}
+    for entry in deck.nonland_entries():
+        value = int(entry.card.cmc)
+        counts["6+" if value >= 6 else str(max(0, value))] += entry.count
+    return counts
+
+
 def curve(deck: BuiltDeck) -> Dict[str, int]:
     """Return the number of nonland cards per mana value bucket ("1" to "6+").
 

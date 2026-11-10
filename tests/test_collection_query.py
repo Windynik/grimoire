@@ -8,6 +8,7 @@ from backend.core.collection_query import (
     color_bucket,
     insights,
     new_since,
+    previous_import,
     owned_cards,
     unit_price,
     _is_foil,
@@ -17,16 +18,26 @@ from backend.core.collection_query import (
 def test_unit_price_non_foil_order():
     p = {"usd": "1.50", "usd_foil": "3.00", "eur": "1", "tix": "0.1"}
     assert unit_price(p, False) == 1.5
+    # A printing that exists only in foil has only the foil price.
     assert unit_price({"usd": None, "usd_foil": "3.00", "eur": "1"}, False) == 3.0
-    assert unit_price({"usd": "0.00", "usd_foil": None, "eur": "0.80"}, False) == 0.8
-    assert unit_price({"tix": "0.05"}, False) == 0.05
+    # Euros and MTGO tickets are not dollars: a card with only those has no price.
+    assert unit_price({"usd": "0.00", "usd_foil": None, "eur": "0.80"}, False) == 0
+    assert unit_price({"tix": "0.05"}, False) == 0
 
 
 def test_unit_price_foil_order():
     p = {"usd": "1.50", "usd_foil": "3.00", "eur": "1"}
     assert unit_price(p, True) == 3.0
     assert unit_price({"usd": "1.50", "usd_foil": None}, True) == 1.5
-    assert unit_price({"usd": "0.00", "usd_foil": "0.00", "eur": "2"}, True) == 2.0
+    assert unit_price({"usd": "0.00", "usd_foil": "0.00", "eur": "2"}, True) == 0
+
+
+def test_unit_price_of_an_etched_foil():
+    p = {"usd": "1.50", "usd_foil": "3.00", "usd_etched": "40.00"}
+    assert unit_price(p, "etched") == 40.0
+    assert unit_price({"usd": "1.50", "usd_foil": "3.00"}, "etched") == 3.0
+    assert unit_price(p, "foil") == 3.0
+    assert unit_price(p, "normal") == 1.5
 
 
 def test_unit_price_empty():
@@ -204,8 +215,9 @@ def test_keyword_rarity_set_format():
 def test_keyword_price_comparisons():
     assert found("$>5") == ["Big Land", "Elf Lord", "Gold Wurm"]
     assert found("$>=6") == ["Big Land", "Elf Lord", "Gold Wurm"]
-    assert found("$<1") == ["Counter", "Rock"]
-    assert found("$<=0.5") == ["Counter", "Rock"]
+    # Rock has no price, so no price comparison matches it.
+    assert found("$<1") == ["Counter"]
+    assert found("$<=0.5") == ["Counter"]
     assert found("$>1 $<7") == ["Bolt", "Elf Lord", "Seven Drop"]
 
 
@@ -365,3 +377,16 @@ def test_casual_format_excludes_tokens_but_keeps_game_cards():
     card = mk("Plain Elf", "Creature — Elf")
     assert names(run([token, card], "", format=["casual"])[0]) == ["Plain Elf"]
     assert names(run([token, card], "f:casual")[0]) == ["Plain Elf"]
+
+
+def test_previous_import_is_the_same_collection_not_the_last_one():
+    rows = lambda *ids: [{"scryfall_id": i, "quantity": 1} for i in ids]
+    main_again = rows("01", "02", "03", "06")
+    trade, main = rows("04", "05"), rows("01", "02", "03")
+    # Newest first: the trade binder came after the first Main import.
+    assert previous_import(main_again, [trade, main]) == 1
+    assert new_since(main_again, [trade, main][1]) == {("06", False)}
+    assert previous_import(main_again, [trade]) is None
+    assert previous_import(main_again, []) is None
+    # On a tie the newer one wins.
+    assert previous_import(main_again, [main, main]) == 0

@@ -10,12 +10,14 @@ from backend.api.dependencies import get_bulk_data_manager, get_collection_store
 from backend.api.routes import check_format
 from backend.core.bulk_data import BulkDataManager
 from backend.core.collection_query import (
+    MAX_PREVIOUS,
     Filters,
     collection_set_names,
     insights,
     new_since,
     owned_cards,
     parse_query,
+    previous_import,
     search,
     set_catalog,
     set_checklist,
@@ -86,10 +88,14 @@ def _merge(store, job_id: str, index: dict) -> Merged:
     listing = store.list_collections()
     position = next((i for i, m in enumerate(listing) if m.get("job_id") == job_id), None)
     meta = listing[position] if position is not None else {}
-    previous = listing[position + 1] if position is not None and position + 1 < len(listing) else None
-    previous_rows = store.get_collection(previous["job_id"]) if previous else None
+    # The previous import of the same collection, not just the last import:
+    # an unrelated collection in between must not make every card "new".
+    olders = listing[position + 1:position + 1 + MAX_PREVIOUS] if position is not None else []
+    older_rows = [store.get_collection(m["job_id"]) or [] for m in olders]
+    found = previous_import(stored, older_rows)
+    previous_rows = older_rows[found] if found is not None else None
     new_keys = new_since(stored, previous_rows) if previous_rows is not None else set()
-    return Merged(cards, new_keys, meta, previous is not None, index)
+    return Merged(cards, new_keys, meta, previous_rows is not None, index)
 
 
 def get_merged(store, job_id: str, index: dict) -> Merged:
