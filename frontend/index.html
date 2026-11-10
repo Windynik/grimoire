@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Grimoire — Offline MTG Companion</title>
-    <meta name="description" content="Your offline MTG spellbook: enrich ManaBox exports with Scryfall data, browse your collection, and forge decks from cards you own">
+    <meta name="description" content="Your offline MTG spellbook: import your collection from ManaBox, Moxfield, Archidekt and more, browse it, and forge decks from cards you own">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -59,7 +59,7 @@
                     </header>
 
                     <section class="home-section home-quick" aria-label="Quick actions">
-                        <a class="btn btn-primary" id="home-import" href="#import">Import CSV</a>
+                        <a class="btn btn-primary" id="home-import" href="#import">Import cards</a>
                         <a class="btn btn-secondary" id="home-forge" href="#forge">Forge a deck</a>
                         <a class="btn btn-secondary" id="home-browse" href="#collection">Browse</a>
                     </section>
@@ -89,7 +89,7 @@
                     <section class="home-section" aria-labelledby="home-collections-title">
                         <div class="home-section-head">
                             <h2 class="home-section-title" id="home-collections-title">Collections</h2>
-                            <a class="btn btn-secondary btn-compact" id="home-collections-import" href="#import">Import CSV</a>
+                            <a class="btn btn-secondary btn-compact" id="home-collections-import" href="#import">Import cards</a>
                         </div>
                         <div id="dashboard-collections" class="home-collections"></div>
                     </section>
@@ -111,16 +111,23 @@
                         <!-- State 1: Upload -->
                         <div id="import-upload">
                             <div id="upload-zone" class="upload-zone" tabindex="0" role="button" aria-label="Choose a CSV file to import">
-                                <input type="file" id="file-input" accept=".csv" aria-label="Choose CSV file to import" hidden>
+                                <input type="file" id="file-input" accept=".csv,.tsv,.txt" aria-label="Choose a collection file to import" hidden>
                                 <div class="upload-content">
                                     <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
                                         <path d="M12 16V4m0 0l-4 4m4-4l4 4" stroke-linecap="round" stroke-linejoin="round"/>
                                         <path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke-linecap="round"/>
                                     </svg>
-                                    <p class="upload-title">Drop your ManaBox CSV here</p>
+                                    <p class="upload-title">Drop your collection export here</p>
                                     <p class="upload-hint">or click to browse</p>
                                 </div>
                             </div>
+                            <p class="import-apps">Grimoire reads the CSV exports of ManaBox, Moxfield, Archidekt, Deckbox, Dragon Shield, TCGplayer, MTGGoldfish, TopDecked and Magic Online. Another CSV works when it has a card name column.</p>
+                            <details class="import-paste">
+                                <summary>Paste a card list instead</summary>
+                                <label class="import-paste-label" for="import-paste-text">One card on each line, such as <code>4 Lightning Bolt</code> or <code>1 Sol Ring (CMR) 472 *F*</code>.</label>
+                                <textarea id="import-paste-text" class="import-paste-text" rows="8" spellcheck="false" placeholder="4 Lightning Bolt&#10;1x Sol Ring&#10;2 Counterspell (MH2) 267"></textarea>
+                                <button id="import-paste-go" class="btn btn-primary" type="button">Import the list</button>
+                            </details>
                         </div>
 
                         <!-- State 2: Progress -->
@@ -139,6 +146,8 @@
                         <div id="import-summary" hidden>
                             <div class="import-summary-head">
                                 <h3 id="import-summary-title">Imported 0 of 0 rows</h3>
+                                <p class="import-summary-source" id="import-summary-source" hidden></p>
+                                <p class="import-summary-notice" id="import-summary-notice" hidden></p>
                             </div>
                             <div id="import-unmatched" hidden>
                                 <h4 class="import-unmatched-title">Unmatched rows</h4>
@@ -164,7 +173,7 @@
                             <div class="vault-over-row">
                                 <p class="vault-over" id="vault-over">The Vault</p>
                                 <div class="vault-actions">
-                                    <a class="vault-import" id="collection-import" href="#import">Import CSV</a>
+                                    <a class="vault-import" id="collection-import" href="#import">Import cards</a>
                                     <a class="vault-import vault-export" id="collection-export" href="#collection" title="Download this collection as a CSV" hidden>Export CSV</a>
                                 </div>
                             </div>
@@ -496,18 +505,18 @@
 
                             <!-- Step 2: the import -->
                             <div class="welcome-panel" id="welcome-import" data-panel="2" hidden>
-                                <input type="file" id="welcome-file" accept=".csv" aria-label="Choose a ManaBox CSV file" hidden>
-                                <div class="welcome-binder" id="welcome-binder" role="button" tabindex="0" aria-label="Choose a ManaBox CSV file to import, or drop it here">
+                                <input type="file" id="welcome-file" accept=".csv,.tsv,.txt" aria-label="Choose a collection file" hidden>
+                                <div class="welcome-binder" id="welcome-binder" role="button" tabindex="0" aria-label="Choose a collection file to import, or drop it here">
                                     <div class="welcome-slots" id="welcome-slots"></div>
                                     <div class="welcome-drop" id="welcome-drop" aria-hidden="true">
                                         <div class="welcome-drop-card">
-                                            <p class="welcome-drop-title">Drop your ManaBox CSV here</p>
+                                            <p class="welcome-drop-title">Drop your collection export here</p>
                                             <p class="welcome-drop-hint">or click to choose the file</p>
                                         </div>
                                     </div>
                                 </div>
                                 <div class="welcome-actions" id="welcome-actions">
-                                    <button type="button" class="btn btn-primary welcome-cta" id="welcome-choose">Choose CSV file</button>
+                                    <button type="button" class="btn btn-primary welcome-cta" id="welcome-choose">Choose a file</button>
                                     <button type="button" class="btn btn-secondary welcome-ghost" id="welcome-sample">Try a sample collection</button>
                                 </div>
                                 <div class="welcome-progress" id="welcome-progress" tabindex="-1" aria-label="Import progress" hidden>
@@ -523,12 +532,14 @@
                                     <button type="button" class="btn btn-primary welcome-cta" id="welcome-done">Open the Vault →</button>
                                 </div>
                                 <details class="welcome-how">
-                                    <summary>How do I export from ManaBox?</summary>
-                                    <ol>
-                                        <li>Open <b>ManaBox</b> and go to <b>Collection</b>.</li>
-                                        <li>Tap <b>⋯</b> and choose <b>Export</b>.</li>
-                                        <li>Pick <b>CSV</b>, then send the file to this Mac (AirDrop works).</li>
-                                    </ol>
+                                    <summary>How do I export my collection?</summary>
+                                    <ul>
+                                        <li><b>ManaBox:</b> open <b>Collection</b>, tap <b>⋯</b>, choose <b>Export</b>, then <b>CSV</b>.</li>
+                                        <li><b>Moxfield</b>, <b>Archidekt</b> or <b>Deckbox:</b> open your collection and choose <b>Export</b> as CSV.</li>
+                                        <li><b>Dragon Shield</b>, <b>TCGplayer</b>, <b>TopDecked</b> or <b>MTGGoldfish:</b> use the CSV export of the collection.</li>
+                                        <li><b>A card list:</b> save it as a <b>.txt</b> file, one card on each line, such as <b>4 Lightning Bolt</b>.</li>
+                                    </ul>
+                                    <p>Send the file to this computer (AirDrop works), then drop it on the binder.</p>
                                 </details>
                             </div>
 

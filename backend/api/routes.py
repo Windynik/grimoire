@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
+from pydantic import BaseModel, Field
 from fastapi.responses import StreamingResponse, FileResponse
 
 from backend.api.dependencies import (
@@ -18,6 +19,7 @@ from backend.core.collection_store import CollectionStore
 from backend.core.paths import cache_path
 from backend.core.prices import best_price  # noqa: F401  (re-exported)
 from backend.core.csv_processor import CSVProcessor, enrich_rows, write_enriched_csv
+from backend.core.importers import ImportFormatError, decode_upload
 from backend.core.ollama_client import OllamaClient
 from backend.forge.cards import is_game_card
 from backend.forge.playbook import load_playbook
@@ -247,7 +249,10 @@ async def process_csv(
 
     # Read CSV content
     content = await file.read()
-    csv_content = content.decode('utf-8')
+    try:
+        csv_content = decode_upload(content)
+    except ImportFormatError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
     # Process CSV
     result = await csv_processor.process_csv(csv_content, bulk_data)
@@ -276,9 +281,9 @@ def import_stream(content: bytes, filename: str, bulk_data: dict,
 
     async def generate():
         try:
-            csv_content = content.decode('utf-8')
-        except UnicodeDecodeError:
-            yield sse({"type": "error", "detail": "File must be UTF-8 encoded text"})
+            csv_content = decode_upload(content)
+        except ImportFormatError as exc:
+            yield sse({"type": "error", "detail": str(exc)})
             return
 
         loop = asyncio.get_running_loop()
@@ -332,6 +337,8 @@ def import_stream(content: bytes, filename: str, bulk_data: dict,
             "success_count": result.success_count,
             "error_count": result.error_count,
             "errors": result.errors,
+            "source_format": result.source_format,
+            "notice": result.notice,
         }})
 
     return StreamingResponse(generate(), media_type="text/event-stream")
@@ -355,6 +362,41 @@ async def process_csv_stream(
 
     content = await file.read()
     return import_stream(content, file.filename or "", bulk_data, csv_processor, store)
+
+
+# A pasted list of about 100 000 lines is the most the import takes.
+MAX_PASTE = 2_000_000
+PASTE_NAME = "Pasted list"
+PASTE_TOO_LONG = "The list is too long. Split it into parts of 100,000 lines or fewer."
+
+
+class PasteRequest(BaseModel):
+    """A card list pasted as text."""
+    text: str
+    name: str = Field("", max_length=80)
+
+
+@router.post("/process/text")
+async def process_text(
+    request: PasteRequest,
+    bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager),
+    csv_processor: CSVProcessor = Depends(get_csv_processor),
+    store: CollectionStore = Depends(get_collection_store),
+):
+    """Import a pasted card list or CSV text. Stream progress as server-sent events."""
+    if not request.text.strip():
+        raise HTTPException(status_code=400, detail="Paste a card list first.")
+    if len(request.text) > MAX_PASTE:
+        raise HTTPException(status_code=413, detail=PASTE_TOO_LONG)
+    bulk_data = await bulk_data_manager.load_bulk_data()
+    if not bulk_data:
+        raise HTTPException(
+            status_code=400,
+            detail="Bulk data not available. Please download cache first."
+        )
+    name = request.name.strip() or PASTE_NAME
+    # The store drops the file extension from the name.
+    return import_stream(request.text.encode("utf-8"), f"{name}.txt", bulk_data, csv_processor, store)
 
 
 @router.post("/process/sample")

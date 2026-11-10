@@ -65,3 +65,7 @@ class ProcessResult(BaseModel):
     error_count: int = 0
     errors: List[Dict[str, Any]] = Field(default_factory=list)
     output_file: Optional[str] = None
+    # The app that wrote the file, such as "Moxfield", or "a card list"
+    source_format: Optional[str] = None
+    # A note for the summary, such as a hint to update the card data
+    notice: Optional[str] = None

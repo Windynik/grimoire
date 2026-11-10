@@ -1,9 +1,11 @@
-// Import screen: upload a ManaBox CSV, show live progress, then show a summary.
+// Import screen: upload a collection export or paste a card list, show live
+// progress, then show a summary.
 //
 // One of three states shows at a time: upload, progress, or summary.
 
 import { navigate } from "../app/router.js";
 import { h } from "../shared/dom.js";
+import { isImportFile, sourceText, WRONG_FILE } from "../shared/importfile.js";
 import { readSSE } from "../shared/sse.js";
 import { setActiveCollection, setViewerSource } from "../shared/session.js";
 import { showToast } from "../shared/toast.js";
@@ -14,6 +16,7 @@ const STOPPED = "The import stopped. Try again.";
 const REASONS = {
   not_found: "Not in the card data",
   missing_scryfall_id: "No Scryfall ID",
+  unknown_card: "No card with this name",
 };
 
 const $ = (id) => document.getElementById(id);
@@ -28,8 +31,10 @@ function showState(name) {
   $("import-summary").hidden = name !== "summary";
 }
 
-function resetToUpload() {
+/** Show Upload again. A failed import keeps the pasted list, so it is not lost. */
+function resetToUpload({ clearPaste = false } = {}) {
   $("file-input").value = "";
+  if (clearPaste) $("import-paste-text").value = "";
   resultJobId = null;
   showState("upload");
 }
@@ -59,6 +64,12 @@ function showSummary(result) {
 
   $("import-summary-title").textContent =
     `Imported ${result.success_count} of ${result.total_processed} rows`;
+  const source = $("import-summary-source");
+  source.textContent = sourceText(result.source_format);
+  source.hidden = !source.textContent;
+  const notice = $("import-summary-notice");
+  notice.textContent = result.notice || "";
+  notice.hidden = !result.notice;
 
   const errors = result.errors || [];
   const shown = errors.slice(0, MAX_UNMATCHED_ROWS);
@@ -78,24 +89,42 @@ function showSummary(result) {
   showState("summary");
 }
 
-async function handleFile(file) {
+function handleFile(file) {
   if (busy) return;
-  if (!file.name.toLowerCase().endsWith(".csv")) {
-    showToast("Choose a CSV file.", "error");
+  if (!isImportFile(file.name)) {
+    showToast(WRONG_FILE, "error");
     $("file-input").value = "";
     return;
   }
+  const formData = new FormData();
+  formData.append("file", file);
+  runImport(() => fetch(`${API_BASE}/process/stream`, { method: "POST", body: formData }));
+}
 
+function handlePaste() {
+  if (busy) return;
+  const text = $("import-paste-text").value;
+  if (!text.trim()) {
+    showToast("Paste a card list first.", "error");
+    $("import-paste-text").focus();
+    return;
+  }
+  runImport(() => fetch(`${API_BASE}/process/text`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+  }));
+}
+
+/** Run one import. `request` sends it and returns the streamed response. */
+async function runImport(request) {
   busy = true;
   let finished = false;
   showProgress({ current: 0, total: 0 });
   showState("progress");
 
-  const formData = new FormData();
-  formData.append("file", file);
-
   try {
-    const response = await fetch(`${API_BASE}/process/stream`, { method: "POST", body: formData });
+    const response = await request();
     if (!response.ok) {
       let detail = "";
       try {
@@ -158,8 +187,9 @@ function init() {
     if (files && files.length > 0) handleFile(files[0]);
   });
 
+  $("import-paste-go").addEventListener("click", handlePaste);
   $("import-view-collection").addEventListener("click", () => navigate("#collection"));
-  $("import-another").addEventListener("click", resetToUpload);
+  $("import-another").addEventListener("click", () => resetToUpload({ clearPaste: true }));
 }
 
 /** Show the screen. It keeps its state, so a running import stays on view. */

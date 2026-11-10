@@ -425,7 +425,7 @@ function renderEmpty() {
   if (!hasFilters()) {
     ui.empty.replaceChildren(
       h("p", { class: "vault-empty-title", text: screen.archive ? "No cards in the card data yet." : "This collection holds no cards." }),
-      h("a", { class: "btn btn-secondary", href: "#import", text: "Import CSV" }));
+      h("a", { class: "btn btn-secondary", href: "#import", text: "Import cards" }));
     return;
   }
   const hint = blockingChip();

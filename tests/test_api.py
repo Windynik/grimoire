@@ -11,6 +11,7 @@ from backend.api.dependencies import (
 )
 from backend.core.collection_store import CollectionStore
 from backend.core.csv_processor import CSVProcessor
+from backend.core.importers import NOT_TEXT
 from main import app
 from tests.forge.conftest import make_record
 
@@ -234,24 +235,63 @@ def test_process_stream_reports_progress_and_result(stream_env):
     done = events[-1]
     assert done["type"] == "done"
     assert set(done["result"]) == {"job_id", "status", "total_processed",
-                                   "success_count", "error_count", "errors"}
+                                   "success_count", "error_count", "errors",
+                                   "source_format", "notice"}
     assert done["result"]["success_count"] == 23
+    assert done["result"]["source_format"] == "a CSV file"
     assert {e["error"] for e in done["result"]["errors"]} == {
-        "not_found", "missing_scryfall_id"}
+        "not_found", "unknown_card"}
     assert store.get_collection(done["result"]["job_id"]) is not None
 
 
 def test_process_stream_bad_csv_ends_with_error(stream_env):
     events = sse_events(client.post(
-        "/api/process/stream", files={"file": ("x.csv", "Name\nBolt\n")}))
-    assert events[-1] == {"type": "error",
-                          "detail": "CSV must contain 'Scryfall ID' column"}
+        "/api/process/stream", files={"file": ("x.csv", "Sideboard\n// none\n")}))
+    assert events[-1]["type"] == "error"
+    assert "could not read this file" in events[-1]["detail"]
 
 
 def test_process_stream_bad_encoding_ends_with_error(stream_env):
     events = sse_events(client.post(
-        "/api/process/stream", files={"file": ("x.csv", b"\xff\xfe\x00bad")}))
-    assert events[-1]["type"] == "error"
+        "/api/process/stream", files={"file": ("x.xlsx", b"PK\x03\x04\x00\x00bad")}))
+    assert events[-1] == {"type": "error", "detail": NOT_TEXT}
+
+
+def test_process_text_imports_a_pasted_list(stream_env):
+    store, bulk = stream_env
+    bulk.cards.update({f"id-{i}": index_card(f"Card{i}", "1.00") for i in range(3)})
+    events = sse_events(client.post(
+        "/api/process/text", json={"text": "2 Card0\n1x Card1\nCard2\n1 Ghost\n"}))
+    done = events[-1]
+    assert done["type"] == "done"
+    assert done["result"]["source_format"] == "a card list"
+    assert done["result"]["success_count"] == 3
+    assert done["result"]["errors"][0]["error"] == "unknown_card"
+    cards = store.get_collection(done["result"]["job_id"])
+    assert sorted((c["name"], str(c["quantity"])) for c in cards) == [
+        ("Card0", "2"), ("Card1", "1"), ("Card2", "1")]
+    names = [c["name"] for c in store.list_collections()]
+    assert "Pasted list" in names
+
+
+def test_process_text_keeps_a_name_with_a_dot(stream_env):
+    store, bulk = stream_env
+    bulk.cards.update({"id-0": index_card("Card0", "1.00")})
+    events = sse_events(client.post(
+        "/api/process/text", json={"text": "Card0", "name": "Mr. Binder"}))
+    assert events[-1]["type"] == "done"
+    assert "Mr. Binder" in [c["name"] for c in store.list_collections()]
+
+
+def test_process_text_rejects_a_paste_that_is_too_long(stream_env):
+    response = client.post("/api/process/text", json={"text": "x" * (routes.MAX_PASTE + 1)})
+    assert response.status_code == 413
+    assert response.json()["detail"] == routes.PASTE_TOO_LONG
+
+
+def test_process_text_rejects_an_empty_paste(stream_env):
+    response = client.post("/api/process/text", json={"text": "  \n "})
+    assert response.status_code == 400
 
 
 def test_process_stream_without_bulk_data_is_400(overrides):

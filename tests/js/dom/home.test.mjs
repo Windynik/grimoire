@@ -74,7 +74,7 @@ test("recent decks has an empty state", async () => {
 
 test("collections has an empty state", async () => {
   await setup({ collections: [] });
-  await app.until(() => /No collections yet\. Import a ManaBox CSV to start\./
+  await app.until(() => /No collections yet\. Import a collection export or a card list to start\./
     .test(text("#dashboard-collections")));
 });
 
@@ -111,7 +111,7 @@ test("Delete then confirm sends DELETE, forgets the session keys, and drops the 
   assert.equal(window.localStorage.getItem("viewerSource"), null);
 });
 
-test("Import CSV goes to the import screen", async () => {
+test("Import cards goes to the import screen", async () => {
   await setup();
   document.getElementById("home-import").click();
   await app.until(() => document.getElementById("import-view").classList.contains("active"));

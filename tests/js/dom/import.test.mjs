@@ -44,7 +44,9 @@ async function setup({ stream = null, reply = null } = {}) {
   window.localStorage.clear();
   document.getElementById("toast-container").replaceChildren();
   app.fetchLog.length = 0;
-  app.route("POST /api/process/stream", () => reply || { status: 200, body: stream.body, headers: stream.headers });
+  const answer = () => reply || { status: 200, body: stream.body, headers: stream.headers };
+  app.route("POST /api/process/stream", answer);
+  app.route("POST /api/process/text", answer);
   app.route("GET /api/cache/status", () => ({ json: { status: "ready", card_count: 1 } }));
   app.route("GET /api/collections", () => ({ json: { collections: [] } }));
   app.route("GET /api/decks", () => ({ json: { decks: [] } }));
@@ -157,11 +159,11 @@ test("a response that is not OK shows its detail", async () => {
   assert.ok(visible("#import-upload"));
 });
 
-test("a non-CSV file sends nothing", async () => {
+test("a file that is not a CSV or a list sends nothing", async () => {
   await setup({ reply: { status: 200, json: {} } });
-  choose("notes.txt");
+  choose("sheet.xlsx");
   await app.settle();
-  assert.deepEqual(toasts(), ["Choose a CSV file."]);
+  assert.deepEqual(toasts(), ["Choose a CSV file or a card list (.txt)."]);
   assert.equal(app.fetchLog.filter((r) => r.path === "/api/process/stream").length, 0);
   assert.ok(visible("#import-upload"));
 });
@@ -212,4 +214,84 @@ test("a connection reset after the last chunk keeps the summary", async () => {
   }
   assert.ok(visible("#import-summary"), "the summary stays");
   assert.deepEqual(toasts(), []);
+});
+
+test("a text file imports, and a result without a source or notice hides both lines", async () => {
+  const stream = openStream();
+  await setup({ stream });
+  choose("deck.TXT");
+  stream.send(done([{ row: 2, card: "Ghost Card", error: "unknown_card" }], 3));
+  stream.end();
+  await app.until(() => visible("#import-summary"));
+  const rows = [...document.querySelectorAll("#import-unmatched tbody tr")].map((tr) =>
+    [...tr.children].map((td) => td.textContent));
+  assert.deepEqual(rows, [["2", "Ghost Card", "No card with this name"]]);
+  assert.ok(!visible("#import-summary-source"));
+  assert.ok(!visible("#import-summary-notice"));
+});
+
+test("a pasted list posts its text and shows the source", async () => {
+  const stream = openStream();
+  await setup({ stream });
+  document.querySelector("details.import-paste").open = true;
+  document.getElementById("import-paste-text").value = "4 Lightning Bolt\n1x Sol Ring";
+  document.getElementById("import-paste-go").click();
+  const finish = done([], 2);
+  finish.result.source_format = "a card list";
+  stream.send(finish);
+  stream.end();
+  await app.until(() => visible("#import-summary"));
+  assert.equal(text("#import-summary-source"), "Read as a card list.");
+  const request = app.fetchLog.find((r) => r.path === "/api/process/text");
+  assert.equal(request.method, "POST");
+  assert.deepEqual(request.body, { text: "4 Lightning Bolt\n1x Sol Ring" });
+
+  // Import another clears the paste box.
+  document.getElementById("import-another").click();
+  assert.equal(document.getElementById("import-paste-text").value, "");
+});
+
+test("an app export names the app in the summary", async () => {
+  const stream = openStream();
+  await setup({ stream });
+  choose("moxfield.csv");
+  const finish = done([], 5);
+  finish.result.source_format = "Moxfield";
+  stream.send(finish);
+  stream.end();
+  await app.until(() => visible("#import-summary"));
+  assert.equal(text("#import-summary-source"), "Read as an export of Moxfield.");
+});
+
+test("an empty paste gets a toast and sends nothing", async () => {
+  await setup({ reply: { status: 200, json: {} } });
+  document.getElementById("import-paste-text").value = "   ";
+  document.getElementById("import-paste-go").click();
+  await app.settle();
+  assert.deepEqual(toasts(), ["Paste a card list first."]);
+  assert.equal(app.fetchLog.filter((r) => r.path === "/api/process/text").length, 0);
+});
+
+test("the summary shows the notice of the server", async () => {
+  const stream = openStream();
+  await setup({ stream });
+  choose("moxfield.csv");
+  const finish = done([], 5);
+  finish.result.source_format = "Moxfield";
+  finish.result.notice = "Update the card data on Home to get the exact printings.";
+  stream.send(finish);
+  stream.end();
+  await app.until(() => visible("#import-summary"));
+  assert.ok(visible("#import-summary-notice"));
+  assert.equal(text("#import-summary-notice"), "Update the card data on Home to get the exact printings.");
+});
+
+test("a failed paste keeps the pasted list", async () => {
+  await setup({ reply: { status: 413, json: { detail: "The list is too long." } } });
+  document.getElementById("import-paste-text").value = "4 Lightning Bolt";
+  document.getElementById("import-paste-go").click();
+  await app.until(() => toasts().length > 0);
+  assert.deepEqual(toasts(), ["The list is too long."]);
+  assert.ok(visible("#import-upload"));
+  assert.equal(document.getElementById("import-paste-text").value, "4 Lightning Bolt");
 });

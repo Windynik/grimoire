@@ -1,6 +1,6 @@
 # Grimoire
 
-Forge and edit Magic: The Gathering decks from the cards you own. Grimoire runs on your own machine and enriches your ManaBox exports with Scryfall data.
+Forge and edit Magic: The Gathering decks from the cards you own. Grimoire runs on your own machine. It imports your collection from ManaBox, Moxfield, Archidekt and other apps, and enriches it with Scryfall data.
 
 ![Home screen](docs/images/home.png)
 
@@ -16,7 +16,7 @@ The screenshots use a synthetic sample collection.
 
 ## Features
 
-- **Enrich your CSV.** Import a [ManaBox](https://manabox.app) export. Grimoire adds the mana cost, oracle text, and type line from [Scryfall](https://scryfall.com) bulk data. It shows a summary of the rows it could not match. It exports the enhanced CSV.
+- **Import from many apps.** Import the CSV export of ManaBox, Moxfield, Archidekt, Deckbox, Dragon Shield, TCGplayer, MTGGoldfish, TopDecked, or Magic Online, or paste a plain card list. Grimoire finds each card in the [Scryfall](https://scryfall.com) bulk data and adds the mana cost, oracle text, and type line. It shows a summary of the rows it could not match. It exports the enhanced CSV (see *Importing*).
 - **The Vault.** Browse your collection with an insights ledger, today's spotlight, color orbs, a sidebar of live counts, keyword search, tactile card tiles, a card drawer, and a Sets completion view. You can also browse all cards in the Scryfall archive.
 - **First-run welcome.** A new owner gets a guided start. It downloads the card data, imports a ManaBox CSV or a sample collection, and shows the most valuable cards.
 - **Deck Forge.** An agent builds a deck from only the cards you own. It supports Commander, Brawl, Standard Brawl, Standard, Pioneer, Modern, Legacy, Vintage, Pauper, and Casual.
@@ -37,7 +37,7 @@ python main.py
 The server opens your browser at **http://localhost:8133**.
 
 1. **Download card data.** On a first run, the welcome screen does this for you (see *First run*). Otherwise, on *Home*, press *Download card data*. The download is about 100 MB and happens once.
-2. **Import your collection.** Drop in your ManaBox export on the welcome screen, or press *Import CSV* on the *Collection* screen. The `examples/` folder has a synthetic sample file.
+2. **Import your collection.** Drop in the collection export of your app on the welcome screen, or press *Import cards* on the *Collection* screen. You can also paste a card list. The `examples/` folder has a synthetic sample file.
 3. **Browse.** Use the *Collection* screen (the Vault) to explore your cards.
 4. **Forge a deck.** Open *Forge*, pick a format (and optionally a commander), and start the forge.
 
@@ -53,7 +53,7 @@ ollama pull qwen3.5:9b       # recommended; about 6.6 GB
 When Grimoire has no collection, *Home* and *Collection* open the welcome screen. It has three steps.
 
 1. **Card data.** The screen downloads the Scryfall card data. A sigil shows the progress. If the data is already on disk, this step is done at once.
-2. **Import.** Drop a ManaBox CSV on the binder page, or press *Choose CSV file*. You can also press *Try a sample collection*. The sample imports the small file in `examples/` (19 rows of synthetic data), so you can try the app with no export. The ten slots on the binder light up as the rows go by. At the end, real cards of the new collection flip into the slots.
+2. **Import.** Drop a collection export or a card list (`.txt`) on the binder page, or press *Choose a file*. You can also press *Try a sample collection*. The sample imports the small file in `examples/` (19 rows of synthetic data), so you can try the app with no export. The ten slots on the binder light up as the rows go by. At the end, real cards of the new collection flip into the slots.
 3. **Reveal.** The most valuable cards fan out, and the ledger counts up: the estimated value, the cards, and the rares and mythics. The *Open the Vault* button takes you to the new collection.
 
 *Skip — just browse all cards* leaves the welcome screen and opens the archive. The browser remembers the choice, so *Home* and *Collection* do not send you back. The welcome screen returns after you import a collection and the collection list later becomes empty.
@@ -77,10 +77,33 @@ The forge is a pipeline. The engine does the work. A model, when you turn one on
 The top bar has five screens. Each screen has its own address, such as `#home` or `#collection`.
 
 - **Home** shows the card data status, your collections, and your recent decks. You can download the card data here. Each collection row has an *Export CSV* button. It downloads the enhanced CSV. A collection stored by an older version may need a re-import. In that case the app shows a message.
-- **Collection** is the Vault, the viewer for your cards or for all cards in the archive (see below). The *Import CSV* button opens the importer. The importer shows live progress and a summary of the rows it could not match.
+- **Collection** is the Vault, the viewer for your cards or for all cards in the archive (see below). The *Import cards* button opens the importer. The importer shows live progress and a summary of the rows it could not match (see *Importing*).
 - **Forge** builds a deck from the cards you own (see below).
 - **Decks** lists your saved decks and opens the editor (see below).
 - **Settings** shows the Ollama status, picks the model (Automatic, Engine only, or one installed model), sets how often the forge asks you a question, clears the card data, and shows the card images on this Mac. The app downloads the images of your cards in the background when it starts. A switch turns this off, and a button starts a download at any time.
+
+### Importing
+
+The importer takes a file or a pasted list. It finds out which app wrote the file from the header row.
+
+| Source | What to import |
+|---|---|
+| ManaBox | The CSV export of the collection. The rows stay as they are. |
+| Moxfield, Archidekt, Deckbox | The CSV export of the collection. |
+| Dragon Shield, TCGplayer, TopDecked, MTGGoldfish, Magic Online | The CSV export of the collection. |
+| Another app | A CSV, TSV, or semicolon file with a card name column. |
+| A card list | A `.txt` file, or text in the *Paste a card list* box. One card on each line, such as `4 Lightning Bolt`, `1x Sol Ring`, or `1 Sol Ring (CMR) 472 *F*`. Section lines such as *Deck* and *Sideboard* are skipped. |
+
+For each row, Grimoire finds the card in this order:
+
+1. The Scryfall ID, when the row has one.
+2. The set and the collector number.
+3. The name and the set.
+4. The name alone. Then Grimoire takes the cheapest printing that has a price, so a plain list does not overstate the value of the collection.
+
+A name matches in any case and without accents. A split or double-faced card matches by its full name or by one face, such as `Fire/Ice` or `Delver of Secrets`. The summary names the source app and lists each row it could not match.
+
+An import from another app keeps every column of the source file. Grimoire adds the ManaBox columns (such as *Set code* and *Scryfall ID*) to the enhanced CSV. Card data from an older version of Grimoire can lack collector numbers. Then Grimoire matches by name and set only. Press *Update card data* on *Home* to get the exact printings.
 
 ### The Vault
 

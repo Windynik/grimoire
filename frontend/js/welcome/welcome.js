@@ -3,7 +3,7 @@
 // Three steps light up on a path at the left. The scene at the right shows the
 // current step:
 //   1. the card data download, with a sigil and a progress ring;
-//   2. the import of a ManaBox CSV or of the sample collection, on a binder
+//   2. the import of a collection export or of the sample collection, on a binder
 //      page with ten card slots that light up as the rows go by; at the end,
 //      real cards of the new collection flip into the slots;
 //   3. the reveal: the most valuable cards fan in and the ledger counts up.
@@ -17,6 +17,7 @@ import { navigate, parseHash, redirect } from "../app/router.js";
 import { formatCount, formatMoney } from "../collection/numbers.js";
 import { h } from "../shared/dom.js";
 import { getJSON } from "../shared/http.js";
+import { isImportFile, WRONG_FILE } from "../shared/importfile.js";
 import { cardImg } from "../shared/images.js";
 import { DURATION, reducedMotion } from "../shared/motion.js";
 import { setActiveCollection, setViewerSource, setWelcomeSkipped } from "../shared/session.js";
@@ -312,8 +313,8 @@ async function runImport(request) {
 
 function importFile(file) {
   if (!file || screen.importing) return;
-  if (!String(file.name || "").toLowerCase().endsWith(".csv")) {
-    showToast("Choose a CSV file.", "error");
+  if (!isImportFile(file.name)) {
+    showToast(WRONG_FILE, "error");
     ui.file.value = "";
     return;
   }

@@ -320,14 +320,15 @@ test("the binder opens the file chooser with a click, Enter and Space", async ()
   assert.equal($("#welcome-binder").getAttribute("tabindex"), "0");
   assert.equal($$("#welcome-slots .welcome-slot").length, 10);
   const how = $("details.welcome-how");
-  assert.match(how.querySelector("summary").textContent, /How do I export from ManaBox\?/);
-  assert.equal(how.querySelectorAll("ol li").length, 3);
+  assert.match(how.querySelector("summary").textContent, /How do I export my collection\?/);
+  assert.equal(how.querySelectorAll("ul li").length, 4);
+  assert.equal($("#welcome-file").getAttribute("accept"), ".csv,.tsv,.txt");
 });
 
-test("a file that is not a CSV gets a toast and no import", async () => {
+test("a file that is not a CSV or a list gets a toast and no import", async () => {
   await setup();
-  choose("notes.txt");
-  await app.until(() => toasts().includes("Choose a CSV file."));
+  choose("sheet.xlsx");
+  await app.until(() => toasts().includes("Choose a CSV file or a card list (.txt)."));
   assert.equal(posts("/api/process/stream").length, 0);
   assert.ok(shown("#welcome-actions"));
 });

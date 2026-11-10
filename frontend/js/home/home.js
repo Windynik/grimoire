@@ -186,7 +186,7 @@ async function loadCollections() {
 
     if (data.collections.length === 0) {
       container.replaceChildren(h("p", { class: "home-empty" },
-        "No collections yet. Import a ManaBox CSV to start. ",
+        "No collections yet. Import a collection export or a card list to start. ",
         h("a", { class: "home-link", id: "home-guided-setup", href: "#welcome" }, "Start the guided setup")));
       return data.collections;
     }

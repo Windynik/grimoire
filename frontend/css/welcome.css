@@ -516,11 +516,15 @@
     border-radius: 4px;
 }
 
-.welcome-how ol {
+.welcome-how ul,
+.welcome-how p {
     margin: 12px 0 4px;
-    padding-left: 20px;
     font: 500 14px/1.7 var(--font-ui);
     color: var(--text-dim);
+}
+
+.welcome-how ul {
+    padding-left: 20px;
 }
 
 .welcome-how b {

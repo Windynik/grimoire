@@ -27,36 +27,6 @@ def mock_bulk_data():
     }
 
 
-def test_validate_csv_structure_valid():
-    """Test CSV validation with valid structure."""
-    csv_content = """Binder Name,Name,Scryfall ID
-new ones,Lightning Bolt,abc-123"""
-
-    csv_file = StringIO(csv_content)
-    reader = csv.DictReader(csv_file)
-
-    processor = CSVProcessor()
-    result = processor.validate_csv_structure(reader)
-
-    assert result["valid"] is True
-    assert "Scryfall ID" in result.get("headers", [])
-
-
-def test_validate_csv_structure_missing_scryfall_id():
-    """Test CSV validation fails without Scryfall ID column."""
-    csv_content = """Binder Name,Name
-new ones,Lightning Bolt"""
-
-    csv_file = StringIO(csv_content)
-    reader = csv.DictReader(csv_file)
-
-    processor = CSVProcessor()
-    result = processor.validate_csv_structure(reader)
-
-    assert result["valid"] is False
-    assert "Scryfall ID" in result.get("error", "")
-
-
 @pytest.mark.asyncio
 async def test_process_csv_enrichment(mock_bulk_data, tmp_path):
     """Test CSV enrichment with card data."""
@@ -77,7 +47,7 @@ new ones,Counterspell,def-456"""
 async def test_process_csv_missing_id(mock_bulk_data, tmp_path):
     """Test CSV processing with missing Scryfall ID."""
     csv_content = """Binder Name,Name,Scryfall ID
-new ones,Lightning Bolt,
+new ones,Mystery Card,
 new ones,Counterspell,def-456"""
 
     processor = CSVProcessor(progress_dir=str(tmp_path))
@@ -88,6 +58,31 @@ new ones,Counterspell,def-456"""
     assert result.success_count == 1
     assert result.error_count == 1
     assert len(result.errors) == 1
+    # Another app's row without an ID names a card that the data does not have.
+    assert result.errors[0]["error"] == "unknown_card"
+
+
+@pytest.mark.asyncio
+async def test_process_csv_finds_a_card_without_an_id_by_name(mock_bulk_data, tmp_path):
+    csv_content = """Binder Name,Name,Scryfall ID
+new ones,Lightning Bolt,"""
+
+    processor = CSVProcessor(progress_dir=str(tmp_path))
+    result = await processor.process_csv(csv_content, mock_bulk_data)
+
+    assert result.success_count == 1
+    assert result._original_rows[0]["Scryfall ID"] == "abc-123"
+
+
+@pytest.mark.asyncio
+async def test_process_csv_manabox_row_without_an_id(mock_bulk_data, tmp_path):
+    csv_content = """Name,Set code,ManaBox ID,Scryfall ID
+Lightning Bolt,M10,1,"""
+
+    processor = CSVProcessor(progress_dir=str(tmp_path))
+    result = await processor.process_csv(csv_content, mock_bulk_data)
+
+    assert result.source_format == "ManaBox"
     assert result.errors[0]["error"] == "missing_scryfall_id"
 
 
@@ -162,16 +157,16 @@ async def test_process_csv_progress_callback(mock_bulk_data, tmp_path):
 
 @pytest.mark.asyncio
 async def test_process_csv_invalid_structure(tmp_path):
-    """Test processing with invalid CSV structure."""
-    csv_content = """Binder Name,Name
-new ones,Lightning Bolt"""
+    """Text without a card row is an error."""
+    csv_content = """Sideboard
+// nothing here"""
 
     processor = CSVProcessor(progress_dir=str(tmp_path))
     result = await processor.process_csv(csv_content, {})
 
     assert result.status == "error"
     assert len(result.errors) > 0
-    assert "Scryfall ID" in result.errors[0]["error"]
+    assert "could not read this file" in result.errors[0]["error"]
 
 
 @pytest.mark.asyncio
@@ -193,7 +188,9 @@ Counterspell,blue,def-456,3"""
         reader = csv.DictReader(f)
         assert headers == reader.fieldnames
         assert rows == list(reader)
+    # Another app's export gets the ManaBox columns that it lacks.
     assert headers == ["Name", "Binder", "Scryfall ID", "Quantity",
+                       "Set code", "Set name", "Collector number", "Foil", "Rarity",
                        "Mana Cost", "Oracle Text", "Type Line"]
     assert success_count == 2
     assert errors == result.errors

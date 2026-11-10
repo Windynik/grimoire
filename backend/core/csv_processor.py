@@ -4,6 +4,7 @@ import uuid
 from io import StringIO
 from pathlib import Path
 from typing import Dict, Optional, Callable, Any, List, Tuple
+from backend.core.importers import ImportFormatError, read_import
 from backend.core.paths import cache_path
 from backend.models.schemas import ProcessResult
 
@@ -16,6 +17,7 @@ def enrich_rows(
     rows: List[dict],
     bulk_data: Dict[str, dict],
     progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
+    missing_error: str = "missing_scryfall_id",
 ) -> Tuple[List[str], List[dict], List[dict], int]:
     """Add the enhanced columns to copies of the rows.
 
@@ -24,6 +26,7 @@ def enrich_rows(
         rows: Parsed CSV rows (not changed)
         bulk_data: Dictionary mapping Scryfall ID to card data
         progress_callback: Optional callback, called every 10 rows
+        missing_error: The error code of a row with no Scryfall ID
 
     Returns:
         (headers with the enhanced columns, enriched row copies, errors, success count)
@@ -54,7 +57,7 @@ def enrich_rows(
             errors.append({
                 "row": row_num,
                 "card": card_name,
-                "error": "not_found" if scryfall_id else "missing_scryfall_id"
+                "error": "not_found" if scryfall_id else missing_error
             })
 
         enriched_rows.append(row)
@@ -99,28 +102,6 @@ class CSVProcessor:
         self.progress_dir = Path(progress_dir) if progress_dir else cache_path("progress")
         self.progress_dir.mkdir(parents=True, exist_ok=True)
 
-    def validate_csv_structure(self, reader: csv.DictReader) -> Dict[str, Any]:
-        """Validate CSV has required columns.
-
-        Args:
-            reader: CSV DictReader instance
-
-        Returns:
-            Dictionary with validation result
-        """
-        headers = reader.fieldnames or []
-
-        if "Scryfall ID" not in headers:
-            return {
-                "valid": False,
-                "error": "CSV must contain 'Scryfall ID' column"
-            }
-
-        return {
-            "valid": True,
-            "headers": headers
-        }
-
     async def process_csv(
         self,
         csv_content: str,
@@ -154,31 +135,22 @@ class CSVProcessor:
         if job_id is None:
             job_id = str(uuid.uuid4())
 
-        # Parse CSV
-        csv_file = StringIO(csv_content)
-        reader = csv.DictReader(csv_file)
+        # Read the export of any app, or a card list, and find each card.
+        # Every row is read first, so progress reports know the real total.
+        try:
+            parsed = read_import(csv_content, bulk_data)
+        except ImportFormatError as exc:
+            return ProcessResult(job_id=job_id, status="error", errors=[{"error": str(exc)}])
 
-        # Validate structure
-        validation = self.validate_csv_structure(reader)
-        if not validation["valid"]:
-            return ProcessResult(
-                job_id=job_id,
-                status="error",
-                errors=[{"error": validation["error"]}]
-            )
-
-        # Reset reader
-        csv_file.seek(0)
-        reader = csv.DictReader(csv_file)
-
-        original_headers = list(reader.fieldnames or [])
-
-        # Read every row first so progress reports know the real total
-        rows = list(reader)
+        original_headers = parsed.headers
+        rows = parsed.rows
         total_rows = len(rows)
 
+        # A ManaBox row keeps its own Scryfall ID. Any other row without one
+        # names a card that is not in the card data.
+        missing = "missing_scryfall_id" if parsed.source == "manabox" else "unknown_card"
         headers, enriched_rows, errors, success_count = enrich_rows(
-            original_headers, rows, bulk_data, progress_callback
+            original_headers, rows, bulk_data, progress_callback, missing
         )
 
         # Save output
@@ -192,7 +164,9 @@ class CSVProcessor:
             success_count=success_count,
             error_count=len(errors),
             errors=errors,
-            output_file=str(output_file)
+            output_file=str(output_file),
+            source_format=parsed.label,
+            notice=parsed.notice,
         )
 
         # Store enriched rows for potential use by caller
