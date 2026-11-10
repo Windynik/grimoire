@@ -134,6 +134,12 @@ test("Ollama down shows engine-only", async () => {
   assert.deepEqual(optionTexts("settings-model"), ["Automatic (recommended)", "Engine only (no AI)"]);
 });
 
+test("Ollama with no models says it runs and how to get a model", async () => {
+  await setup({ ai: { available: false, running: true, models: [], default_model: null, recommended: "qwen3.5:9b" } });
+  await app.until(() => /running, but it has no models/.test($("settings-ai-status").textContent));
+  assert.match($("settings-ai-status").textContent, /ollama pull qwen3\.5:9b/);
+});
+
 test("Check again asks the status again", async () => {
   await setup();
   app.fetchLog.length = 0;

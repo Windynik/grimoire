@@ -109,7 +109,7 @@ An import from another app keeps every column of the source file. Grimoire adds 
 
 The Vault is the *Collection* screen. A switcher at the top picks a collection or the archive.
 
-- **Insights ledger.** Four counters count up: the estimated value, the rares and mythics, the foils, and the number of sets. A line above them gives the card count and the import date. The value note names the date of the Scryfall prices. Each card counts at its best price: the foil price for a foil, and the regular price for other cards. The value is the price times the quantity.
+- **Insights ledger.** Four counters count up: the estimated value, the rares and mythics, the foils, and the number of sets. A line above them gives the card count and the import date. The value note names the date of the Scryfall prices. Each card counts at its price in US dollars: the etched price for an etched foil, the foil price for a foil, and the regular price for other cards. A card with only a EUR or MTGO ticket price has no price. The value is the price times the quantity.
 - **Today's spotlight.** A fan of cards shows one rare or mythic of your collection in the middle. The spotlight changes each day. The cards beside it are your most valuable cards. When you have no rare or mythic, the fan shows your most valuable card in the middle.
 - **Color orbs.** One orb for each color, for colorless, and for multicolor shows the share of your cards. Press an orb to filter by that color.
 - **Index sidebar.** The sidebar lists Colors, Rarity, Type, Mana value, Price, Finish, Legal in, and Set. Each value shows a live count for the current result. The counts change as you search and filter. On a narrow screen the sidebar opens as a sheet.
@@ -126,11 +126,11 @@ The Vault is the *Collection* screen. A switcher at the top picks a collection o
   | `s:` | Set code | `s:neo` |
   | `f:` | Legal in a format | `f:modern` |
   | `$` | Price comparison | `$>5`, `$<1` |
-  | `foil` | Foils only | `foil` |
-  | `dupes` | Quantity above 1 | `dupes` |
-  | `new` | Cards added since the previous import | `new` |
+  | `foil` or `is:foil` | Foils only | `foil` |
+  | `dupes` or `is:dupes` | Quantity above 1 | `dupes` |
+  | `new` or `is:new` | Cards added since the previous import of this collection | `new` |
 
-  An unknown keyword stays plain text and matches the name. The archive search takes the same keywords, but not `foil`, `dupes`, or `new`.
+  An unknown keyword stays plain text and matches the name. A bare `foil`, `dupes` or `new` that finds nothing counts as name text, so `new perspectives` finds New Perspectives. A price comparison never matches a card with no price. The archive search takes the same keywords, but not `foil`, `dupes`, or `new`.
 - **Tactile tiles.** Each tile tilts toward the pointer, and a foil card has a sheen. The tile shows the quantity, the mana cost, and the price. Tilt is off with a touch screen and with the reduced-motion setting. The view control switches between a grid and a list. The size control sets the card width.
 - **Card drawer.** Press a tile to open a drawer at the right, so the results stay in view. The drawer shows a large image, the facts, the prices, the legality of each format, and the saved decks that use the card. A card with two faces has a flip button.
 - **Keys.** `/` focuses the search, and `Esc` clears it. The arrow keys move between tiles, and `Enter` opens the drawer. In the drawer, the left and right arrows show the previous and next card, `F` flips the card, and `Esc` closes the drawer.
@@ -156,7 +156,7 @@ When the forge ends, the editor opens on the new deck.
 The *Decks* screen lists your saved decks. Each deck belongs to one format.
 
 - **Create:** press *New deck*, then pick a name, a format, and a collection. The forge also saves each deck it builds.
-- **Import:** press *Import decklist*, then paste a decklist. Plain text and Arena formats both work. The editor flags cards you do not own.
+- **Import:** press *Import decklist*, then paste a decklist. Plain text, Arena, MTGO and Archidekt lists all work: section lines such as *Sideboard (15)*, lines such as *SB: 2 Duress* or *Commander: Krenko, Mob Boss*, Arena's *About* block, and Archidekt category tags. A companion goes to the sideboard once. The editor flags cards you do not own.
 - **Edit:** search your cards, add or remove copies, and move cards between sections. Undo and redo work. The stats panel shows the curve, the colors, and the legality checks.
 - **Autosave:** the editor saves each change after a short pause. It saves again when you leave. If a save fails, the editor says so, and it refuses an export until a save works.
 - **Export:** the export menu gives plain text, Arena-style text, and CSV. You can copy or download the text and Arena kinds. You can only download the CSV kind.

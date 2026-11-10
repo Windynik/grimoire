@@ -212,6 +212,9 @@ function renderStatus(ai) {
   if (ai.available) {
     const count = (ai.models || []).length;
     el.append(`Ollama is running with ${count} ${count === 1 ? "model" : "models"}.`);
+  } else if (ai.running) {
+    el.append("Ollama is running, but it has no models. The forge uses engine-only mode. "
+      + "To get a model, run ", h("code", { text: PULL_COMMAND }), ".");
   } else {
     el.append("Ollama is not running. The forge uses engine-only mode. To get a model, run ",
       h("code", { text: PULL_COMMAND }), ".");

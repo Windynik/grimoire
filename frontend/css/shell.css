@@ -191,6 +191,29 @@
     }
 }
 
+/* On a phone (under 480 px) all five links fit in the row: the brand keeps
+   its sigil only (the link keeps its "Grimoire home" label), and the links
+   pack closer. */
+@media (max-width: 480px) {
+    .brand-name {
+        display: none;
+    }
+
+    .nav {
+        gap: 0;
+    }
+
+    .nav-item {
+        padding: var(--space-2) 5px;
+        font-size: 0.84rem;
+    }
+
+    .nav-item::after {
+        left: 5px;
+        right: 5px;
+    }
+}
+
 /* Page frame: container, views, panels and footer */
 .container {
     max-width: 1200px;

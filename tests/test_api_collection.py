@@ -461,3 +461,11 @@ def test_new_cards_compare_with_the_same_collection(env):
     assert cards["Elf"]["new"] is False
     # The trade binder itself has no earlier import of the same cards.
     assert get("/api/collection/trade/insights")["has_previous"] is False
+
+
+def test_a_name_with_a_flag_word_is_still_found(env):
+    store, _ = env
+    write(store, "np", "Words", "2026-03-01T00:00:00+00:00",
+          [row("id-np", "New Perspectives"), row("id-foil", "Foil")])
+    assert names("/api/collection/np/search?q=new%20perspectives") == ["New Perspectives"]
+    assert names("/api/collection/np/search?q=foil") == ["Foil"]

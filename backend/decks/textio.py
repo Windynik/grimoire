@@ -14,8 +14,16 @@ ParsedLine = Tuple[str, int, str, Optional[str], Optional[str]]
 
 _HEADERS = {
     "commander": "commander", "deck": "main", "main": "main", "mainboard": "main",
-    "sideboard": "sideboard", "maybeboard": "maybeboard", "companion": "sideboard",
+    "sideboard": "sideboard", "maybeboard": "maybeboard", "considering": "maybeboard",
+    # Arena lists the companion under "Companion" and again in the sideboard.
+    "companion": "companion",
 }
+# A header line, with an optional card count: "Sideboard", "Deck (60)", "Sideboard: 15".
+_HEADER_LINE = re.compile(r"^(%s)\s*(?:\(\d+\)|:\s*\d*)?\s*$" % "|".join(_HEADERS), re.IGNORECASE)
+# A card line with its section in front: "Commander: Atraxa", "SB: 2 Duress".
+_INLINE = re.compile(r"^(commander|sideboard|sb|companion|maybeboard)\s*:\s*(.+)$", re.IGNORECASE)
+# Archidekt adds category tags after the set: "1x Sol Ring (cmr) 472 [Ramp]".
+_TAGS = re.compile(r"(\([A-Za-z0-9]{2,6}\)\s*\S*)\s*\[[^\]]*\]\s*$")
 _BASICS = ("Plains", "Island", "Swamp", "Mountain", "Forest", "Wastes")
 BASIC_NAMES = {n.lower(): n for n in _BASICS}
 BASIC_NAMES.update({("snow-covered " + n).lower(): "Snow-Covered " + n
@@ -132,7 +140,8 @@ def export_csv(record: dict, index: Dict[str, dict]) -> str:
 
 
 def _header(line: str) -> Optional[str]:
-    return _HEADERS.get(line.strip().rstrip(":").strip().lower())
+    match = _HEADER_LINE.match(line.strip())
+    return _HEADERS[match.group(1).lower()] if match else None
 
 
 def parse_decklist(text: str) -> List[ParsedLine]:
@@ -150,19 +159,33 @@ def parse_decklist(text: str) -> List[ParsedLine]:
     lines = text.splitlines()
     has_headers = any(_header(line) for line in lines)
     section, seen_main = "main", False
+    about = False  # inside Arena's "About" block, which names the deck
     parsed = []  # type: List[ParsedLine]
     for raw in lines:
         line = raw.strip()
         if not line:
+            about = False
             if not has_headers and section == "main" and seen_main:
                 section = "sideboard"
             continue
         if line.startswith("//") or line.startswith("#"):
             continue
+        if line.lower() == "about":
+            about = True
+            continue
+        if about:
+            continue
         header = _header(line)
         if header:
             section = header
             continue
+        line_section = section
+        inline = _INLINE.match(line)
+        if inline:
+            word = inline.group(1).lower()
+            line_section = "sideboard" if word == "sb" else _HEADERS[word]
+            line = inline.group(2).strip()
+        line = _TAGS.sub(r"\1", line)
         line = _FOIL.sub("", line)
         count = 1
         match = _COUNT.match(line)
@@ -182,10 +205,24 @@ def parse_decklist(text: str) -> List[ParsedLine]:
         name = line.strip()
         if not name:
             continue
-        if section == "main":
+        if line_section == "main":
             seen_main = True
-        parsed.append((section, count, name, code, number))
-    return parsed
+        parsed.append((line_section, count, name, code, number))
+    return _place_companions(parsed)
+
+
+def _place_companions(parsed: List[ParsedLine]) -> List[ParsedLine]:
+    """Put each companion in the sideboard once: drop it when the sideboard lists it too."""
+    listed = {name.lower() for section, _, name, _, _ in parsed if section == "sideboard"}
+    out = []  # type: List[ParsedLine]
+    for line in parsed:
+        section, count, name, code, number = line
+        if section == "companion":
+            if name.lower() in listed:
+                continue
+            line = ("sideboard", count, name, code, number)
+        out.append(line)
+    return out
 
 
 def _oracle_key(info: dict) -> str:

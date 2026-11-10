@@ -244,13 +244,29 @@ def _unquote(value: str) -> str:
     return value[1:-1] if len(value) >= 2 and value[0] == value[-1] == '"' else value.strip('"')
 
 
-def parse_query(q: str) -> Query:
-    """Split a search string into keyword filters and name words."""
+FLAG_WORDS = ("foil", "dupes", "new")
+
+
+def has_flag_words(q: str) -> bool:
+    """True when the search has a bare "foil", "dupes" or "new" (see parse_query)."""
+    return any(token.lower() in FLAG_WORDS for token in _TOKEN.findall(q or ""))
+
+
+def parse_query(q: str, flags_as_text: bool = False) -> Query:
+    """Split a search string into keyword filters and name words.
+
+    The bare words "foil", "dupes" and "new" are filters, unless
+    flags_as_text is True: then they are name words, as in "New
+    Perspectives". "is:foil", "is:dupes" and "is:new" are always filters.
+    """
     query = Query()
     for token in _TOKEN.findall(q or ""):
         low = token.lower()
-        if low in ("foil", "dupes", "new"):
-            setattr(query, low, True)
+        flag = low[3:] if low.startswith("is:") else (low if not flags_as_text else "")
+        if flag == "dupe":
+            flag = "dupes"
+        if flag in FLAG_WORDS:
+            setattr(query, flag, True)
             continue
         price = _PRICE.match(token)
         if price:

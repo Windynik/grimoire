@@ -16,6 +16,7 @@ from backend.core.collection_query import (
     insights,
     new_since,
     owned_cards,
+    has_flag_words,
     parse_query,
     previous_import,
     search,
@@ -178,6 +179,12 @@ async def search_collection(
         includes_color=color.strip().upper(),
     )
     results, facets, value = search(merged.cards, parse_query(q), filters, sort, merged.new_keys)
+    if not results and has_flag_words(q):
+        # "new perspectives" or the card "Foil": the bare word was a name.
+        found = search(merged.cards, parse_query(q, flags_as_text=True), filters, sort,
+                       merged.new_keys)
+        if found[0]:
+            results, facets, value = found
 
     limit = max(1, min(limit, 200))
     offset = max(0, offset)

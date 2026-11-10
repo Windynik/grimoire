@@ -208,3 +208,18 @@ async def test_stream_text_options_and_errors():
     err = httpx.Response(200, text=json.dumps({"error": "boom"}))
     with pytest.raises(ModelError):
         _ = [c async for c in _client(lambda r: err).stream_text("p", model="m")]
+
+
+@pytest.mark.asyncio
+async def test_status_tells_running_with_no_models_from_not_running():
+    empty = _client(lambda request: httpx.Response(200, json={"models": []}))
+    assert await empty.status() == {"available": False, "running": True, "models": [],
+                                    "default_model": None}
+
+    def down(request):
+        raise httpx.ConnectError("refused")
+
+    assert (await _client(down).status())["running"] is False
+    one = _client(lambda request: httpx.Response(200, json={"models": [{"name": "qwen3.5:9b"}]}))
+    assert await one.status() == {"available": True, "running": True, "models": ["qwen3.5:9b"],
+                                  "default_model": "qwen3.5:9b"}

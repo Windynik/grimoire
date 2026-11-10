@@ -115,8 +115,8 @@ class OllamaClient:
         self.base_url = base_url.rstrip("/")
         self.transport = transport
 
-    async def list_models(self) -> List[str]:
-        """Names of locally installed models, or [] if Ollama is unreachable."""
+    async def _installed(self) -> Optional[List[str]]:
+        """Names of locally installed models, or None if Ollama is unreachable."""
         try:
             async with httpx.AsyncClient(timeout=2.0, transport=self.transport) as client:
                 response = await client.get(f"{self.base_url}/api/tags")
@@ -124,12 +124,19 @@ class OllamaClient:
                 data = response.json()
                 return [m["name"] for m in data.get("models", [])]
         except Exception:
-            return []
+            return None
+
+    async def list_models(self) -> List[str]:
+        """Names of locally installed models, or [] if Ollama is unreachable."""
+        return await self._installed() or []
 
     async def status(self) -> dict:
-        models = await self.list_models()
+        """available: a model can run. running: Ollama answers, with or without models."""
+        installed = await self._installed()
+        models = installed or []
         return {
             "available": bool(models),
+            "running": installed is not None,
             "models": models,
             "default_model": self.pick_model(models),
         }

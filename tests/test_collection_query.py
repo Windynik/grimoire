@@ -390,3 +390,15 @@ def test_previous_import_is_the_same_collection_not_the_last_one():
     assert previous_import(main_again, []) is None
     # On a tie the newer one wins.
     assert previous_import(main_again, [main, main]) == 0
+
+
+def test_flag_words_can_be_names():
+    from backend.core.collection_query import has_flag_words
+    query = parse_query("new perspectives")
+    assert query.new and query.name_words == ["perspectives"]
+    as_text = parse_query("new perspectives", flags_as_text=True)
+    assert not as_text.new and as_text.name_words == ["new", "perspectives"]
+    # The is: forms are always filters.
+    explicit = parse_query("is:new is:dupe perspectives", flags_as_text=True)
+    assert explicit.new and explicit.dupes and explicit.name_words == ["perspectives"]
+    assert has_flag_words("Foil") and not has_flag_words("is:foil bolt")

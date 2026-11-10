@@ -392,6 +392,19 @@ test("the keyword text reaches q", async () => {
   assert.equal(lastSearch().query.get("limit"), "60");
 });
 
+test("text typed just before a filter click goes out with the filter", async () => {
+  await openVault();
+  const input = $("#vault-search");
+  input.value = "bolt";
+  input.dispatchEvent(new window.Event("input", { bubbles: true }));
+  // The click comes before the search delay ends, and it moves the focus.
+  input.blur();
+  facetOpt("rarity", "rare").click();
+  await app.until(() => lastSearch()?.query.get("rarity") === "rare");
+  assert.equal(lastSearch().query.get("q"), "bolt");
+  assert.equal(input.value, "bolt");
+});
+
 test("/ focuses the search, and Escape clears a focused search", async () => {
   await openVault();
   const input = $("#vault-search");

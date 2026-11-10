@@ -150,3 +150,37 @@ def test_parse_counts_outside_range_are_not_card_lines():
     assert parsed[4] == ("main", 250, "Forest", None, None)
     sections, _, unknown = resolve(parsed, {}, {})
     assert len(unknown) == 4 and sections["main"][0]["count"] == 250
+
+
+def test_parse_reads_headers_with_counts_and_inline_cards():
+    text = "\n".join([
+        "About", "Name My Burn", "",
+        "Commander: Krenko, Mob Boss",
+        "Deck (2)", "2 Lightning Bolt",
+        "Sideboard (2)", "1 Shock",
+        "SB: 1 Duress",
+        "Sideboard: 1",
+    ])
+    assert parse_decklist(text) == [
+        ("commander", 1, "Krenko, Mob Boss", None, None),
+        ("main", 2, "Lightning Bolt", None, None),
+        ("sideboard", 1, "Shock", None, None),
+        ("sideboard", 1, "Duress", None, None),
+    ]
+
+
+def test_parse_reads_an_arena_companion_once():
+    text = "Companion\n1 Lurrus of the Dream-Den (IKO) 226\n\nDeck\n4 Lightning Bolt\n\n" \
+           "Sideboard\n1 Lurrus of the Dream-Den (IKO) 226\n2 Shock"
+    parsed = parse_decklist(text)
+    lurrus = [p for p in parsed if p[2] == "Lurrus of the Dream-Den"]
+    assert lurrus == [("sideboard", 1, "Lurrus of the Dream-Den", "IKO", "226")]
+    # A companion that the sideboard does not list goes to the sideboard.
+    only = parse_decklist("Companion\n1 Lurrus of the Dream-Den\n\nDeck\n4 Lightning Bolt")
+    assert ("sideboard", 1, "Lurrus of the Dream-Den", None, None) in only
+
+
+def test_parse_drops_archidekt_category_tags():
+    parsed = parse_decklist("1x Sol Ring (cmr) 472 [Ramp]\n1x Arcane Signet (cmr) 297 [Ramp,Mana]")
+    assert parsed == [("main", 1, "Sol Ring", "CMR", "472"),
+                      ("main", 1, "Arcane Signet", "CMR", "297")]

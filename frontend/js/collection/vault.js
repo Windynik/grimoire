@@ -78,7 +78,7 @@ const screen = {
   setsFrom: "", // the code of the set whose checklist opened last
   stale: true, // the loaded cards are not the result of the current state
 };
-let searchTimer = 0;
+let searchTimer = 0; // set while a typed search waits for SEARCH_DELAY
 
 const byId = (id) => document.getElementById(id);
 
@@ -89,13 +89,16 @@ function fill(el, ...nodes) {
 
 // ---- opening a card --------------------------------------------------------
 
-/** Open one card of a list in the drawer, which moves through the list. */
-export function openCard(list, index) {
+/**
+ * Open one card of a list in the drawer, which moves through the list.
+ * `more` can give the drawer {total, loadMore} to move past the loaded cards.
+ */
+export function openCard(list, index, more = {}) {
   if (!list || !list[index]) return;
   // The card controls of the area that opened the drawer take the focus back.
   const opener = document.activeElement;
   const area = (opener && opener.closest && opener.closest("[id^='vault-']")) || document;
-  openDrawer(list, index, { onNavigate: (card) => followCard(card, area) });
+  openDrawer(list, index, { ...more, onNavigate: (card) => followCard(card, area) });
 }
 
 // The drawer moved to another card: the control of that card gets the focus on close.
@@ -120,6 +123,13 @@ function remember() {
 
 /** Change the state, save it, redraw the controls, and search again. */
 function update(change) {
+  if (searchTimer) {
+    // A typed search still waits for its delay: it goes out with this change,
+    // so a quick filter click does not lose the text.
+    clearTimeout(searchTimer);
+    searchTimer = 0;
+    screen.state.q = ui.search.value.trim();
+  }
   change(screen.state);
   screen.state = normalizeState(screen.state, { archive: screen.archive });
   remember();
@@ -338,7 +348,11 @@ function renderCount() {
 }
 
 function openFrom(card) {
-  openCard(screen.cards, screen.cards.indexOf(card));
+  // The drawer moves through the whole result: it loads the next page itself.
+  openCard(screen.cards, screen.cards.indexOf(card), {
+    total: () => (screen.done ? screen.cards.length : screen.total),
+    loadMore,
+  });
 }
 
 function drawList(list) {
@@ -877,6 +891,7 @@ function onMenuKey(event) {
 function onSearchInput() {
   clearTimeout(searchTimer);
   searchTimer = setTimeout(() => {
+    searchTimer = 0;
     const q = ui.search.value.trim();
     if (q === screen.state.q.trim()) return;
     update((s) => { s.q = q; });

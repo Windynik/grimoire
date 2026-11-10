@@ -169,9 +169,9 @@ function show() {
     legalBlock(card),
     decks].filter(Boolean));
 
-  els.pos.textContent = `${state.index + 1} of ${state.cards.length}`;
+  els.pos.textContent = `${state.index + 1} of ${total()}`;
   els.prev.disabled = state.index <= 0;
-  els.next.disabled = state.index >= state.cards.length - 1;
+  els.next.disabled = state.index >= total() - 1;
   loadDecks(card, decks, token);
 }
 
@@ -206,9 +206,28 @@ async function loadDecks(card, box, token) {
 
 // ---- actions ---------------------------------------------------------------
 
-function go(step) {
+// The number of cards in the result: options.total (a number or a function)
+// counts the cards that are not loaded yet.
+function total() {
+  const given = typeof state.options.total === "function" ? state.options.total() : state.options.total;
+  return Math.max(state.cards.length, Number(given) || 0);
+}
+
+async function go(step) {
   const next = state.index + step;
-  if (next < 0 || next >= state.cards.length) return;
+  if (next < 0 || next >= total()) return;
+  if (next >= state.cards.length) {
+    // The next card is on a page that is not loaded yet: load it first.
+    if (typeof state.options.loadMore !== "function" || state.loadingMore) return;
+    const token = state.token;
+    state.loadingMore = true;
+    try {
+      await state.options.loadMore();
+    } finally {
+      state.loadingMore = false;
+    }
+    if (token !== state.token || next >= state.cards.length) return;
+  }
   state.index = next;
   show();
   if (typeof state.options.onNavigate === "function") {

@@ -326,3 +326,23 @@ test("a tile click on the Vault opens the drawer with its position", async () =>
   assert.equal($(".vault-dname").textContent, "Card 2");
   assert.equal($(".vault-dpos").textContent, "2 of 2");
 });
+
+test("next at the end of the loaded cards loads the next page", async () => {
+  const list = [card(1), card(2), card(3)];
+  let loads = 0;
+  const loadMore = async () => {
+    loads += 1;
+    list.push(card(4), card(5));
+  };
+  drawer.openDrawer(list, 2, { total: () => 5, loadMore });
+  assert.equal($(".vault-dpos").textContent, "3 of 5");
+  assert.equal($(".vault-dnext").disabled, false);
+  $(".vault-dnext").click();
+  await app.until(() => $(".vault-dpos").textContent === "4 of 5");
+  assert.equal(loads, 1);
+  assert.equal($(".vault-dname").textContent, "Card 4");
+  key("ArrowRight");
+  await app.until(() => $(".vault-dpos").textContent === "5 of 5");
+  assert.equal($(".vault-dnext").disabled, true);
+  assert.equal(loads, 1);
+});

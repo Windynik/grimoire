@@ -195,6 +195,8 @@ function makeTile(name, card) {
   tile.dataset.name = name;
   tile.setAttribute("role", "radio");
   tile.setAttribute("aria-checked", "false");
+  // The card image is art: the name tells a screen reader which commander this is.
+  tile.setAttribute("aria-label", name || "Let the agent choose");
   tile.tabIndex = -1;
   if (cardImage(art)) {
     // startForge reads these to show the asked commander at once.
