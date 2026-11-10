@@ -90,3 +90,17 @@ def test_apply_swaps_takes_a_hybrid_card_castable_in_the_deck_colors(playbook, o
     out = _bear(deck)
     applied = apply_swaps(deck, [{"out": out.name, "in": "Slippery Bogle"}], pool, set())
     assert [s["in"] for s in applied] == ["Slippery Bogle"]
+
+
+def test_apply_swaps_rejects_a_card_of_a_color_with_no_land_source(playbook):
+    deck, pool = _setup(playbook)
+    # Take the Plains out: the deck has no white source left.
+    deck.entries = [e for e in deck.entries if e.name != "Plains"]
+    out = _bear(deck)
+    outside = [c for c in sorted(pool.values(), key=lambda c: c.name)
+               if not c.is_land and c.name.lower() not in deck.names()]
+    white = next(c for c in outside if c.pips.get("W") and not c.pips.get("G"))
+    green = next(c for c in outside if c.pips.get("G") and not c.pips.get("W"))
+    assert apply_swaps(deck, [{"out": out.name, "in": white.name, "why": "w"}], pool, set()) == []
+    applied = apply_swaps(deck, [{"out": out.name, "in": green.name, "why": "g"}], pool, set())
+    assert [s["in"] for s in applied] == [green.name]

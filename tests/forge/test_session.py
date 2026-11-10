@@ -9,7 +9,8 @@ from backend.forge.cards import hydrate
 from backend.forge.graph import Backbone
 from backend.forge.llm import BACKBONE_SCHEMA, REASONS_SCHEMA, SWAP_SCHEMA
 from backend.forge.session import (
-    ENGINE_ONLY, MODEL_FAILED, ForgeManager, ForgeParams, ForgeSession, wish_names, wish_tribes,
+    ENGINE_ONLY, MODEL_FAILED, ForgeManager, ForgeParams, ForgeSession, wish_colors, wish_names,
+    wish_tribes,
 )
 from tests.forge.conftest import make_pool, make_record
 
@@ -774,10 +775,69 @@ def test_wish_names_skip_negated_names(rules):
                                      "Lightning Bolt", "Counterspell", "Fire // Ice")]
     cards = hydrate(*make_pool(recs), rules["casual"])
     wish = ("Play Sol Ring, but no Llanowar Elves. Not a Dark Ritual, nothing without "
-            "Lightning Bolt, everything except the Counterspell. Also fire.")
+            "Lightning Bolt, everything except the Counterspell. Also Fire.")
     assert wish_names(wish, cards) == {"Sol Ring", "Fire // Ice"}
     assert wish_names("No Sol Ring here. Then add Sol Ring.", cards) == {"Sol Ring"}
     assert wish_names("knot Sol Ring; snot dark ritual", cards) == {"Sol Ring", "Dark Ritual"}
+
+
+def test_one_word_names_need_a_capital_or_quotes(rules):
+    recs = [make_record(n) for n in ("Sacrifice", "Flash", "Life // Death", "Turn // Burn",
+                                     "Fire // Ice")]
+    cards = hydrate(*make_pool(recs), rules["casual"])
+    # Common deck words do not force a card in.
+    assert wish_names("aggro that drains life and wins by turn five with flash", cards) == set()
+    assert wish_names("a sacrifice deck", cards) == set()
+    assert wish_names("Sacrifice deck, please", cards) == set()  # a sentence starts there
+    assert wish_names('a deck with "sacrifice" in it', cards) == {"Sacrifice"}
+    assert wish_names("a deck with Flash and Fire", cards) == {"Flash", "Fire // Ice"}
+    assert wish_names("play life // death", cards) == {"Life // Death"}
+
+
+def test_negation_covers_the_whole_clause(rules):
+    recs = [angel("Angel A"), make_record("Goblin A", type_line="Creature — Goblin"),
+            make_record("Elf A", type_line="Creature — Elf")]
+    cards = hydrate(*make_pool(recs), rules["modern"])
+    plurals = {"Elf": "Elves"}
+    assert wish_tribes("no goblins or elves", cards, plurals) == set()
+    assert wish_tribes("I don't want elves, give me angels", cards, plurals) == {"Angel"}
+    assert wish_tribes("no more elves", cards, plurals) == set()
+    assert wish_tribes("angels but no elves", cards, plurals) == {"Angel"}
+    assert wish_tribes("a deck without goblins, with elves", cards, plurals) == {"Elf"}
+
+
+def test_wish_colors():
+    assert wish_colors("a red aggro deck with goblins") == frozenset("R")
+    assert wish_colors("Mono-Red burn") == frozenset("R")
+    assert wish_colors("a Rakdos sacrifice deck") == frozenset("BR")
+    assert wish_colors("black-green elves") == frozenset("BG")
+    assert wish_colors("no blue, black and green") == frozenset("BG")
+    assert wish_colors("angels and shapeshifters") is None
+    assert wish_colors("a deck with Black Lotus", {"Black Lotus"}) is None
+    assert wish_colors("credit and greenery") is None  # whole words only
+
+
+@pytest.mark.asyncio
+async def test_a_wished_color_keeps_the_plan_to_it(tmp_path):
+    session, store = await start(tmp_path, pool=two_plan_pool(extra_death=4), ask_mode="never",
+                                 wish="a white deck")
+    events = await collect(session)
+    deck = saved(store, events)
+    assert "lifegain" in deck["backbone"]["hooks"], deck["backbone"]
+    main = {e["name"] for e in deck["sections"]["main"]}
+    assert not any(name.startswith(("Sac Outlet", "Death Payoff")) for name in main)
+    thoughts = [e["text"] for e in of_type(events, "thought")]
+    assert any("Your wish names white" in t for t in thoughts), thoughts
+
+
+@pytest.mark.asyncio
+async def test_a_wished_color_with_no_plan_falls_back_to_any_color(tmp_path):
+    session, store = await start(tmp_path, pool=two_plan_pool(extra_death=4), ask_mode="never",
+                                 wish="a blue deck")
+    events = await collect(session)
+    assert events[-1]["type"] == "done", events[-1]
+    thoughts = [e["text"] for e in of_type(events, "thought")]
+    assert any("No plan fits only blue cards" in t for t in thoughts), thoughts
 
 
 # ---- wished tribes ---------------------------------------------------------
@@ -965,3 +1025,76 @@ async def test_failed_and_cancelled_runs_write_an_audit(tmp_path):
     session.cancel()
     await collect(session)
     assert audit(tmp_path, session)["state"] == "cancelled"
+
+
+@pytest.mark.asyncio
+async def test_a_model_question_defaults_to_the_wished_plan(tmp_path):
+    question = {"text": "Which plan?", "options": [
+        {"label": "Aristocrats", "description": "", "candidate_id": DEATH_ID},
+        {"label": "Angels", "description": "", "candidate_id": "tribal:Angel:W"}]}
+    client = FakeClient(backbone={"ranking": [DEATH_ID], "plans": [], "close_call": True,
+                                  "question": question})
+    session, store = await start(tmp_path, pool=angel_pool(), client=client,
+                                 ask_mode="countdown", wish="an angels deck")
+    events = await collect(session)
+    asked = of_type(events, "question")
+    assert asked and asked[0]["options"][0]["label"] == "Angels"
+    assert saved(store, events)["backbone"]["hooks"] == ["tribal:Angel"]
+
+
+@pytest.mark.asyncio
+async def test_a_model_question_without_the_wished_plan_is_not_asked(tmp_path):
+    question = {"text": "Which plan?", "options": [
+        {"label": "Aristocrats", "description": "", "candidate_id": DEATH_ID},
+        {"label": "Lifegain", "description": "", "candidate_id": LIFE_ID}]}
+    client = FakeClient(backbone={"ranking": [DEATH_ID], "plans": [], "close_call": True,
+                                  "question": question})
+    session, store = await start(tmp_path, pool=angel_pool(), client=client,
+                                 ask_mode="countdown", wish="an angels deck")
+    events = await collect(session)
+    asked = of_type(events, "question")
+    assert asked and asked[0]["options"][0]["label"] != "Aristocrats"
+    assert saved(store, events)["backbone"]["hooks"] == ["tribal:Angel"]
+
+
+def vanilla_commander_pool():
+    """A black sacrifice plan, 30 green filler cards and a green legend with no plan."""
+    recs = [creature(f"Sac Outlet {i}", i, SAC, "B") for i in range(6)]
+    recs += [creature(f"Death Payoff {i}", 10 + i, DEATH, "B") for i in range(6)]
+    recs += [make_record(f"Green Good {i}", type_line="Creature — Ooze", mana_cost="{2}{G}",
+                         cmc=3, color_identity=("G",), rank=100) for i in range(30)]
+    recs += [make_record("Vanilla Legend", type_line="Legendary Creature — Elf",
+                         mana_cost="{G}", cmc=1, color_identity=("G",))]
+    return make_pool(recs)
+
+
+@pytest.mark.asyncio
+async def test_a_chosen_commander_with_no_plan_gets_its_best_cards(tmp_path):
+    session, store = await start(tmp_path, pool=vanilla_commander_pool(), ask_mode="never",
+                                 format="commander", commander="Vanilla Legend")
+    events = await collect(session)
+    assert events[-1]["type"] == "done", events[-1]
+    deck = saved(store, events)
+    assert deck["commander"]["name"] == "Vanilla Legend"
+    names = {e["name"] for e in deck["sections"]["main"]}
+    assert "Green Good 0" in names and not any(n.startswith("Sac Outlet") for n in names)
+    thoughts = [e["text"] for e in of_type(events, "thought")]
+    assert any("No synergy plan fits Vanilla Legend" in t for t in thoughts), thoughts
+
+
+@pytest.mark.asyncio
+async def test_key_interactions_name_only_cards_in_the_deck(tmp_path):
+    pool = two_plan_pool(extra_death=8)
+    # An engine-only run shows which black card does not make the deck.
+    first, first_store = await start(tmp_path / "a", pool=pool, ask_mode="never")
+    main = {e["name"] for e in saved(first_store, await collect(first))["sections"]["main"]}
+    black = [f"Sac Outlet {i}" for i in range(5)] + [f"Death Payoff {i}" for i in range(13)]
+    left_out = next(name for name in black if name not in main)
+    client = FakeClient(backbone={"ranking": [DEATH_ID], "close_call": False, "plans": [{
+        "candidate_id": DEATH_ID, "thesis": "Drain.", "deck_name": "Drain",
+        "playstyle": "midrange", "key_interactions": [
+            {"cards": ["Sac Outlet 0", "Death Payoff 0"], "why": "Sac for value."},
+            {"cards": ["Sac Outlet 0", left_out], "why": "Not in this deck."}]}]})
+    session, store = await start(tmp_path / "b", pool=pool, client=client, ask_mode="never")
+    found = saved(store, await collect(session))["backbone"]["key_interactions"]
+    assert [i["cards"] for i in found] == [["Sac Outlet 0", "Death Payoff 0"]]

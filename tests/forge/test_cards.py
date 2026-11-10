@@ -127,3 +127,21 @@ def test_unowned_cards_are_dropped_after_merge(rules):
     index = {zero["id"]: zero, merged["id"]: merged, other["id"]: other}
     cards = hydrate(collection, index, rules["modern"])
     assert [(c.name, c.owned) for c in cards] == [("Two Prints", 1)]
+
+
+def test_a_card_without_a_mana_cost_needs_its_colors(rules):
+    vision = make_record("Ancestral Vision", type_line="Sorcery", mana_cost="",
+                         color_identity=("U",), oracle_text="Suspend 4—{U}")
+    card = hydrate_one(vision, rules["modern"])
+    assert not castable_in(card, frozenset("R"))
+    assert castable_in(card, frozenset("U"))
+    assert not fits_colors(card, frozenset("R"), rules["modern"])
+
+
+def test_casual_leaves_out_cards_that_never_go_in_a_deck(rules):
+    recs = [make_record("Backup Plan", type_line="Conspiracy"),
+            make_record("Tomb of Annihilation", type_line="Dungeon"),
+            make_record("Bumper Cars", type_line="Artifact — Attraction"),
+            make_record("Grizzly Bears", type_line="Creature — Bear")]
+    names = [c.name for c in hydrate(*make_pool(recs), rules["casual"])]
+    assert names == ["Grizzly Bears"]

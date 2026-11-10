@@ -448,3 +448,19 @@ def test_find_backbones_is_fast_on_a_real_collection_size(playbook, rules):
     assert built - start < 2.0
     assert done - built < 2.0
     assert isinstance(graph, SynergyGraph)
+
+
+@pytest.mark.parametrize("color", ["R", "G"])
+def test_a_tie_between_scopes_takes_the_fewest_colors(playbook, rules, color):
+    # Off-color spells add nothing to the plan, so the BR or BG scope only ties
+    # the mono-color one. The tie must not add a color.
+    recs = [creature(f"Sac {i}", i, SAC, colors=(color,)) for i in range(6)]
+    recs += [creature(f"Pay {i}", 10 + i, DEATH_PAYOFF, colors=(color,)) for i in range(6)]
+    recs += [make_record(f"Black Kill {i}", type_line="Instant", mana_cost="{1}{B}",
+                         color_identity=("B",), oracle_text="Destroy target creature.")
+             for i in range(4)]
+    cards = tagged_pool(playbook, recs, fmt="modern", quantities=[4] * len(recs))
+    graph = build_graph(cards, playbook)
+    backbones = find_backbones(cards, graph, rules["modern"], playbook)
+    assert backbones[0].hooks == ("death",)
+    assert backbones[0].colors == frozenset(color)

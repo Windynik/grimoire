@@ -405,10 +405,15 @@ def land_tier(card: OwnedCard, colors: FrozenSet[str]) -> Optional[int]:
         nothing outside the deck colors and C; TIER_ANY for lands that make a
         deck color and also colors outside the deck; TIER_UTILITY for every
         other land that makes only deck colors or C (one color, colorless,
-        none); None for a land that makes only colors outside the deck.
+        none); None for a land that makes only colors outside the deck, and
+        for a fetch land that fetches only colors outside the deck.
     """
     if fetch_colors(card, colors):
         return TIER_DUAL
+    if fetch_colors(card, frozenset(COLORS)):
+        # A fetch land for colors outside the deck (Flooded Strand in a red
+        # deck) fetches nothing.
+        return None
     made = frozenset(card.produced_mana) & colors
     if card.produced_mana - colors - {"C"}:
         return TIER_ANY if made else None

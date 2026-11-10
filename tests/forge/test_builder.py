@@ -580,3 +580,18 @@ def test_color_sources_matches_source_shortfalls(playbook, rules):
     assert source_shortfalls(entries, demand, fmt, colors) == [
         ("G", sources["G"], fmt.color_sources["primary"]),
         ("U", sources["U"], fmt.color_sources["secondary"])]
+
+
+def test_an_off_color_fetch_land_is_left_out(playbook):
+    strand = land("Flooded Strand", (), text=(
+        "{T}, Pay 1 life, Sacrifice Flooded Strand: Search your library for a Plains or "
+        "Island card, put it onto the battlefield, then shuffle."))
+    cards = tagged(playbook, "modern", [strand])
+    assert land_tier(cards[0], frozenset("R")) is None
+    assert land_tier(cards[0], frozenset("W")) == TIER_DUAL
+
+    recs = [creature(f"Red Beast {i}", 700 + i, colors=("R",)) for i in range(40)]
+    recs.append(strand)
+    cards = tagged(playbook, "modern", recs, [4] * len(recs))
+    deck = build(playbook, "modern", cards, backbone(cards, set(), "R"))
+    assert "Flooded Strand" not in {e.name for e in deck.entries}

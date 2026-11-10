@@ -88,8 +88,12 @@ def castable_in(card: "OwnedCard", colors: FrozenSet[str]) -> bool:
         symbol of its cost. A hybrid symbol needs one half in the colors
         ({2/W} passes with its generic half). Phyrexian, generic, X and
         colorless symbols always pass. Rules text is not read: this is the
-        rule of formats without a commander.
+        rule of formats without a commander. A card with no mana cost at all
+        (Ancestral Vision, Living End) is paid by suspend or a cascade in its
+        own colors, so its color identity must fit inside the colors.
     """
+    if not (card.mana_cost or "").replace("//", "").strip():
+        return card.color_identity <= colors
     faces = (card.mana_cost or "").split(" // ")
     return any(_face_castable(face, colors) for face in faces)
 
@@ -129,6 +133,18 @@ def is_game_card(record: dict) -> bool:
     if record.get("layout") in NON_GAME_LAYOUTS:
         return False
     return "Token" not in front_types(record.get("type_line", ""))[0]
+
+
+# Cards of these types never go in a deck: they play from the command zone or
+# a separate deck. The formats with a legality key already rule them out.
+NON_DECK_TYPES = frozenset({"Conspiracy", "Dungeon", "Scheme", "Plane", "Phenomenon",
+                            "Vanguard", "Emblem"})
+NON_DECK_SUBTYPES = frozenset({"Attraction", "Contraption"})
+
+
+def _is_deck_card(record: dict) -> bool:
+    types, subtypes = front_types(record.get("type_line", ""))
+    return not (types & NON_DECK_TYPES or set(subtypes) & NON_DECK_SUBTYPES)
 
 
 def quality_prior(rank: Optional[int]) -> float:
@@ -222,7 +238,8 @@ def hydrate(collection: List[dict], index: Dict[str, dict], fmt: FormatRules) ->
         if record is None or not is_game_card(record):
             continue
         if fmt.legality_key is None:
-            legality = "legal"
+            # Casual takes every card that can go in a deck.
+            legality = "legal" if _is_deck_card(record) else "not_legal"
         else:
             legality = (record.get("legalities") or {}).get(fmt.legality_key, "not_legal")
         if legality not in ("legal", "restricted"):

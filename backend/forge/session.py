@@ -13,7 +13,7 @@ import time
 import uuid
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
-from typing import AsyncIterator, Dict, List, Optional, Set, Tuple
+from typing import AsyncIterator, Dict, FrozenSet, List, Optional, Set, Tuple
 
 from backend.core.ollama_client import CallStats, OllamaClient
 from backend.decks.store import DeckStore
@@ -56,8 +56,21 @@ TEXT_LIMIT = 300
 WHY_LIMIT = 160
 EXPLAIN_BATCH_CHARS = 80  # send the model explanation after this many characters
 EXPLAIN_BATCH_SECONDS = 0.2  # or after this long since the last explanation event
-# A wish word that negates the card name after it, with an optional "a", "an", "the" or "any".
-NEGATION = re.compile(r"(?<!\w)(?:no|not|without|except)\s+(?:(?:a|an|the|any)\s+)?$")
+# A wish word that negates what comes after it, up to the end of its clause:
+# "no goblins or elves" negates both types.
+NEGATION = re.compile(r"(?<!\w)(?:no|not|without|except|never|avoid|avoiding|exclude|excluding"
+                      r"|don'?t|doesn'?t|none)(?!\w)", re.IGNORECASE)
+# A clause ends at a punctuation mark or at a word that starts a new wish.
+CLAUSE_END = re.compile(r"[,.;:!?()]|(?<!\w)(?:but|with|plus|also|and also)(?!\w)", re.IGNORECASE)
+# Color words of a wish: the five colors, and the guild, shard and wedge names.
+COLOR_WORDS = {
+    "white": "W", "blue": "U", "black": "B", "red": "R", "green": "G",
+    "azorius": "WU", "dimir": "UB", "rakdos": "BR", "gruul": "RG", "selesnya": "GW",
+    "orzhov": "WB", "izzet": "UR", "golgari": "BG", "boros": "RW", "simic": "GU",
+    "esper": "WUB", "grixis": "UBR", "jund": "BRG", "naya": "RGW", "bant": "GWU",
+    "abzan": "WBG", "jeskai": "URW", "sultai": "BGU", "mardu": "RWB", "temur": "GUR",
+}
+COLOR_PATTERN = re.compile(r"(?<!\w)(" + "|".join(COLOR_WORDS) + r")(?!\w)", re.IGNORECASE)
 NO_STATS = CallStats(prompt_tokens=0, prompt_seconds=0.0, output_tokens=0, output_seconds=0.0)
 # First guesses of the prompt tokens per model call; each is replaced by the
 # real prompt size just before the call.
@@ -103,39 +116,78 @@ def _key(value) -> Optional[str]:
     return value if isinstance(value, str) else None
 
 
-def _wanted(name: str, text: str) -> bool:
-    """Return True when the text names the card as whole words and no negation comes before it."""
-    for match in re.finditer(r"(?<!\w)" + re.escape(name) + r"(?!\w)", text):
-        if not NEGATION.search(text[:match.start()]):
-            return True
-    return False
+def _negated(text: str, at: int) -> bool:
+    """Return True when a negation word comes before position `at` in the same clause."""
+    start = 0
+    for end in CLAUSE_END.finditer(text, 0, at):
+        start = end.end()
+    return NEGATION.search(text, start, at) is not None
+
+
+def _named(name: str, text: str, match: "re.Match") -> bool:
+    """Return True when a whole-word match of a card name names the card.
+
+    A name of one word ("Fire", "Sacrifice", "Flash") is also a common word, so
+    it counts only in quotes, or with a capital letter where a sentence does
+    not start. A longer name counts in any case.
+    """
+    if " " in name.strip():
+        return True
+    before = text[:match.start()]
+    if before.endswith(("\"", "'", "\u201c", "\u2018")):
+        return True
+    starts_sentence = not before.strip() or before.rstrip()[-1] in ".!?"
+    return match.group(0)[:1].isupper() and not starts_sentence
 
 
 def wish_names(wish: str, cards: List[OwnedCard]) -> Set[str]:
-    """Return the names of owned cards that the wish names as whole words (any case).
+    """Return the names of owned cards that the wish names as whole words.
 
-    A name that comes directly after "no", "not", "without" or "except"
-    does not count. One of "a", "an", "the" or "any" can come between.
+    A name counts in any case, but a one-word name needs quotes or a capital
+    letter (see _named). A name in a negated clause ("no Llanowar Elves",
+    "I don't want Sol Ring") does not count.
     """
-    text = (wish or "").lower()
+    text = wish or ""
     found = set()  # type: Set[str]
     if not text.strip():
         return found
+    lowered = text.lower()
     for card in cards:
         if card.is_basic or card.owned <= 0:
             continue
-        for name in {card.name.lower(), card.name.split(" // ")[0].lower()}:
-            if len(name) >= 3 and name in text and _wanted(name, text):
+        for name in {card.name, card.name.split(" // ")[0]}:
+            if len(name) < 3 or name.lower() not in lowered:
+                continue
+            pattern = re.compile(r"(?<!\w)" + re.escape(name) + r"(?!\w)", re.IGNORECASE)
+            if any(_named(name, text, m) and not _negated(text, m.start())
+                   for m in pattern.finditer(text)):
                 found.add(card.name)
     return found
+
+
+def wish_colors(wish: str, names: Set[str] = frozenset()) -> Optional[FrozenSet[str]]:
+    """Return the colors that the wish names, or None when it names none.
+
+    "red", "mono-red", "Rakdos" and "Jund" count; a color in a negated clause
+    ("no blue") does not. A color word inside a card name the wish names,
+    such as "Black Lotus", does not count either.
+    """
+    text = wish or ""
+    for name in sorted(names, key=len, reverse=True):
+        text = re.sub(re.escape(name), " " * len(name), text, flags=re.IGNORECASE)
+    colors = set()  # type: Set[str]
+    for match in COLOR_PATTERN.finditer(text):
+        if not _negated(text, match.start()):
+            colors.update(COLOR_WORDS[match.group(1).lower()])
+    return frozenset(colors) if colors else None
 
 
 def wish_tribes(wish: str, cards: List[OwnedCard],
                 plurals: Optional[Dict[str, str]] = None) -> Set[str]:
     """Return the creature types of owned creatures that the wish names as whole words.
 
-    "angels" and "Angel" both name Angel. A type that comes directly after
-    "no", "not", "without" or "except" does not count, as in wish_names.
+    "angels" and "Angel" both name Angel. A type in a negated clause ("no
+    goblins or elves") does not count, as in wish_names.
 
     Args:
         wish: The owner's wish.
@@ -150,9 +202,17 @@ def wish_tribes(wish: str, cards: List[OwnedCard],
     for tribe in types:
         pattern = re.compile(r"(?<!\w)" + plural_forms(tribe, plurals or {}) + r"(?!\w)",
                              re.IGNORECASE)
-        if any(not NEGATION.search(text[:m.start()]) for m in pattern.finditer(text)):
+        if any(not _negated(text, m.start()) for m in pattern.finditer(text)):
             found.add(tribe)
     return found
+
+
+def color_names(colors: FrozenSet[str]) -> str:
+    """Return the color names in WUBRG order, such as "black and red"."""
+    names = [name for name, code in COLOR_WORDS.items() if len(code) == 1 and code in colors]
+    order = "WUBRG"
+    names.sort(key=lambda name: order.index(COLOR_WORDS[name]))
+    return " and ".join(names) if len(names) < 3 else ", ".join(names[:-1]) + " and " + names[-1]
 
 
 def is_close(backbones: List[Backbone]) -> bool:
@@ -396,6 +456,7 @@ class ForgeSession:
         cards = hydrate(self.collection, self.index, fmt)
         owned = [card for card in cards if card.owned > 0]
         self._wish_tribes = wish_tribes(self.params.wish, owned, self.playbook.tribal_plurals)
+        self._wish_colors = wish_colors(self.params.wish, wish_names(self.params.wish, owned))
         tag_cards(cards, self.playbook, extra_tribes=self._wish_tribes)
         return cards
 
@@ -446,9 +507,25 @@ class ForgeSession:
         self._stage(1, 0.0)
         self._status("Looking for deck plans.")
         self.graph = graph = await asyncio.to_thread(build_graph, cards, self.playbook)
+        wished_colors = colors is None and commander_id is None and self._wish_colors is not None
+        if wished_colors:
+            # The wish names its colors ("a red aggro deck"), so the plans keep to them.
+            colors = self._wish_colors
         backbones = await asyncio.to_thread(
             find_backbones, cards, graph, fmt, self.playbook, commander_id=commander_id,
             colors=colors, limit=MAX_BACKBONES)
+        if wished_colors:
+            named = color_names(colors)
+            if backbones or (self._wish_tribes and await asyncio.to_thread(
+                    wish_backbone, cards, graph, fmt, self.playbook, self._wish_tribes,
+                    commander_id=commander_id, colors=colors)):
+                self._thought("Your wish names %s, so every plan keeps to %s cards." % (named, named))
+            else:
+                self._thought("No plan fits only %s cards, so the plans can use any colors." % named)
+                colors = None
+                backbones = await asyncio.to_thread(
+                    find_backbones, cards, graph, fmt, self.playbook, commander_id=commander_id,
+                    colors=None, limit=MAX_BACKBONES)
         wished, misfit = None, None
         if self._wish_tribes:
             wished = await asyncio.to_thread(
@@ -466,6 +543,16 @@ class ForgeSession:
         self._candidates = [{"id": b.id, "name": b.name, "hooks": list(b.hooks),
                              "members": len(b.members), "score": round(b.score, 4),
                              "from_wish": b is wished} for b in backbones]
+        if not backbones and commander_id is not None:
+            # The owner picked this commander, so build around it even with no
+            # synergy plan: the best owned cards of its colors.
+            leader = next(card for card in cards if card.id == commander_id)
+            backbones = [Backbone(
+                id="best:" + ("".join(sorted(leader.color_identity)) or "C"),
+                hooks=(), name="Best cards", members=[], colors=leader.color_identity,
+                commander_id=leader.id, score=0.0)]
+            self._thought("No synergy plan fits %s in the cards you own, so the deck takes "
+                          "your best cards in its colors." % leader.name, (leader.id,))
         if not backbones:
             raise ForgeError("No deck plan fits the cards you own in %s." % fmt.name)
         shown = shown_cards(backbones, graph)
@@ -506,6 +593,11 @@ class ForgeSession:
                                                 prefer=prefer, required=required,
                                                 commander=commander))
         self._stage(4, 0.0)
+        # The model named its key interactions before the build. Keep only
+        # those whose cards all made the deck.
+        placed = deck.names()
+        interactions = [found for found in interactions
+                        if all(name.lower() in placed for name in found["cards"])]
         if misfit is not None:
             deck.warnings.insert(0, misfit)
         self._status("Checking the deck.")
@@ -650,7 +742,15 @@ class ForgeSession:
             question = template_question(ranked, self.graph, theses)
             questions.append(dict(question, text=misfit + " Which plan do you want instead?"))
         elif model_question is not None and not fork:
-            questions.append(model_question)
+            # The default (option 0) must be ranked[0]: after a wish that is the
+            # wished plan, not the model's favorite. A question without it is
+            # replaced by the engine's question.
+            options = model_question["options"]
+            if any(o["backbone"] is chosen for o in options):
+                model_question["options"] = sorted(options, key=lambda o: o["backbone"] is not chosen)
+                questions.append(model_question)
+            elif len(ranked) >= 2:
+                questions.append(template_question(ranked, self.graph, theses))
         elif len(ranked) >= 2:
             questions.append(template_question(ranked, self.graph, theses))
         if fork:

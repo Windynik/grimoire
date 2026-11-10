@@ -387,7 +387,7 @@ def find_backbones(cards: List[OwnedCard], graph: SynergyGraph, fmt: FormatRules
 
     Returns:
         The best GROUPS_PER_SCOPE groups of each scope, then the best `limit`
-        overall, best score first (ties by id), with no two backbones that
+        overall, best score first (ties by fewest colors, then id), with no two backbones that
         have the same hooks and commander. Each backbone has at most
         MAX_MEMBERS members (chosen by _select), most connected first, and
         never the commander. The score includes commander_bonus.
@@ -418,7 +418,9 @@ def find_backbones(cards: List[OwnedCard], graph: SynergyGraph, fmt: FormatRules
         options.sort(key=lambda option: option[:2])
         for _, _, hooks, core, score in options[:GROUPS_PER_SCOPE]:
             candidates.append(_backbone(hooks, core, scope, commander, score, playbook))
-    candidates.sort(key=lambda b: (-b.score, b.id))
+    # A wider scope that adds nothing only ties a narrower one. On a tie the
+    # fewest colors win, so a tie never adds a color the plan does not use.
+    candidates.sort(key=lambda b: (-b.score, len(b.colors), b.id))
     chosen, seen = [], set()
     for backbone in candidates:
         key = (backbone.hooks, backbone.commander_id)
@@ -442,8 +444,9 @@ def wish_backbone(cards: List[OwnedCard], graph: SynergyGraph, fmt: FormatRules,
     A wished tribe needs no payoff cards (MIN_WANTERS) and no synergy edges:
     the owner asked for the type itself. The members are the cards that give
     or want one of the tribal hooks (changelings give every one). The scope is
-    the one with the most copies of such cards, then the most quality, then
-    the backbone id. The group must still be big enough for the format.
+    the one with the most copies of such cards, then the fewest colors, then
+    the most quality, then the backbone id. The group
+    must still be big enough for the format.
 
     Args:
         cards: Tagged owned cards, legal in the format. The wished tribes must
@@ -475,7 +478,8 @@ def wish_backbone(cards: List[OwnedCard], graph: SynergyGraph, fmt: FormatRules,
         score = density * quality * min(1.0, len(core) / fmt.min_core)
         bone = _backbone(hooks, core, scope, commander, score, playbook)
         copies = sum(min(card.owned, fmt.max_copies) for card in members)
-        rank = (-copies, -quality, bone.id)
+        # On equal copies the fewest colors win (see find_backbones).
+        rank = (-copies, len(scope), -quality, bone.id)
         if best is None or rank < best[0]:
             best = (rank, bone)
     return best[1] if best is not None else None

@@ -7,7 +7,9 @@ applies only the valid ones. Makes no network calls.
 
 from typing import Dict, List, Set
 
-from backend.forge.builder import LEGAL, WINDOW, BuiltDeck, DeckEntry, copies_for, deck_colors
+from backend.forge.builder import (
+    LEGAL, WINDOW, BuiltDeck, DeckEntry, color_sources, copies_for, deck_colors,
+)
 from backend.forge.cards import OwnedCard, fits_colors
 
 MAX_SWAPS = 8
@@ -47,10 +49,16 @@ def apply_swaps(deck: BuiltDeck, swaps: List[dict], pool: Dict[str, OwnedCard],
         The applied swaps as {"out", "in", "why"} with canonical names. A swap
         is valid when "out" is an unprotected nonland, non-basic, non-commander
         entry and "in" is an owned, legal, nonland card in the deck colors that
-        is not in the deck. At most MAX_SWAPS apply. When fewer copies come in
+        is not in the deck. The colors are the deck colors that its lands make.
+        At most MAX_SWAPS apply. When fewer copies come in
         than go out, the outgoing entry keeps the remaining copies.
     """
     colors = deck_colors(deck.plan, deck.fmt)
+    # A swap can bring in only cards that the deck's lands can cast. A deck
+    # color with no land source (a phantom color of the plan) does not count.
+    if any(e.basic or (e.card is not None and e.card.is_land) for e in deck.entries):
+        sources = color_sources(deck.entries, colors)
+        colors = frozenset(c for c in colors if sources.get(c, 0) > 0)
     locked = {_key(name) for name in protected}
     commander = deck.commander.name.lower() if deck.commander else None
     applied = []  # type: List[dict]
