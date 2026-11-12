@@ -291,7 +291,7 @@ The script exits with code 1 when a pass rule fails.
 
 ## License
 
-MIT License.
+Grimoire is free software under the [MIT License](LICENSE). The card data and images belong to their owners (see *Credits*).
 
 ## Credits
 
