@@ -321,6 +321,8 @@ function renderPhone(data) {
   phone.enable.disabled = false;
   if (data.error) {
     phone.status.textContent = data.error;
+  } else if (data.firewall) {
+    phone.status.textContent = data.firewall;
   } else if (!data.enabled) {
     phone.status.textContent = "Off. Grimoire answers only on this computer.";
   } else {

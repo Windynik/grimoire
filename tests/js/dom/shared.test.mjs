@@ -140,3 +140,14 @@ test("a toast takes its type as a class", () => {
   toast.showToast("bad", "error");
   assert.ok(document.querySelector("#toast-container .toast.error"));
 });
+
+test("a toast closes at once with its close button, and keeps its text", async () => {
+  document.getElementById("toast-container").replaceChildren();
+  toast.showToast("Card data downloaded", "success");
+  const shown = document.querySelector("#toast-container .toast");
+  assert.equal(shown.textContent, "Card data downloaded");
+  const close = shown.querySelector("button.toast-close");
+  assert.equal(close.getAttribute("aria-label"), "Close");
+  close.click();
+  await app.until(() => !shown.isConnected);
+});

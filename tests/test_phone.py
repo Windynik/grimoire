@@ -207,3 +207,21 @@ async def test_a_port_in_use_is_reported(tmp_path):
         await state.start(inner_app())
         assert not state.running
         assert "in use" in state.last_error
+
+
+def test_firewall_note_reads_the_macos_firewall(monkeypatch):
+    class Done:
+        def __init__(self, out):
+            self.stdout = out
+
+    monkeypatch.setattr(phone.sys, "platform", "darwin")
+    monkeypatch.setattr(phone.os.path, "exists", lambda path: True)
+    monkeypatch.setattr(phone.subprocess, "run", lambda *a, **k: Done(
+        "Incoming connection to /opt/py/python3.13 is blocked."))
+    note = phone.firewall_note("/opt/py/python3.13")
+    assert "blocks incoming connections to Python (/opt/py/python3.13)" in note
+    monkeypatch.setattr(phone.subprocess, "run", lambda *a, **k: Done(
+        "Incoming connection to /opt/py/python3.13 is permitted."))
+    assert phone.firewall_note("/opt/py/python3.13") is None
+    monkeypatch.setattr(phone.sys, "platform", "linux")
+    assert phone.firewall_note("/opt/py/python3.13") is None

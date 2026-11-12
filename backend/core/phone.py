@@ -23,6 +23,8 @@ import logging
 import os
 import secrets
 import socket
+import subprocess
+import sys
 import time
 import uuid
 from datetime import datetime, timezone
@@ -88,6 +90,31 @@ def lan_addresses() -> List[str]:
     return found
 
 
+FIREWALL_TOOL = "/usr/libexec/ApplicationFirewall/socketfilterfw"
+
+
+def firewall_note(executable: Optional[str] = None) -> Optional[str]:
+    """A note when the macOS firewall blocks incoming connections to this Python.
+
+    Then a phone gets "connection reset" before Grimoire sees the request.
+    Returns None on other systems, when the check cannot run, or when the
+    firewall lets the connections in.
+    """
+    if sys.platform != "darwin" or not os.path.exists(FIREWALL_TOOL):
+        return None
+    path = os.path.realpath(executable or sys.executable)
+    try:
+        result = subprocess.run([FIREWALL_TOOL, "--getappblocked", path], capture_output=True,
+                                text=True, timeout=3, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if "is blocked" not in (result.stdout or ""):
+        return None
+    return (f"The Mac's firewall blocks incoming connections to Python ({path}), so a phone "
+            "gets \"connection reset\". Allow it in System Settings, Network, Firewall, "
+            "Options. On a work Mac, the IT team may manage this setting.")
+
+
 class _Server(uvicorn.Server):
     """A uvicorn server that runs inside the main server's event loop.
 
@@ -144,7 +171,8 @@ class PhoneAccess:
         pair = self.pair_info(addresses)
         return {"enabled": self.enabled, "running": self.running, "port": self.port,
                 "urls": [f"http://{a}:{self.port}" for a in addresses],
-                "devices": self.devices(), "pair": pair, "error": self.last_error}
+                "devices": self.devices(), "pair": pair, "error": self.last_error,
+                "firewall": firewall_note() if self.running else None}
 
     # ---- pairing -------------------------------------------------------------
 

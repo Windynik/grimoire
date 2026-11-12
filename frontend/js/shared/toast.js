@@ -1,4 +1,5 @@
-// Toasts: short messages in #toast-container.
+// Toasts: short messages in #toast-container. Each one closes by itself
+// after LIFETIME_MS, or at once with its close button.
 
 import { animate } from "./motion.js";
 
@@ -24,6 +25,13 @@ export function showToast(message, type = "info") {
   const toast = document.createElement("div");
   toast.className = `toast ${type}`;
   toast.textContent = message;
+  // The button has no text, so the toast's text stays the message; CSS draws the cross.
+  const close = document.createElement("button");
+  close.type = "button";
+  close.className = "toast-close";
+  close.setAttribute("aria-label", "Close");
+  close.addEventListener("click", () => dismiss(toast));
+  toast.appendChild(close);
   container.appendChild(toast);
 
   const live = [...container.children];

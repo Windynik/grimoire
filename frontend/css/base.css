@@ -316,6 +316,42 @@ body {
     font-size: 1rem;
 }
 
+.toast {
+    position: relative;
+    padding-right: 2.75rem;
+}
+
+.toast-close {
+    all: unset;
+    position: absolute;
+    top: 50%;
+    right: 0.4rem;
+    width: 2rem;
+    height: 2rem;
+    margin-top: -1rem;
+    border-radius: 999px;
+    cursor: pointer;
+    color: var(--text-dim);
+    display: grid;
+    place-items: center;
+}
+
+.toast-close::before {
+    content: "×";
+    font-size: 1.35rem;
+    line-height: 1;
+}
+
+.toast-close:hover {
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.toast-close:focus-visible {
+    outline: 2px solid var(--violet);
+    outline-offset: 1px;
+}
+
 .toast.success { border-left-color: var(--success); }
 .toast.error   { border-left-color: var(--error); }
 

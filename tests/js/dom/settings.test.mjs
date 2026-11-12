@@ -485,3 +485,10 @@ test("on a phone the phone settings say to use the computer", async () => {
   await app.until(() => /on the computer that runs Grimoire/.test($("settings-phone-status").textContent));
   assert.equal($("settings-phone").disabled, true);
 });
+
+test("a firewall that blocks Python is named in the phone status", async () => {
+  await setup();
+  app.route("GET /api/phone", () => ({ json: { ...PHONE_ON, firewall: "The Mac's firewall blocks incoming connections to Python (/opt/py/python3.13), so a phone gets \"connection reset\"." } }));
+  open();
+  await app.until(() => /firewall blocks incoming connections/.test($("settings-phone-status").textContent));
+});
