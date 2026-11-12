@@ -857,6 +857,69 @@
     color: var(--text-dim);
 }
 
+/* Each card issue opens to the cards and their plain reasons. */
+#decks-view .stat-issue-card summary {
+    cursor: pointer;
+}
+
+#decks-view .stat-issue-cards {
+    list-style: none;
+    margin: 0.3rem 0 0.2rem;
+    padding: 0;
+    color: var(--text-dim);
+}
+
+#decks-view .stat-issue-card-item {
+    margin-bottom: 0.3rem;
+    line-height: 1.35;
+}
+
+#decks-view .stat-issue-card-item b {
+    color: var(--text);
+    font-weight: 600;
+}
+
+/* Commander bracket facts */
+#decks-view .stat-bracket {
+    font-size: 0.84rem;
+}
+
+#decks-view .stat-bracket-floor {
+    margin: 0 0 0.3rem;
+    font-weight: 600;
+    color: var(--gold);
+}
+
+#decks-view .stat-bracket-reason {
+    margin: 0 0 0.25rem;
+}
+
+#decks-view .stat-bracket-facts {
+    display: grid;
+    gap: 0.3rem;
+    margin: 0.4rem 0;
+}
+
+#decks-view .stat-bracket-fact {
+    display: grid;
+    grid-template-columns: 8.5rem 1fr;
+    gap: 0.5rem;
+}
+
+#decks-view .stat-bracket-fact dt {
+    color: var(--text-dim);
+}
+
+#decks-view .stat-bracket-fact dd {
+    margin: 0;
+}
+
+#decks-view .stat-bracket-note {
+    margin: 0.25rem 0 0;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+}
+
 #decks-view .stat-facts {
     display: flex;
     gap: 1.5rem;

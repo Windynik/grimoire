@@ -7,6 +7,7 @@ and grades the main deck with the forge's own metrics. Makes no network calls.
 from typing import Dict, FrozenSet, List, Optional
 
 from backend.core.prices import best_price
+from backend.decks.brackets import bracket_facts
 from backend.decks.records import entry_key
 from backend.forge.builder import (
     SOURCE_RANKS, BuildPlan, BuiltDeck, DeckEntry, color_ranks, color_sources,
@@ -201,8 +202,66 @@ def _card_issues(info: Optional[dict], copies: int, owned: int, fmt: FormatRules
     return issues
 
 
+COLOR_WORDS = {"W": "white", "U": "blue", "B": "black", "R": "red", "G": "green"}
+
+
+def _colors_text(colors) -> str:
+    """"blue", "blue and black", or "white, blue and red", in WUBRG order."""
+    words = [COLOR_WORDS[c] for c in COLOR_ORDER if c in colors]
+    if len(words) <= 1:
+        return words[0] if words else "no color"
+    return ", ".join(words[:-1]) + " and " + words[-1]
+
+
+def _copies_text(number: int) -> str:
+    return "%d %s" % (number, "copy" if number == 1 else "copies")
+
+
+def _issue_reasons(issues: List[str], info: Optional[dict], copies: int, owned: int,
+                   fmt: FormatRules, commander_colors: Optional[FrozenSet[str]],
+                   commander_name: str, collection_name: str) -> Dict[str, str]:
+    """One plain sentence for each issue code of a card: why the editor flags it."""
+    shelf = collection_name or "Your collection"
+    reasons = {}  # type: Dict[str, str]
+    for code in issues:
+        if code == "not_a_card":
+            text = ("No card in the card data has this name. Check the spelling, "
+                    "or update the card data on the Home screen.")
+        elif code == "not_owned":
+            text = "%s holds no copy of this card." % shelf
+        elif code == "short":
+            text = "This deck has %s; %s holds %d." % (_copies_text(copies), shelf, owned)
+        elif code == "banned":
+            text = "Banned in %s." % fmt.name
+        elif code == "not_legal":
+            text = "Not legal in %s." % fmt.name
+        elif code == "off_color":
+            extra = frozenset((info or {}).get("color_identity") or []) - (commander_colors or
+                                                                           frozenset())
+            allowed = _colors_text(commander_colors or frozenset())
+            lead = commander_name or "The commander"
+            if extra:
+                text = "Its color identity has %s. %s allows only %s." % (
+                    _colors_text(extra), lead, allowed if commander_colors else "colorless")
+            else:
+                text = "Its mana cost needs colors outside %s's colors (%s)." % (lead, allowed)
+        elif code == "too_many":
+            limit = _limit(info or {}, fmt) or 0
+            if _legality(info or {}, fmt) == "restricted":
+                text = "Restricted in %s: 1 copy allowed. This deck has %d." % (fmt.name, copies)
+            elif fmt.copies_allowed("legal") < limit:
+                text = "Its rules text allows up to %d. This deck has %d." % (limit, copies)
+            else:
+                text = "%s allows %s of a card. This deck has %d." % (
+                    fmt.name, _copies_text(limit), copies)
+        else:
+            continue
+        reasons[code] = text
+    return reasons
+
+
 def _card_report(record: dict, index: Dict[str, dict], owned: Dict[str, int],
-                 fmt: FormatRules, deck: BuiltDeck) -> Dict[str, dict]:
+                 fmt: FormatRules, deck: BuiltDeck, collection_name: str = "") -> Dict[str, dict]:
     sections = record.get("sections") or {}
     commander = record.get("commander")
     copies = {}  # type: Dict[str, int]
@@ -241,12 +300,15 @@ def _card_report(record: dict, index: Dict[str, dict], owned: Dict[str, int],
         have = owned.get(_oracle_key(info), 0) if info is not None else 0
         if basic or (info is not None and "Basic" in (info.get("type_line") or "")):
             have = max(have, copies.get(key, 0))
+        need = per_card.get(card_key(line), 0)
         if basic:
             issues = []  # type: List[str]
         else:
-            issues = _card_issues(info, per_card.get(card_key(line), 0), have, fmt,
-                                  commander_colors, key in copies)
+            issues = _card_issues(info, need, have, fmt, commander_colors, key in copies)
         report[key] = {"owned": have, "issues": issues,
+                       "reasons": _issue_reasons(issues, info, need, have, fmt, commander_colors,
+                                                 (commander or {}).get("name", ""),
+                                                 collection_name),
                        "roles": roles.get(line.get("scryfall_id"), [])}
     return report
 
@@ -293,8 +355,10 @@ def analyze(record: dict, index: Dict[str, dict], collection: Optional[List[dict
 
     Returns:
         Mapping with collection, format, count, curve, colors, mana, price,
-        game_changers, metrics, cards (issue codes per entry key) and issues
-        (deck level, each with a code and a message).
+        game_changers, metrics, cards (issue codes and a plain reason for
+        each code, per entry key), issues (deck level, each with a code and a
+        message) and bracket (Commander bracket facts, or None; see
+        backend.decks.brackets.bracket_facts).
 
     Raises:
         KeyError: The record's format is not in the playbook.
@@ -340,6 +404,7 @@ def analyze(record: dict, index: Dict[str, dict], collection: Optional[List[dict
         "price": price,
         "game_changers": changers,
         "metrics": metrics,
-        "cards": _card_report(record, index, owned, fmt, deck),
+        "cards": _card_report(record, index, owned, fmt, deck, meta.get("name") or ""),
         "issues": issues,
+        "bracket": bracket_facts(record, index),
     }

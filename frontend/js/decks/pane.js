@@ -83,8 +83,9 @@ function takenBadge(info) {
   const names = decks.map((d) => (d.count > 1 ? `${d.name} ×${d.count}` : d.name)).join(", ");
   const free = Number(taken.free) || 0;
   const need = Number(taken.need) || 0;
-  return h("span", { class: "deck-badge deck-badge-taken", text: label,
-    title: `Other decks use these copies: ${names}. This deck needs ${need}; ${free} free.` });
+  const reason = (info.reasons || {}).taken
+    || `Other decks use these copies: ${names}. This deck needs ${need}; ${free} free.`;
+  return h("span", { class: "deck-badge deck-badge-taken", text: label, title: reason });
 }
 
 function badges(info) {
@@ -95,7 +96,10 @@ function badges(info) {
       return;
     }
     const label = code === "short" ? `own ${info.owned || 0}` : ISSUE_LABELS[code] || code;
-    box.append(h("span", { class: `deck-badge deck-badge-${code}`, text: label }));
+    // The plain reason shows as a tooltip, and a screen reader reads it too.
+    const reason = (info.reasons || {})[code];
+    box.append(h("span", { class: `deck-badge deck-badge-${code}`, text: label,
+      ...(reason ? { title: reason, "aria-label": `${label}: ${reason}` } : {}) }));
   });
   return box;
 }

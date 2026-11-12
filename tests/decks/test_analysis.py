@@ -93,7 +93,9 @@ def test_analysis_too_many_and_exemptions(playbook):
     assert cards[bear["id"]]["issues"] == ["too_many"]
     assert cards[forest["id"]]["issues"] == []
     assert cards[swarm["id"]]["issues"] == []
-    assert cards["basic:Forest"] == {"owned": 2, "issues": [], "roles": []}
+    assert cards["basic:Forest"] == {"owned": 2, "issues": [], "reasons": {}, "roles": []}
+    assert cards[bear["id"]]["reasons"] == {
+        "too_many": "Modern allows 4 copies of a card. This deck has 5."}
 
 
 def test_analysis_maybeboard_only_not_a_card(playbook):
@@ -261,3 +263,58 @@ def test_the_curve_shows_zero_drops_apart(playbook):
                  playbook)["curve"]
     assert list(curve) == ["0", "1", "2", "3", "4", "5", "6+"]
     assert curve["0"] == 4 and curve["1"] == 2
+
+
+def test_each_issue_has_a_plain_reason(playbook):
+    owned_two = make_record("Two Owned")
+    unowned = make_record("Unowned")
+    banned = make_record("Banned One")
+    banned["legalities"]["modern"] = "banned"
+    illegal = make_record("Illegal One", legal=("commander",))
+    seven = make_record("Seven Dwarves", oracle_text="A deck can have up to seven cards "
+                        "named Seven Dwarves.")
+    index = _pool(owned_two, unowned, banned, illegal, seven)
+    rows = [{"scryfall_id": owned_two["id"], "quantity": 2},
+            {"scryfall_id": banned["id"], "quantity": 1},
+            {"scryfall_id": illegal["id"], "quantity": 1},
+            {"scryfall_id": seven["id"], "quantity": 8}]
+    record = _deck([_line(owned_two, 3), _line(unowned, 1), _line(banned, 1),
+                    _line(illegal, 1), _line(seven, 8),
+                    {"scryfall_id": "missing", "name": "Ghost", "count": 1}])
+    cards = _run(record, index, playbook, rows)["cards"]
+    assert cards[owned_two["id"]]["reasons"] == {"short": "This deck has 3 copies; Mine holds 2."}
+    assert cards[unowned["id"]]["reasons"] == {"not_owned": "Mine holds no copy of this card."}
+    assert cards[banned["id"]]["reasons"]["banned"] == "Banned in Modern."
+    assert cards[illegal["id"]]["reasons"]["not_legal"] == "Not legal in Modern."
+    assert cards[seven["id"]]["reasons"] == {
+        "too_many": "Its rules text allows up to 7. This deck has 8."}
+    assert cards["missing"]["reasons"]["not_a_card"].startswith("No card in the card data")
+
+
+def test_off_color_and_restricted_reasons(playbook):
+    chief = make_record("Green Chief", type_line="Legendary Creature — Elf",
+                        legal=("commander",))
+    grixis = make_record("Grixis Spell", type_line="Instant", mana_cost="{U}{B}{R}",
+                         color_identity=("U", "B", "R"), cmc=3, legal=("commander", "vintage"))
+    index = _pool(chief, grixis)
+    commander = {"scryfall_id": chief["id"], "name": chief["name"]}
+    record = _deck([_line(grixis, 1)], fmt="commander", commander=commander)
+    cards = _run(record, index, playbook)["cards"]
+    assert cards[grixis["id"]]["reasons"]["off_color"] == (
+        "Its color identity has blue, black and red. Green Chief allows only green.")
+    grixis["legalities"]["vintage"] = "restricted"
+    vintage = _run(_deck([_line(grixis, 2)], fmt="vintage"), index, playbook)["cards"]
+    assert vintage[grixis["id"]]["reasons"]["too_many"] == (
+        "Restricted in Vintage: 1 copy allowed. This deck has 2.")
+
+
+def test_a_commander_deck_has_bracket_facts_and_other_formats_do_not(playbook):
+    chief = make_record("Green Chief", type_line="Legendary Creature — Elf")
+    gc = make_record("Power Card")
+    gc["game_changer"] = True
+    index = _pool(chief, gc)
+    commander = {"scryfall_id": chief["id"], "name": chief["name"]}
+    result = _run(_deck([_line(gc, 1)], fmt="commander", commander=commander), index, playbook)
+    assert result["bracket"]["floor"] == 3
+    assert result["bracket"]["game_changers"] == ["Power Card"]
+    assert _run(_deck([_line(gc, 1)]), index, playbook)["bracket"] is None

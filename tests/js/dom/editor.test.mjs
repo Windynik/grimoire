@@ -277,3 +277,31 @@ test("a failed Built switch goes back", async () => {
   await app.until(() => !box.disabled && !box.checked);
   assert.ok(toasts().some((text) => text.includes("Could not change the Built switch")));
 });
+
+test("the stats panel lists each card issue with its reason, and the bracket facts", async () => {
+  const analysis = {
+    cards: { "id-a": { issues: ["banned"], owned: 1, reasons: { banned: "Banned in Commander." } } },
+    bracket: { floor: 3, floor_name: "Upgraded", reasons: ["1 Game Changer: bracket 3 or higher."],
+      game_changers: ["Card A"], mass_land_denial: [], extra_turns: [], tutors: [],
+      notes: ["The check does not look for two-card combos."] },
+  };
+  await openEditor({ "GET /api/decks/d1": () => ({ json: { ...deckRecord(), analysis } }) });
+  const badge = document.querySelector(".deck-badge-banned");
+  assert.equal(badge.title, "Banned in Commander.");
+  const stats = document.querySelector('[data-editor="stats"]');
+  await app.until(() => stats.querySelector(".stat-issue-card-item"));
+  assert.equal(stats.querySelector(".stat-issue-card summary").textContent, "1 card: banned");
+  assert.equal(stats.querySelector(".stat-issue-card-item").textContent, "Card A Banned in Commander.");
+  assert.equal(stats.querySelector(".stat-bracket-floor").textContent, "Bracket 3 or higher (Upgraded)");
+  const facts = [...stats.querySelectorAll(".stat-bracket-fact")].map((row) => row.textContent);
+  assert.deepEqual(facts, ["Game Changers1: Card A", "Mass land denialnone", "Extra turnsnone",
+    "Tutorsnone"]);
+  assert.ok(!stats.querySelector(".stat-bracket").closest("section").hidden);
+});
+
+test("a deck with no bracket facts hides the bracket section", async () => {
+  await openEditor();
+  const stats = document.querySelector('[data-editor="stats"]');
+  await app.until(() => stats.querySelector(".stat-bracket"));
+  assert.ok(stats.querySelector(".stat-bracket").closest("section").hidden);
+});

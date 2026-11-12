@@ -159,6 +159,11 @@ def mark_taken(analysis: dict, record: dict, taken: Dict[str, dict],
         report["issues"].append("taken")
         report["taken"] = {"need": found["need"], "free": found["free"],
                            "decks": found["decks"]}
+        names = ", ".join(d["name"] + (" ×%d" % d["count"] if d["count"] > 1 else "")
+                          for d in found["decks"])
+        report.setdefault("reasons", {})["taken"] = (
+            "Other built decks use these copies: %s. This deck needs %d; %d free."
+            % (names, found["need"], found["free"]))
 
 
 def free_rows(rows: List[dict], copies: CopiesInUse) -> List[dict]:

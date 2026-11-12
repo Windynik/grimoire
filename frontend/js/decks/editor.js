@@ -349,6 +349,17 @@ function createSession(host, deckId, options) {
     if (status !== "saved") throw new Error("the last change is not saved");
   }
 
+  // Card name per entry key, for the issue list of the stats panel.
+  function cardNames() {
+    const names = {};
+    const add = (entry) => {
+      if (entry && entry.name) names[entry.scryfall_id || `basic:${entry.name}`] = entry.name;
+    };
+    add(state.commander);
+    SECTIONS.forEach((section) => (state.sections[section] || []).forEach(add));
+    return names;
+  }
+
   function showCard(card) {
     const info = (state.analysis.cards || {})[card.scryfall_id || `basic:${card.name}`] || {};
     showCardDetail({
@@ -377,7 +388,7 @@ function createSession(host, deckId, options) {
       else newest.textContent = view.collection.options.length > 1 ? "Newest collection" : "No collection";
     }
     renderPane(view.pane, state, handlers);
-    renderStats(view.stats, state.analysis);
+    renderStats(view.stats, state.analysis, cardNames());
     renderSearch(view.search, state);
     renderHand(view.hand, state);
     renderExplain(view.explanation, state);

@@ -1,5 +1,6 @@
-// Live stats panel of the deck editor: card count, curve, mana, issues, price,
-// Game Changers and the forge metrics. All values come from the analysis.
+// Live stats panel of the deck editor: card count, curve, mana, issues (with a
+// plain reason for each card), Commander bracket facts, price, Game Changers and
+// the forge metrics. All values come from the analysis.
 //
 // The count bar and the curve bars are built once per root, so a new value
 // moves them with a transform transition. Server text goes in with textContent only.
@@ -52,6 +53,9 @@ function build(root) {
   });
   const mana = h("div", { class: "stat-mana" });
   const issues = h("ul", { class: "stat-issues" });
+  const bracket = h("div", { class: "stat-bracket" });
+  const bracketBlock = section("Bracket", bracket);
+  bracketBlock.hidden = true;
   const price = h("dd", { class: "stat-value" });
   const changers = h("dd", { class: "stat-value" });
   const metrics = h("div", { class: "stat-metrics" });
@@ -60,11 +64,13 @@ function build(root) {
     section("Curve", curve),
     section("Mana", mana),
     section("Issues", issues),
+    bracketBlock,
     h("dl", { class: "stat-facts" },
       h("div", { class: "stat-fact" }, h("dt", { text: "Price" }), price),
       h("div", { class: "stat-fact" }, h("dt", { text: "Game Changers" }), changers)),
     section("Metrics", metrics));
-  return { count, countBar, curve, curveCols, mana, issues, price, changers, metrics };
+  return { count, countBar, curve, curveCols, mana, issues, bracket, bracketBlock, price,
+    changers, metrics };
 }
 
 function manaRow(row) {
@@ -79,6 +85,43 @@ function manaRow(row) {
     meter.track);
 }
 
+// One issue code: "2 cards: banned", and under it each card with its reason.
+function issueGroup(code, number, cards, names) {
+  const items = Object.entries(cards || {})
+    .filter(([, info]) => ((info && info.issues) || []).includes(code))
+    .map(([key, info]) => h("li", { class: "stat-issue-card-item" },
+      h("b", { text: names[key] || key }),
+      ` ${((info.reasons || {})[code]) || ""}`));
+  return h("li", { class: "stat-issue stat-issue-card" },
+    h("details", null,
+      h("summary", { text: `${number} ${number === 1 ? "card" : "cards"}: ${ISSUE_LABELS[code] || code}` }),
+      h("ul", { class: "stat-issue-cards" }, ...items)));
+}
+
+// The bracket facts of a Commander deck: the lowest bracket the facts allow,
+// what raised it, the cards behind each fact, and what the check cannot see.
+function bracketView(facts) {
+  const floor = Number(facts.floor) || 2;
+  const head = floor <= 2 ? "Bracket 1 or 2"
+    : `Bracket ${floor} or higher (${facts.floor_name || ""})`;
+  const parts = [h("p", { class: "stat-bracket-floor", text: head })];
+  (facts.reasons || []).forEach((text) => parts.push(h("p", { class: "stat-bracket-reason", text })));
+  const rows = [
+    ["Game Changers", facts.game_changers],
+    ["Mass land denial", facts.mass_land_denial],
+    ["Extra turns", facts.extra_turns],
+    ["Tutors", facts.tutors],
+  ];
+  parts.push(h("dl", { class: "stat-bracket-facts" }, ...rows.map(([label, names]) => {
+    const list = Array.isArray(names) ? names : [];
+    return h("div", { class: "stat-bracket-fact" },
+      h("dt", { text: label }),
+      h("dd", { text: list.length ? `${list.length}: ${list.join(", ")}` : "none" }));
+  })));
+  (facts.notes || []).forEach((text) => parts.push(h("p", { class: "stat-bracket-note", text })));
+  return parts;
+}
+
 function metricText(key, value) {
   return key === "synergy_density" ? value.toFixed(2) : `${Math.round(value * 100)}%`;
 }
@@ -88,8 +131,9 @@ function metricText(key, value) {
  *
  * @param {HTMLElement} root
  * @param {Object} analysis The analysis of the deck (may be empty before the first load).
+ * @param {Object} [names] Card name per entry key, for the issue list.
  */
-export function renderStats(root, analysis) {
+export function renderStats(root, analysis, names = {}) {
   let ui = contexts.get(root);
   if (!ui) {
     ui = build(root);
@@ -117,11 +161,13 @@ export function renderStats(root, analysis) {
 
   const rows = (data.issues || []).map((issue) => h("li", { class: "stat-issue", text: issue.message }));
   Object.entries(issueSummary(data.cards)).forEach(([code, number]) => {
-    rows.push(h("li", { class: "stat-issue stat-issue-card",
-      text: `${number} ${number === 1 ? "card" : "cards"}: ${ISSUE_LABELS[code] || code}` }));
+    rows.push(issueGroup(code, number, data.cards, names));
   });
   if (!rows.length) rows.push(h("li", { class: "stat-issue stat-issue-none", text: "No issues." }));
   ui.issues.replaceChildren(...rows);
+
+  ui.bracketBlock.hidden = !data.bracket;
+  ui.bracket.replaceChildren(...(data.bracket ? bracketView(data.bracket) : []));
 
   const price = Number(data.price);
   ui.price.textContent = Number.isFinite(price) ? `$${price.toFixed(2)}` : "$0.00";
