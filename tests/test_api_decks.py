@@ -335,3 +335,16 @@ def test_a_save_without_an_edit_mark_still_works_and_counts(overrides):
         deck = _new_deck(client)
         r = client.put("/api/decks/%s" % deck["id"], json=_body())
         assert r.status_code == 200 and r.json()["revision"] == 1
+
+
+def test_the_pull_list_route_groups_owned_cards(overrides):
+    with TestClient(app) as client:
+        deck = _new_deck(client)
+        client.put("/api/decks/%s" % deck["id"], json=_body())
+        r = client.get("/api/decks/%s/pull-list" % deck["id"])
+        assert r.status_code == 200
+        body = r.json()
+        assert set(body) == {"groups", "basics", "missing"}
+        pulled = sum(g["count"] for g in body["groups"]) + sum(m["count"] for m in body["missing"])
+        assert pulled == 3
+        assert client.get("/api/decks/nope-1/pull-list").status_code == 404

@@ -26,6 +26,7 @@ from backend.decks.records import (
     new_record,
     strip_display,
 )
+from backend.decks.pull import pull_list
 from backend.decks.store import DeckStore
 from backend.decks.textio import (
     MAX_COUNT, export_arena, export_csv, export_text, parse_decklist, resolve,
@@ -188,6 +189,25 @@ async def import_deck(
     body = deck_response(record, index, collections)
     body["unknown"] = unknown
     return body
+
+
+@router.get("/decks/{deck_id}/pull-list")
+async def deck_pull_list(
+    deck_id: str,
+    store: DeckStore = Depends(get_deck_store),
+    bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager),
+    collections: CollectionStore = Depends(get_collection_store),
+):
+    """Where to find each card of a deck: grouped by collection and binder."""
+    record = _stored(store, deck_id)
+    index = await bulk_data_manager.load_bulk_data()
+
+    def build():
+        owned = [(meta, collections.cards_with_binders(meta["job_id"]))
+                 for meta in collections.list_collections()]
+        return pull_list(record, index, owned)
+
+    return await asyncio.to_thread(build)
 
 
 @router.get("/decks/{deck_id}")

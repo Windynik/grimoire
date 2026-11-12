@@ -408,3 +408,18 @@ def test_card_index_matches_a_front_face(bulk):
     assert index.find("Insectile Aberration") == DELVER
     assert index.set_code_for("Magic 2010") == "m10"
     assert index.set_code_for("M10") == "m10"
+
+
+def test_a_binder_or_folder_column_becomes_binder_name(bulk):
+    from backend.core.importers import binder_of
+    text = ("Folder Name,Quantity,Trade Quantity,Card Name,Set Code,Set Name,Card Number,"
+            "Condition,Printing,Language,Price Bought,Date Bought,LOW,MID,MARKET\n"
+            "Red Box,1,0,Sol Ring,CMR,Commander Legends,472,NearMint,Normal,English,1,"
+            "2025-01-01,1,1,1\n")
+    parsed = read_import(text, bulk)
+    assert parsed.rows[0]["Binder Name"] == "Red Box"
+    assert "Binder Name" in parsed.headers
+    assert binder_of(parsed.rows[0]) == "Red Box"
+    # An export without such a column gets no binder column.
+    plain = read_import("Name,Count\nSol Ring,1\n", bulk)
+    assert "Binder Name" not in plain.headers and binder_of(plain.rows[0]) == ""

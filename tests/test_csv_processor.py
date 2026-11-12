@@ -189,9 +189,10 @@ Counterspell,blue,def-456,3"""
         assert headers == reader.fieldnames
         assert rows == list(reader)
     # Another app's export gets the ManaBox columns that it lacks.
+    # The "Binder" column also becomes the "Binder Name" that the pull list reads.
     assert headers == ["Name", "Binder", "Scryfall ID", "Quantity",
                        "Set code", "Set name", "Collector number", "Foil", "Rarity",
-                       "Mana Cost", "Oracle Text", "Type Line"]
+                       "Binder Name", "Mana Cost", "Oracle Text", "Type Line"]
     assert success_count == 2
     assert errors == result.errors
     # The original rows keep every column and stay free of enhanced columns

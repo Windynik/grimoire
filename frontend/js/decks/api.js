@@ -30,6 +30,11 @@ export function saveDeck(id, body, { keepalive } = {}) {
   return putJSON(`/decks/${enc(id)}`, body, keepalive ? { keepalive: true } : undefined);
 }
 
+/** Where to find each card of a deck: groups by collection and binder. */
+export function pullList(id) {
+  return getJSON(`/decks/${enc(id)}/pull-list`);
+}
+
 export function deleteDeck(id) {
   return del(`/decks/${enc(id)}`);
 }

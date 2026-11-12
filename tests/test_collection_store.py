@@ -24,3 +24,22 @@ def test_an_older_file_that_counted_rows_shows_copies(tmp_path):
 
 def test_copies_of_counts_a_bad_quantity_as_one():
     assert copies_of([{"quantity": "x"}, {"quantity": 2}, {}]) == 4
+
+
+def test_each_card_keeps_its_binder(tmp_path):
+    store = CollectionStore(str(tmp_path))
+    rows = [dict(_row(0, "1"), **{"Binder Name": "Trade binder"}), _row(1, "2")]
+    store.store_collection("job1", rows, {"id-0": {}, "id-1": {}}, source_name="Box.csv")
+    assert [c["binder"] for c in store.get_collection("job1")] == ["Trade binder", ""]
+
+
+def test_an_older_collection_takes_its_binders_from_the_original_rows(tmp_path):
+    payload = {"meta": {"job_id": "old", "name": "Old", "created": "2026-01-01T00:00:00Z"},
+               "cards": [{"name": "A", "scryfall_id": "id-a", "quantity": 1, "foil": "normal"}],
+               "original": {"headers": ["Binder Name", "Name", "Scryfall ID", "Quantity", "Foil"],
+                            "rows": [{"Binder Name": "Red", "Name": "A", "Scryfall ID": "id-a",
+                                      "Quantity": "1", "Foil": "normal"}]}}
+    (tmp_path / "old.json").write_text(json.dumps(payload))
+    cards = CollectionStore(str(tmp_path)).cards_with_binders("old")
+    assert [(c["name"], c["binder"]) for c in cards] == [("A", "Red")]
+    assert CollectionStore(str(tmp_path)).cards_with_binders("missing") == []

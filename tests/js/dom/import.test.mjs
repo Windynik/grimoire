@@ -295,3 +295,39 @@ test("a failed paste keeps the pasted list", async () => {
   assert.ok(visible("#import-upload"));
   assert.equal(document.getElementById("import-paste-text").value, "4 Lightning Bolt");
 });
+
+test("the binder option sends split_binders and the summary lists the collections", async () => {
+  const stream = openStream();
+  await setup({ stream });
+  document.getElementById("import-split").checked = true;
+  choose("manabox.csv");
+  const finish = done([], 5);
+  finish.result.job_id = "first";
+  finish.result.download_id = "whole";
+  finish.result.collections = [
+    { job_id: "first", name: "Red deck", rows: 3 },
+    { job_id: "second", name: "Trade binder", rows: 2 },
+  ];
+  stream.send(finish);
+  stream.end();
+  await app.until(() => visible("#import-summary"));
+  const request = app.fetchLog.find((r) => r.path === "/api/process/stream");
+  assert.equal(request.body.get("split_binders"), "true");
+  assert.equal(text("#import-summary h3"), "Imported 5 of 5 rows into 2 collections");
+  const items = [...document.querySelectorAll("#import-summary-collections li")].map((li) => li.textContent);
+  assert.deepEqual(items, ["Red deck · 3 rows", "Trade binder · 2 rows"]);
+  assert.equal(document.getElementById("import-download").getAttribute("href"), "/api/download/whole");
+  document.getElementById("import-split").checked = false;
+});
+
+test("without the option no split field goes out and no list shows", async () => {
+  const stream = openStream();
+  await setup({ stream });
+  choose("manabox.csv");
+  stream.send(done([], 5));
+  stream.end();
+  await app.until(() => visible("#import-summary"));
+  const request = app.fetchLog.find((r) => r.path === "/api/process/stream");
+  assert.equal(request.body.get("split_binders"), null);
+  assert.ok(!visible("#import-summary-collections"));
+});

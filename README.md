@@ -105,6 +105,8 @@ A name matches in any case and without accents. A split or double-faced card mat
 
 An import from another app keeps every column of the source file. Grimoire adds the ManaBox columns (such as *Set code* and *Scryfall ID*) to the enhanced CSV. Card data from an older version of Grimoire can lack collector numbers. Then Grimoire matches by name and set only. Press *Update card data* on *Home* to get the exact printings.
 
+**One collection per binder.** ManaBox names the binder of each card, Dragon Shield the folder, and Sorted the list. Grimoire keeps that name on each card. Turn on *One collection per binder* before you import, and each binder of the file becomes its own collection, named after the binder. The option is off by default, so a file becomes one collection. Grimoire has no limit on the number of collections.
+
 ### The Vault
 
 The Vault is the *Collection* screen. A switcher at the top picks a collection or the archive.
@@ -161,6 +163,7 @@ The *Decks* screen lists your saved decks. Each deck belongs to one format.
 - **Autosave:** the editor saves each change after a short pause. It saves again when you leave. If a save fails, the editor says so, and it refuses an export until a save works.
 - **Export:** the export menu gives plain text, Arena-style text, and CSV. You can copy or download the text and Arena kinds. You can only download the CSV kind.
 - **Sample hand:** draw a hand of seven cards, and take a mulligan, or draw one more card.
+- **Pull list:** the *Pull list* view shows where each card of the deck is, grouped by collection and binder, so you can take the cards out one binder at a time. It takes the same printing first, then the deck's own collection, then the largest stack. Basic lands and cards that no collection holds have their own groups. Tick each card as you pull it, or copy the list as text.
 - **Agent panel:** ask the local model to suggest swaps. This needs Ollama (see below). The engine checks each swap before the editor shows it.
 
 ### Optional: local AI and models

@@ -84,6 +84,32 @@
     text-align: center;
 }
 
+/* The option to make one collection per binder */
+.import-split {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    margin: 0 0 1.25rem;
+    font-size: 0.95rem;
+    color: var(--text-dim);
+    cursor: pointer;
+}
+
+.import-split input {
+    margin-top: 0.25rem;
+    accent-color: var(--gold);
+}
+
+.import-split b {
+    color: var(--text);
+}
+
+.import-summary-collections {
+    margin: 0.6rem 0 0;
+    padding-left: 1.2rem;
+    color: var(--text-dim);
+}
+
 /* The paste box for a plain card list */
 .import-paste {
     border: 1px solid var(--border);

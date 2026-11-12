@@ -209,3 +209,29 @@ test("a save refused because another tab changed the deck says so", async () => 
   await app.until(() => error && !error.hidden, SAVE_WAIT);
   assert.match(error.textContent, /changed in another tab/);
 });
+
+test("the Pull list tab shows the cards by binder and counts the ticks", async () => {
+  const pull = {
+    groups: [{ job_id: "c1", collection: "Main box", binder: "Red binder", count: 3, cards: [
+      { name: "Card A", count: 2, set: "TST", number: "1", foil: "normal", scryfall_id: "id-a", printing: true },
+      { name: "Card B", count: 1, set: "TST", number: "2", foil: "foil", scryfall_id: "id-b", printing: false },
+    ] }],
+    basics: [{ name: "Mountain", count: 18 }],
+    missing: [{ name: "Card C", count: 1 }],
+  };
+  await openEditor({ "GET /api/decks/d1/pull-list": () => ({ json: pull }) });
+  click(document.querySelector('[data-editor="view-tab"][data-view="pull"]'));
+  const panel = document.querySelector('[data-editor="pull"]');
+  await app.until(() => panel.querySelector(".pull-group"));
+  assert.match(panel.textContent, /Take 3 cards from 1 place\./);
+  const titles = [...panel.querySelectorAll(".pull-title")].map((t) => t.firstChild.textContent);
+  assert.deepEqual(titles, ["Main box · Red binder", "Basic lands", "Not owned"]);
+  const lines = [...panel.querySelectorAll(".pull-group:not(.pull-plain) .pull-text")].map((t) => t.textContent);
+  assert.deepEqual(lines, ["2 Card A (TST 1)", "1 Card B (TST 2) foil"]);
+  assert.match(panel.textContent, /other printing/);
+  assert.match(panel.querySelector(".pull-progress").textContent, /0 of 3 cards pulled/);
+  const tick = panel.querySelector(".pull-tick");
+  tick.checked = true;
+  tick.dispatchEvent(new window.Event("change", { bubbles: true }));
+  assert.match(panel.querySelector(".pull-progress").textContent, /2 of 3 cards pulled/);
+});

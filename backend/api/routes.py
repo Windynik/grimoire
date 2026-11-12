@@ -1,9 +1,11 @@
 import asyncio
 import json
 import re
+import uuid
+from typing import Dict, List
 from pathlib import Path
 
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException
 from pydantic import BaseModel, Field
 from fastapi.responses import StreamingResponse, FileResponse
 
@@ -19,7 +21,7 @@ from backend.core.collection_store import CollectionStore
 from backend.core.paths import cache_path
 from backend.core.prices import best_price  # noqa: F401  (re-exported)
 from backend.core.csv_processor import CSVProcessor, enrich_rows, write_enriched_csv
-from backend.core.importers import ImportFormatError, decode_upload
+from backend.core.importers import ImportFormatError, binder_of, decode_upload
 from backend.core.ollama_client import OllamaClient
 from backend.forge.cards import is_game_card
 from backend.forge.playbook import load_playbook
@@ -288,8 +290,43 @@ SAMPLE_PATH = Path(__file__).resolve().parents[2] / "examples" / "ManaBox_Collec
 SAMPLE_NAME = "Sample collection.csv"
 
 
+NO_BINDER = "No binder"
+
+
+def store_import(result: ProcessResult, filename: str, bulk_data: dict,
+                 store: CollectionStore, split: bool = False) -> List[dict]:
+    """Store the rows of an import as collections. Return [{job_id, name, rows}].
+
+    With split, each binder (or folder, or list) of the export becomes its own
+    collection, named after it. An export with no binder column, or with one
+    binder only, stays one collection under the import's job id.
+    """
+    rows = result._enriched_rows
+    originals = getattr(result, "_original_rows", None) or [{} for _ in rows]
+    headers = getattr(result, "_original_headers", None)
+    groups = {}  # type: Dict[str, List[int]]
+    for i, row in enumerate(originals):
+        groups.setdefault(binder_of(row) or NO_BINDER, []).append(i)
+    if not split or len(groups) < 2:
+        store.store_collection(result.job_id, rows, bulk_data, source_name=filename,
+                               original_headers=headers, original_rows=originals)
+        listing = store.list_collections()
+        meta = next((m for m in listing if m.get("job_id") == result.job_id), {})
+        return [{"job_id": result.job_id, "name": meta.get("name", ""), "rows": len(rows)}]
+    stored = []
+    for binder, indices in groups.items():
+        job_id = str(uuid.uuid4())
+        # The store drops the extension of the source name to name the collection.
+        store.store_collection(job_id, [rows[i] for i in indices], bulk_data,
+                               source_name=binder + ".csv", original_headers=headers,
+                               original_rows=[originals[i] for i in indices])
+        stored.append({"job_id": job_id, "name": binder, "rows": len(indices)})
+    return stored
+
+
 def import_stream(content: bytes, filename: str, bulk_data: dict,
-                  csv_processor: CSVProcessor, store: CollectionStore) -> StreamingResponse:
+                  csv_processor: CSVProcessor, store: CollectionStore,
+                  split: bool = False) -> StreamingResponse:
     """Process CSV bytes and stream progress as server-sent events."""
     def sse(payload: dict) -> str:
         return f"data: {json.dumps(payload)}\n\n"
@@ -337,16 +374,16 @@ def import_stream(content: bytes, filename: str, bulk_data: dict,
                        "total": result.total_processed, "current_card": "",
                        "errors": result.error_count})
 
+        collections = []  # type: List[dict]
         if hasattr(result, '_enriched_rows'):
-            store.store_collection(
-                result.job_id, result._enriched_rows, bulk_data,
-                source_name=filename,
-                original_headers=getattr(result, '_original_headers', None),
-                original_rows=getattr(result, '_original_rows', None),
-            )
+            collections = store_import(result, filename, bulk_data, store, split)
 
         yield sse({"type": "done", "result": {
-            "job_id": result.job_id,
+            # The collection to open: the first one when the import split.
+            "job_id": collections[0]["job_id"] if collections else result.job_id,
+            # The enhanced CSV of the whole file.
+            "download_id": result.job_id,
+            "collections": collections,
             "status": result.status,
             "total_processed": result.total_processed,
             "success_count": result.success_count,
@@ -362,6 +399,7 @@ def import_stream(content: bytes, filename: str, bulk_data: dict,
 @router.post("/process/stream")
 async def process_csv_stream(
     file: UploadFile = File(...),
+    split_binders: bool = Form(False),
     bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager),
     csv_processor: CSVProcessor = Depends(get_csv_processor),
     store: CollectionStore = Depends(get_collection_store),
@@ -376,7 +414,8 @@ async def process_csv_stream(
         )
 
     content = await file.read()
-    return import_stream(content, file.filename or "", bulk_data, csv_processor, store)
+    return import_stream(content, file.filename or "", bulk_data, csv_processor, store,
+                         split=split_binders)
 
 
 # A pasted list of about 100 000 lines is the most the import takes.

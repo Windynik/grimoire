@@ -3,6 +3,7 @@ from typing import Dict, List, Optional, Tuple
 from pathlib import Path
 import json
 
+from backend.core.importers import binder_of
 from backend.core.paths import cache_path
 
 
@@ -61,6 +62,7 @@ class CollectionStore:
                     "set": card.get("Set code", ""),
                     "rarity": card.get("Rarity", ""),
                     "foil": card.get("Foil", "normal"),
+                    "binder": binder_of(card),
                     "price": price,
                     "prices": prices
                 })
@@ -127,6 +129,23 @@ class CollectionStore:
         if not original:
             return None
         return original["headers"], original["rows"]
+
+    def cards_with_binders(self, job_id: str) -> List[Dict]:
+        """The cards of a collection, each with its binder (for the pull list).
+
+        A collection stored before cards kept their binder takes it from the
+        original rows, when it has them. Returns [] for a missing collection.
+        """
+        cards = self.get_collection(job_id) or []
+        if not cards or "binder" in cards[0]:
+            return cards
+        original = self.get_original(job_id)
+        if original is None:
+            return cards
+        _, rows = original
+        return [{"name": row.get("Name", ""), "scryfall_id": row.get("Scryfall ID", ""),
+                 "quantity": row.get("Quantity", 1), "foil": row.get("Foil", "normal"),
+                 "binder": binder_of(row)} for row in rows]
 
     def delete_collection(self, job_id: str) -> bool:
         """Delete a stored collection. Returns True if it existed."""

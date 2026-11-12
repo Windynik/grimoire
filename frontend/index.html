@@ -122,6 +122,10 @@
                                 </div>
                             </div>
                             <p class="import-apps">Grimoire reads the CSV exports of ManaBox, Moxfield, Archidekt, Deckbox, Dragon Shield, TCGplayer, MTGGoldfish, TopDecked and Magic Online. Another CSV works when it has a card name column.</p>
+                            <label class="import-split">
+                                <input type="checkbox" id="import-split">
+                                <span><b>One collection per binder</b> — an export that names a binder, folder or list for each card (ManaBox, Dragon Shield) becomes one collection for each.</span>
+                            </label>
                             <details class="import-paste">
                                 <summary>Paste a card list instead</summary>
                                 <label class="import-paste-label" for="import-paste-text">One card on each line, such as <code>4 Lightning Bolt</code> or <code>1 Sol Ring (CMR) 472 *F*</code>.</label>
@@ -148,6 +152,7 @@
                                 <h3 id="import-summary-title">Imported 0 of 0 rows</h3>
                                 <p class="import-summary-source" id="import-summary-source" hidden></p>
                                 <p class="import-summary-notice" id="import-summary-notice" hidden></p>
+                                <ul class="import-summary-collections" id="import-summary-collections" hidden></ul>
                             </div>
                             <div id="import-unmatched" hidden>
                                 <h4 class="import-unmatched-title">Unmatched rows</h4>
@@ -388,6 +393,7 @@
                                         <button type="button" role="tab" class="deck-view-tab" data-editor="view-tab" data-view="deck" aria-selected="true">Deck</button>
                                         <button type="button" role="tab" class="deck-view-tab" data-editor="view-tab" data-view="hand" aria-selected="false">Hand</button>
                                         <button type="button" role="tab" class="deck-view-tab" data-editor="view-tab" data-view="explanation" aria-selected="false">Explanation</button>
+                                        <button type="button" role="tab" class="deck-view-tab" data-editor="view-tab" data-view="pull" aria-selected="false">Pull list</button>
                                     </div>
                                     <div class="deck-view" data-view-panel="deck" role="tabpanel">
                                         <div class="deck-pane-tools">
@@ -405,6 +411,7 @@
                                     </div>
                                     <div class="deck-view" data-view-panel="hand" data-editor="hand" role="tabpanel"></div>
                                     <div class="deck-view deck-explain" data-view-panel="explanation" data-editor="explanation" role="tabpanel"></div>
+                                    <div class="deck-view deck-pull" data-view-panel="pull" data-editor="pull" role="tabpanel"></div>
                                 </section>
                                 <aside class="editor-stats" data-panel="stats" data-editor="side" data-side="stats" aria-label="Deck stats and agent">
                                     <div class="side-switch" role="tablist" aria-label="Stats and agent">

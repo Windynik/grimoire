@@ -14,6 +14,7 @@ import { renderAgent } from "./agent.js";
 import { renderExplanation } from "../forge/feed.js";
 import { renderExportMenu } from "./exportmenu.js";
 import { renderHand } from "./hand.js";
+import { renderPull, renderPullState } from "./pull.js";
 import { hidePreview, renderPane } from "./pane.js";
 import { renderSearch } from "./search.js";
 import { renderStats } from "./stats.js";
@@ -104,6 +105,7 @@ function mount(host) {
     viewTabs: host.querySelectorAll('[data-editor="view-tab"]'),
     hand: pick("hand"),
     explanation: pick("explanation"),
+    pull: pick("pull"),
     exportMenu: pick("export"),
   };
 }
@@ -315,6 +317,31 @@ function createSession(host, deckId, options) {
     return queue.flush(flushOptions);
   }
 
+  // The pull list reads the saved deck, so the last edits are saved first.
+  let pullRequest = 0;
+  async function showPull() {
+    const request = ++pullRequest;
+    renderPullState(view.pull, "Finding your cards…");
+    try {
+      await flushNow();
+      const data = await api.pullList(deckId);
+      if (closed || request !== pullRequest) return;
+      renderPull(view.pull, deckId, data, { copy: copyText });
+    } catch (error) {
+      if (closed || request !== pullRequest) return;
+      renderPullState(view.pull, `Could not make the pull list: ${error.message}`, true);
+    }
+  }
+
+  async function copyText(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast("Pull list copied", "success");
+    } catch (error) {
+      showToast("Could not copy the pull list", "error");
+    }
+  }
+
   // The export reads the saved deck, so it must not run after a failed save.
   async function saveBeforeExport() {
     await flushNow();
@@ -414,6 +441,7 @@ function createSession(host, deckId, options) {
     hidePreview();
     view.center.dataset.view = tab.dataset.view;
     view.viewTabs.forEach((other) => other.setAttribute("aria-selected", String(other === tab)));
+    if (tab.dataset.view === "pull") showPull();
   }));
   // The side switch picks Stats or Agent inside the right panel. The layout tabs are not touched.
   view.sideTabs.forEach((tab) => tab.addEventListener("click", () => {

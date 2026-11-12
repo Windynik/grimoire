@@ -30,6 +30,9 @@ FOIL = "Foil"
 RARITY = "Rarity"
 SCRYFALL_ID = "Scryfall ID"
 CANONICAL = (NAME, SET_CODE, SET_NAME, NUMBER, FOIL, RARITY, QUANTITY, SCRYFALL_ID)
+# Where the card is kept: ManaBox's binder, Dragon Shield's folder, Sorted's
+# list. Only an export that has such a column gets it.
+BINDER = "Binder Name"
 
 # Header spellings of each field, after `_header_key` (lower case, letters and
 # digits only), in order of preference. "set" and "edition" hold a set code in
@@ -45,6 +48,7 @@ _ALIASES = {
                "collectorno", "collector", "cn"),
     "foil": ("foil", "finish", "printing", "isfoil", "foiled", "premium"),
     "scryfall_id": ("scryfallid", "scryfalluuid", "scryfallcardid", "id"),
+    "binder": ("bindername", "foldername", "listname", "binder", "folder", "location"),
 }
 # The set columns that a row tries, in order, when it looks for its set.
 _SET_FIELDS = ("set_code", "set_name", "set_other")
@@ -439,6 +443,8 @@ def _normalize_csv(headers: List[str], rows: List[dict], index: CardIndex) -> Li
         row.setdefault(NUMBER, number)
         row.setdefault(RARITY, "")
         row[SCRYFALL_ID] = given_id
+        if "binder" in columns:
+            row[BINDER] = value(row, "binder")
         if given_id in index.bulk_data:
             _complete(row, given_id, index)
         else:
@@ -477,10 +483,16 @@ def _normalize_text(rows: List[dict], index: CardIndex) -> List[dict]:
 
 def _with_canonical(headers: Iterable[str]) -> List[str]:
     out = list(headers)
-    for column in CANONICAL:
+    extra = (BINDER,) if "binder" in _field_columns(out) else ()
+    for column in CANONICAL + extra:
         if column not in out:
             out.append(column)
     return out
+
+
+def binder_of(row: dict) -> str:
+    """The binder, folder or list that holds a card row, or "" when the export has none."""
+    return str(row.get(BINDER) or "").strip()
 
 
 def _numbers_notice(index: CardIndex, rows: List[dict]) -> Optional[str]:

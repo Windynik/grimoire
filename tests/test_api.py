@@ -236,7 +236,7 @@ def test_process_stream_reports_progress_and_result(stream_env):
     assert done["type"] == "done"
     assert set(done["result"]) == {"job_id", "status", "total_processed",
                                    "success_count", "error_count", "errors",
-                                   "source_format", "notice"}
+                                   "source_format", "notice", "download_id", "collections"}
     assert done["result"]["success_count"] == 23
     assert done["result"]["source_format"] == "a CSV file"
     assert {e["error"] for e in done["result"]["errors"]} == {
@@ -292,6 +292,42 @@ def test_process_text_rejects_a_paste_that_is_too_long(stream_env):
 def test_process_text_rejects_an_empty_paste(stream_env):
     response = client.post("/api/process/text", json={"text": "  \n "})
     assert response.status_code == 400
+
+
+def binder_csv():
+    lines = ["Binder Name,Name,Scryfall ID,Quantity,Set code,Collector number,Foil,ManaBox ID"]
+    lines += [f"Red deck,Card{i},id-{i},1,tst,{i},normal,{i}" for i in range(3)]
+    lines += [f"Trade binder,Card{i},id-{i},2,tst,{i},normal,{i}" for i in range(3, 5)]
+    return "\n".join(lines) + "\n"
+
+
+def test_an_import_can_split_into_one_collection_per_binder(stream_env):
+    store, bulk = stream_env
+    bulk.cards.update({f"id-{i}": index_card(f"Card{i}", "1.00") for i in range(5)})
+    events = sse_events(client.post("/api/process/stream", files={"file": ("mb.csv", binder_csv())},
+                                    data={"split_binders": "true"}))
+    done = events[-1]["result"]
+    assert [(c["name"], c["rows"]) for c in done["collections"]] == [
+        ("Red deck", 3), ("Trade binder", 2)]
+    assert done["job_id"] == done["collections"][0]["job_id"]
+    assert done["download_id"] not in {c["job_id"] for c in done["collections"]}
+    names = sorted(c["name"] for c in store.list_collections())
+    assert names == ["Red deck", "Trade binder"]
+    trade = next(c for c in done["collections"] if c["name"] == "Trade binder")
+    assert {c["name"] for c in store.get_collection(trade["job_id"])} == {"Card3", "Card4"}
+    assert {c["binder"] for c in store.get_collection(trade["job_id"])} == {"Trade binder"}
+    # The enhanced CSV of the whole file is the one of the import job.
+    processor = app.dependency_overrides[get_csv_processor]()
+    assert (processor.progress_dir / ("%s.csv" % done["download_id"])).exists()
+
+
+def test_an_import_without_the_option_stays_one_collection(stream_env):
+    store, bulk = stream_env
+    bulk.cards.update({f"id-{i}": index_card(f"Card{i}", "1.00") for i in range(5)})
+    events = sse_events(client.post("/api/process/stream", files={"file": ("mb.csv", binder_csv())}))
+    done = events[-1]["result"]
+    assert [(c["name"], c["rows"]) for c in done["collections"]] == [("mb", 5)]
+    assert [c["name"] for c in store.list_collections()] == ["mb"]
 
 
 def test_process_stream_without_bulk_data_is_400(overrides):

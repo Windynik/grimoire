@@ -62,8 +62,15 @@ function showSummary(result) {
   // A fresh import becomes the viewer's collection again.
   setViewerSource(null);
 
-  $("import-summary-title").textContent =
-    `Imported ${result.success_count} of ${result.total_processed} rows`;
+  const made = Array.isArray(result.collections) ? result.collections : [];
+  $("import-summary-title").textContent = made.length > 1
+    ? `Imported ${result.success_count} of ${result.total_processed} rows into ${made.length} collections`
+    : `Imported ${result.success_count} of ${result.total_processed} rows`;
+  const list = $("import-summary-collections");
+  list.replaceChildren(...(made.length > 1
+    ? made.map((c) => h("li", { text: `${c.name} · ${Number(c.rows).toLocaleString()} rows` }))
+    : []));
+  list.hidden = made.length < 2;
   const source = $("import-summary-source");
   source.textContent = sourceText(result.source_format);
   source.hidden = !source.textContent;
@@ -85,7 +92,9 @@ function showSummary(result) {
   more.hidden = extra <= 0;
   more.textContent = extra > 0 ? `and ${extra} more rows` : "";
 
-  $("import-download").setAttribute("href", `${API_BASE}/download/${encodeURIComponent(result.job_id)}`);
+  // The enhanced CSV covers the whole file, also when it became several collections.
+  const download = result.download_id || result.job_id;
+  $("import-download").setAttribute("href", `${API_BASE}/download/${encodeURIComponent(download)}`);
   showState("summary");
 }
 
@@ -98,6 +107,7 @@ function handleFile(file) {
   }
   const formData = new FormData();
   formData.append("file", file);
+  if ($("import-split").checked) formData.append("split_binders", "true");
   runImport(() => fetch(`${API_BASE}/process/stream`, { method: "POST", body: formData }));
 }
 
