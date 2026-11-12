@@ -138,3 +138,52 @@
     outline: 2px solid var(--violet);
     outline-offset: 2px;
 }
+
+/* ---- phone access ---------------------------------------------------------- */
+#settings-view .phone-pair {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-4);
+    margin-top: var(--space-3);
+}
+
+#settings-view .phone-qr {
+    width: 180px;
+    height: 180px;
+    border-radius: var(--radius-md);
+    background: #fff;
+}
+
+#settings-view .phone-pair-text {
+    flex: 1 1 220px;
+}
+
+#settings-view .phone-pair-text p {
+    margin: 0 0 var(--space-2);
+}
+
+#settings-view .phone-code {
+    font-family: var(--font-mono);
+    letter-spacing: 0.15em;
+    color: var(--gold);
+}
+
+#settings-view .phone-devices h4 {
+    margin: var(--space-4) 0 var(--space-2);
+}
+
+#settings-view .phone-devices ul {
+    list-style: none;
+    margin: 0 0 var(--space-3);
+    padding: 0;
+    display: grid;
+    gap: var(--space-2);
+}
+
+#settings-view .phone-devices li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+}

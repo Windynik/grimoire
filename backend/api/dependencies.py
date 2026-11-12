@@ -4,8 +4,15 @@ from backend.core.collection_store import CollectionStore
 from backend.core.image_store import ImageStore
 from backend.core.csv_processor import CSVProcessor
 from backend.core.ollama_client import OllamaClient
+from backend.core.phone import PhoneAccess
 from backend.decks.store import DeckStore
 from backend.forge.session import ForgeManager
+
+
+@lru_cache()
+def get_phone_access() -> PhoneAccess:
+    """The phone access state and its listener (one per server process)."""
+    return PhoneAccess()
 
 
 @lru_cache()

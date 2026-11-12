@@ -441,3 +441,10 @@ def test_download_and_clear_are_refused_while_a_download_runs():
     assert events == [{"error": routes.DOWNLOAD_RUNNING}]
     assert cleared.status_code == 409
     assert cleared.json()["detail"] == routes.CLEAR_WHILE_DOWNLOADING
+
+
+def test_the_web_app_manifest_has_its_type():
+    response = client.get("/manifest.webmanifest")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/manifest+json")
+    assert response.json()["display"] == "standalone"

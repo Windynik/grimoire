@@ -4,7 +4,7 @@
 // saved values when its setup opens.
 
 import { h } from "../shared/dom.js";
-import { del, getJSON } from "../shared/http.js";
+import { del, getJSON, postJSON } from "../shared/http.js";
 import { autoStartImageSync, imageSyncState, onImageSync, startImageSync } from "../shared/imagesync.js";
 import { isRecommended } from "../shared/models.js";
 import { confirmDialog } from "../shared/modal.js";
@@ -22,6 +22,8 @@ const ASK_LABELS = {
 
 let ui = null;
 let images = null;
+let phone = null;
+let phoneChecking = 0;
 let checking = 0;
 let imageChecking = 0;
 let wasRunning = false;
@@ -189,6 +191,7 @@ function build() {
         onclick: clearCardData,
       })),
     imagesGroup(),
+    phoneGroup(),
     group("Online research",
       h("label", { class: "settings-switch" },
         research,
@@ -254,8 +257,116 @@ async function refresh() {
 }
 
 /** Show the screen: read the Ollama status and the saved settings again. */
+// ---- phone access ------------------------------------------------------------
+
+function phoneGroup() {
+  const enable = h("input", { id: "settings-phone", type: "checkbox", role: "switch" });
+  enable.addEventListener("change", () => switchPhone(enable.checked));
+  const status = h("p", { id: "settings-phone-status", class: "settings-status", role: "status" });
+  const pair = h("div", { id: "settings-phone-pair", class: "phone-pair", hidden: true });
+  const devices = h("div", { id: "settings-phone-devices", class: "phone-devices", hidden: true });
+  phone = { enable, status, pair, devices };
+  return group("Phone access",
+    h("label", { class: "settings-switch settings-switch-on" },
+      enable,
+      h("span", { class: "settings-switch-label", text: "Let my phone open Grimoire on this Wi-Fi" })),
+    h("p", { class: "settings-help", text: "A phone on the same Wi-Fi opens the app after it pairs once with a QR code. "
+      + "Other devices on the network get no access. Turn this off to close the access." }),
+    status, pair, devices);
+}
+
+async function refreshPhone() {
+  const request = ++phoneChecking;
+  let data;
+  try {
+    data = await getJSON("/phone");
+  } catch (e) {
+    if (request !== phoneChecking || !phone) return;
+    // A phone that opened Settings: these settings answer only on the computer.
+    phone.enable.disabled = true;
+    phone.status.textContent = "Change phone access on the computer that runs Grimoire.";
+    phone.pair.hidden = true;
+    phone.devices.hidden = true;
+    return;
+  }
+  if (request !== phoneChecking || !phone) return;
+  renderPhone(data);
+}
+
+async function switchPhone(on) {
+  phone.enable.disabled = true;
+  try {
+    renderPhone(await postJSON("/phone", { enabled: on }));
+    showToast(on ? "Phone access is on" : "Phone access is off", "success");
+  } catch (e) {
+    showToast(`Could not change phone access: ${e.message}`, "error");
+    refreshPhone();
+  } finally {
+    phone.enable.disabled = false;
+  }
+}
+
+async function phoneAction(run, done) {
+  try {
+    renderPhone(await run());
+    if (done) showToast(done, "success");
+  } catch (e) {
+    showToast(e.message, "error");
+  }
+}
+
+function renderPhone(data) {
+  if (!phone) return;
+  phone.enable.checked = Boolean(data.enabled);
+  phone.enable.disabled = false;
+  if (data.error) {
+    phone.status.textContent = data.error;
+  } else if (!data.enabled) {
+    phone.status.textContent = "Off. Grimoire answers only on this computer.";
+  } else {
+    const count = (data.devices || []).length;
+    phone.status.textContent = `On. ${count} ${count === 1 ? "phone is" : "phones are"} paired.`;
+  }
+
+  const live = data.enabled && data.running;
+  phone.pair.hidden = !live;
+  if (live) {
+    const urls = data.urls || [];
+    const parts = [];
+    if (data.pair && data.pair.url) {
+      parts.push(
+        h("img", { class: "phone-qr", src: `/api/phone/qr.svg?code=${encodeURIComponent(data.pair.code)}`,
+          alt: "QR code that pairs a phone", width: "180", height: "180" }),
+        h("div", { class: "phone-pair-text" },
+          h("p", { text: "Scan this with the phone's camera, then open the link." }),
+          h("p", null, "Code ", h("strong", { class: "phone-code", text: data.pair.code }),
+            ` · works once, for ${Math.max(1, Math.round(data.pair.expires_in / 60))} minutes.`),
+          urls.length ? h("p", { class: "settings-help", text: `Paired phones open ${urls.join(" or ")}` }) : null,
+          h("p", { class: "settings-help", text: "The phone must be on the same Wi-Fi. If it cannot connect, allow "
+            + "Python to accept incoming connections in the Mac's firewall (System Settings, Network, Firewall, Options)." })));
+    } else {
+      parts.push(h("p", { class: "settings-help", text: "Make a pairing code to add a phone." }));
+    }
+    const fresh = h("button", { type: "button", class: "btn btn-secondary", text: data.pair ? "New code" : "Pair a phone",
+      onclick: () => phoneAction(() => postJSON("/phone/pair-code", {})) });
+    phone.pair.replaceChildren(...parts, h("div", { class: "settings-actions" }, fresh));
+  }
+
+  const devices = data.devices || [];
+  phone.devices.hidden = !data.enabled || !devices.length;
+  phone.devices.replaceChildren(
+    h("h4", { text: "Paired phones" }),
+    h("ul", null, ...devices.map((d) => h("li", null,
+      h("span", { text: `${d.name} · paired ${String(d.created || "").slice(0, 10)}` }),
+      h("button", { type: "button", class: "btn btn-secondary btn-compact", text: "Forget",
+        onclick: () => phoneAction(() => del(`/phone/devices/${encodeURIComponent(d.id)}`), "The phone is forgotten") })))),
+    ...(devices.length > 1 ? [h("button", { type: "button", class: "btn btn-danger btn-compact", text: "Forget all phones",
+      onclick: () => phoneAction(() => del("/phone/devices"), "Every phone is forgotten") })] : []));
+}
+
 export async function open() {
   if (!ui) ui = build();
+  refreshPhone();
   ui.ask.value = readSettings().askMode;
   images.auto.checked = readSettings().autoImages;
   renderImages(imageSyncState());

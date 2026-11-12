@@ -292,3 +292,65 @@ test("the tracking tilt transitions only transform, with a token duration", () =
   assert.match(items[0], /var\(--dur-[a-z]+\)/);
   assert.doesNotMatch(stripTokenGroups(items[0]), RAW_TIME);
 });
+
+// The body of each "@media (pointer: coarse)" block of a stylesheet.
+function coarseBlocks(css) {
+  const blocks = [];
+  let at = css.indexOf("@media (pointer: coarse)");
+  while (at >= 0) {
+    let depth = 0;
+    let i = css.indexOf("{", at);
+    const start = i + 1;
+    for (; i < css.length; i += 1) {
+      if (css[i] === "{") depth += 1;
+      else if (css[i] === "}") {
+        depth -= 1;
+        if (depth === 0) break;
+      }
+    }
+    blocks.push(css.slice(start, i));
+    at = css.indexOf("@media (pointer: coarse)", i);
+  }
+  return blocks.join("\n");
+}
+
+test("on a touch screen the small controls grow to finger size", () => {
+  const byName = Object.fromEntries(cssFiles().map((f) => [f.name, coarseBlocks(f.text)]));
+  const wants = [
+    ["css/decks.css", ".deck-row-btn", /width:\s*2\.375rem/],
+    ["css/decks.css", ".deck-row-btn", /height:\s*2\.375rem/],
+    ["css/decks.css", ".export-btn", /min-height:\s*2\.5rem/],
+    ["css/tile.css", ".deck-name", /min-height:\s*2\.75rem/],
+    ["css/vault.css", ".vault-import", /min-height:\s*2\.5rem/],
+    ["css/vault.css", ".vault-seg button", /min-height:\s*2\.5rem/],
+    ["css/home.css", ".home-link", /min-height:\s*2\.5rem/],
+  ];
+  for (const [file, selector, rule] of wants) {
+    const block = byName[file] || "";
+    const at = block.indexOf(selector);
+    assert.ok(at >= 0, `${file} has a touch rule for ${selector}`);
+    const body = block.slice(block.indexOf("{", at), block.indexOf("}", at));
+    assert.match(body, rule, `${file} ${selector}`);
+  }
+});
+
+test("the deck editor tells a touch user how to move a card", () => {
+  const html = indexHtml();
+  assert.match(html, /class="hint-touch">Tap ⋯ on a card to move it/);
+  const decks = cssFiles().find((f) => f.name === "css/decks.css").text;
+  assert.match(coarseBlocks(decks), /\.hint-pointer\s*\{\s*display:\s*none/);
+});
+
+test("the page can be installed on a phone home screen", () => {
+  const html = indexHtml();
+  assert.match(html, /<link rel="manifest" href="\/manifest\.webmanifest">/);
+  assert.match(html, /<link rel="apple-touch-icon" href="\/apple-touch-icon\.png">/);
+  assert.match(html, /<meta name="apple-mobile-web-app-capable" content="yes">/);
+  const manifest = JSON.parse(readFileSync(join(FRONTEND, "manifest.webmanifest"), "utf8"));
+  assert.equal(manifest.display, "standalone");
+  assert.equal(manifest.name, "Grimoire");
+  for (const icon of manifest.icons) {
+    assert.ok(statSync(join(FRONTEND, icon.src.slice(1))).size > 0, icon.src);
+  }
+  assert.ok(statSync(join(FRONTEND, "apple-touch-icon.png")).size > 0);
+});

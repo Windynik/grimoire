@@ -27,6 +27,7 @@ setup(
         "pydantic>=2.9.2",
         "python-multipart>=0.0.17",
         "aiofiles>=24.1.0",
+        "segno>=1.6",
     ],
     entry_points={
         "console_scripts": [

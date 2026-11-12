@@ -6,6 +6,14 @@
     <title>Grimoire — Offline MTG Companion</title>
     <meta name="description" content="Your offline MTG spellbook: import your collection from ManaBox, Moxfield, Archidekt and more, browse it, and forge decks from cards you own">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <!-- Home-screen install: an app icon, and full-screen launch with no browser bar. -->
+    <link rel="manifest" href="/manifest.webmanifest">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <meta name="theme-color" content="#0f1220">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Grimoire">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Spectral:ital,wght@0,500;0,600;1,500&family=Geist:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -405,7 +413,7 @@
                                                     <option value="cmc">Mana value</option>
                                                 </select>
                                             </label>
-                                            <p class="deck-pane-hint">Drag a row onto a section to move every copy. Hold Shift as you drop to move one copy.</p>
+                                            <p class="deck-pane-hint"><span class="hint-pointer">Drag a row onto a section to move every copy. Hold Shift as you drop to move one copy.</span><span class="hint-touch">Tap ⋯ on a card to move it to another section or make it the commander.</span></p>
                                         </div>
                                         <div class="deck-pane" data-editor="pane"></div>
                                     </div>

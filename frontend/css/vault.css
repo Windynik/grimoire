@@ -2259,3 +2259,19 @@ body.vault-sheet-lock {
 .vault-legal > span {
     position: relative;
 }
+
+/* A finger needs a bigger target than a mouse: about 40 px. */
+@media (pointer: coarse) {
+    .vault-import,
+    .vault-shelf-all {
+        display: inline-flex;
+        align-items: center;
+        min-height: 2.5rem;
+        padding-top: 0;
+        padding-bottom: 0;
+    }
+
+    .vault-seg button {
+        min-height: 2.5rem;
+    }
+}

@@ -80,7 +80,7 @@ The top bar has five screens. Each screen has its own address, such as `#home` o
 - **Collection** is the Vault, the viewer for your cards or for all cards in the archive (see below). The *Import cards* button opens the importer. The importer shows live progress and a summary of the rows it could not match (see *Importing*).
 - **Forge** builds a deck from the cards you own (see below).
 - **Decks** lists your saved decks and opens the editor (see below).
-- **Settings** shows the Ollama status, picks the model (Automatic, Engine only, or one installed model), sets how often the forge asks you a question, clears the card data, and shows the card images on this Mac. The app downloads the images of your cards in the background when it starts. A switch turns this off, and a button starts a download at any time. *Clear card data* keeps the images. *Remove images* deletes them.
+- **Settings** shows the Ollama status, picks the model (Automatic, Engine only, or one installed model), sets how often the forge asks you a question, clears the card data, and shows the card images on this Mac. The app downloads the images of your cards in the background when it starts. A switch turns this off, and a button starts a download at any time. *Clear card data* keeps the images. *Remove images* deletes them. *Phone access* lets a phone open Grimoire (see below).
 
 ### Importing
 
@@ -190,6 +190,20 @@ Evaluation status:
 - With `qwen3:14b` the evaluation did not yet meet the model pass rule.
 - `gpt-oss:20b` did not finish on a 24 GB Mac with other apps open. The Mac ran out of memory, and the first model call timed out.
 - With `qwen3.5:9b` (one seed per sample), every model call returned valid JSON, and a forge took 80–140 seconds. Counters passed. Both aristocrats runs scored 0.001–0.022 below the engine baseline, and bogles reached 67% core recall (the rule is 70%).
+
+## On your phone
+
+Grimoire works on a phone over your home Wi-Fi. The Mac runs it, and the phone shows it.
+
+1. On the Mac, open *Settings* and turn on *Phone access*. Grimoire opens a second listener on port 8135 and shows a QR code.
+2. Scan the QR code with the phone's camera, and open the link. The phone is now paired.
+3. In Safari, tap *Share*, then *Add to Home Screen*. Grimoire then opens full-screen from its own icon.
+
+**Safety.** The main server still answers only on the Mac. Only paired phones get past the phone listener: a pairing code works once, for 10 minutes, and a paired phone keeps a secret cookie. The phone settings answer only on the Mac, so a phone cannot pair other devices. *Forget* unpairs a phone, and turning phone access off closes the listener. The traffic is plain HTTP on your home network, as with other local web apps, so use phone access only on a network you trust.
+
+**If the phone cannot connect:** it must be on the same Wi-Fi as the Mac. With the macOS firewall on, allow Python to accept incoming connections (*System Settings*, *Network*, *Firewall*, *Options*).
+
+On a touch screen, buttons grow to finger size, and the deck editor moves cards with the *⋯* menu instead of drag and drop.
 
 ## Development
 

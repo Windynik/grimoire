@@ -1535,3 +1535,31 @@
     padding: 3px 0;
     color: var(--text-dim);
 }
+
+#decks-view .hint-touch {
+    display: none;
+}
+
+/* A finger needs a bigger target than a mouse: about 40 px. */
+@media (pointer: coarse) {
+    #decks-view .hint-pointer {
+        display: none;
+    }
+
+    #decks-view .hint-touch {
+        display: inline;
+    }
+
+    #decks-view .deck-row-btn {
+        width: 2.375rem;
+        height: 2.375rem;
+    }
+
+    #decks-view .deck-row {
+        min-height: 2.75rem;
+    }
+
+    #decks-view .export-btn {
+        min-height: 2.5rem;
+    }
+}

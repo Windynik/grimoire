@@ -28,6 +28,12 @@ function holdRun() {
   };
   return { status: 200, body, headers: { "content-type": "text/event-stream" } };
 }
+const PHONE_OFF = { enabled: false, running: false, port: 8135, urls: [], devices: [], pair: null, error: null };
+const PHONE_ON = {
+  enabled: true, running: true, port: 8135, urls: ["http://192.168.1.20:8135", "http://mac.local:8135"],
+  devices: [{ id: "d1", name: "iPhone", created: "2026-11-12T10:00:00+00:00" }],
+  pair: { code: "K7M2QX", url: "http://192.168.1.20:8135/pair?code=K7M2QX", expires_in: 598 }, error: null,
+};
 const STATUS_MISSING = { count: 2, bytes: 3145728, owned_total: 10, owned_small: 4, owned_normal: 2 };
 let imageStatus = STATUS_MISSING;
 
@@ -58,6 +64,7 @@ async function setup({ ai = AI_UP, saved = null, status = STATUS_MISSING, keepRu
   app.route("GET /api/ai/status", () => ({ json: ai }));
   app.route("DELETE /api/cache", () => ({ json: { ok: true } }));
   app.route("DELETE /api/images", () => ({ json: { removed: 2 } }));
+  app.route("GET /api/phone", () => ({ json: PHONE_OFF }));
   window.localStorage.clear();
   if (saved) window.localStorage.setItem(KEY, JSON.stringify(saved));
   app.fetchLog.length = 0;
@@ -444,4 +451,37 @@ test("a cut-off run with a failure shows the stopped text", async () => {
   held.end();
   held = null;
   await app.until(() => $("settings-images-text").textContent === "The image download stopped. Try again later.");
+});
+
+test("phone access is off by default and says so", async () => {
+  await setup();
+  await app.until(() => /Off\. Grimoire answers only on this computer\./.test($("settings-phone-status").textContent));
+  assert.equal($("settings-phone").checked, false);
+  assert.ok($("settings-phone-pair").hidden);
+});
+
+test("turning phone access on shows the QR code, the code and the paired phones", async () => {
+  await setup();
+  await app.until(() => $("settings-phone-status").textContent !== "");
+  app.route("POST /api/phone", () => ({ json: PHONE_ON }));
+  $("settings-phone").checked = true;
+  $("settings-phone").dispatchEvent(new window.Event("change", { bubbles: true }));
+  await app.until(() => !$("settings-phone-pair").hidden);
+  const post = app.fetchLog.find((r) => r.method === "POST" && r.path === "/api/phone");
+  assert.deepEqual(post.body, { enabled: true });
+  assert.match($("settings-phone-status").textContent, /On\. 1 phone is paired\./);
+  assert.match(document.querySelector(".phone-qr").getAttribute("src"), /\/api\/phone\/qr\.svg\?code=K7M2QX/);
+  assert.equal(document.querySelector(".phone-code").textContent, "K7M2QX");
+  assert.match($("settings-phone-pair").textContent, /http:\/\/192\.168\.1\.20:8135/);
+  assert.match($("settings-phone-pair").textContent, /allow Python to accept incoming connections/);
+  assert.match($("settings-phone-devices").textContent, /iPhone · paired 2026-11-12/);
+  assert.doesNotMatch($("settings-phone-devices").textContent, /null/);
+});
+
+test("on a phone the phone settings say to use the computer", async () => {
+  await setup();
+  app.route("GET /api/phone", () => ({ status: 401, json: { detail: "This phone is not paired." } }));
+  open();
+  await app.until(() => /on the computer that runs Grimoire/.test($("settings-phone-status").textContent));
+  assert.equal($("settings-phone").disabled, true);
 });

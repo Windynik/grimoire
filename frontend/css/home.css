@@ -237,3 +237,12 @@
         width: 100%;
     }
 }
+
+/* A finger needs a bigger target than a mouse: about 40 px. */
+@media (pointer: coarse) {
+    #home-view .home-link {
+        display: inline-flex;
+        align-items: center;
+        min-height: 2.5rem;
+    }
+}
