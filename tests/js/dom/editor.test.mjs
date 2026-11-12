@@ -305,3 +305,36 @@ test("a deck with no bracket facts hides the bracket section", async () => {
   await app.until(() => stats.querySelector(".stat-bracket"));
   assert.ok(stats.querySelector(".stat-bracket").closest("section").hidden);
 });
+
+test("the Changes view lists the changelog by day", async () => {
+  const now = new Date();
+  const at = now.toISOString();
+  await openEditor({
+    "GET /api/decks/d1/changes": () => ({ json: { since: at, changes: [
+      { at, until: at, kind: "edit", note: "", fields: [{ field: "name", from: "Old", to: "Deck One" }],
+        cards: [{ section: "commander", name: "Krenko", key: "k", delta: 1 },
+          { section: "main", name: "Card A", key: "id-a", delta: 2 },
+          { section: "sideboard", name: "Card B", key: "id-b", delta: -1 }] },
+      { at, until: at, kind: "copied", note: "Copied from Deck Zero.", fields: [], cards: [] },
+    ] } }),
+  });
+  click(document.querySelector('[data-editor="view-tab"][data-view="changes"]'));
+  const root = document.querySelector('[data-editor="changes"]');
+  await app.until(() => root.querySelector(".change-entry"));
+  assert.equal(root.querySelector(".changes-day").textContent, "Today");
+  const entries = [...root.querySelectorAll(".change-entry")];
+  assert.equal(entries[0].querySelector(".change-title").textContent, "Edited");
+  assert.deepEqual([...entries[0].querySelectorAll("li")].map((li) => li.textContent), [
+    "Renamed: Old → Deck One", "New commander: Krenko", "+2 Card A", "−1 Sideboard: Card B"]);
+  assert.equal(entries[1].querySelector(".change-note").textContent, "Copied from Deck Zero.");
+  assert.equal(root.querySelector(".changes-hint"), null);
+});
+
+test("an empty changelog says that edits show from now on", async () => {
+  await openEditor({ "GET /api/decks/d1/changes": () => ({ json: { since: null, changes: [] } }) });
+  click(document.querySelector('[data-editor="view-tab"][data-view="changes"]'));
+  const root = document.querySelector('[data-editor="changes"]');
+  await app.until(() => root.querySelector(".changes-lede")
+    && !root.textContent.includes("Reading"));
+  assert.match(root.textContent, /No changes are recorded yet/);
+});

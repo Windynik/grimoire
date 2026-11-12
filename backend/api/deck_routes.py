@@ -26,6 +26,7 @@ from backend.decks.records import (
     new_record,
     strip_display,
 )
+from backend.decks.changelog import changes_newest_first, record_edit, record_event
 from backend.decks.pull import pull_list
 from backend.decks.store import DeckStore
 from backend.decks.usage import CopiesInUse, mark_taken, taken_cards
@@ -82,6 +83,7 @@ def deck_response(record: dict, index: Dict[str, dict], collections: CollectionS
     deck = hydrate_record(record, index)
     deck.setdefault("revision", 0)
     deck.pop("edit", None)
+    deck.pop("changelog", None)
     rows, meta = _collection_for(record, collections)
     deck["analysis"] = analyze(record, index, rows, meta, _PLAYBOOK)
     if decks is not None:
@@ -154,6 +156,7 @@ async def create_deck(
     """Create an empty deck."""
     _check_format(request.format)
     record = new_record(request.name, request.format, request.collection_job_id)
+    record_event(record, "created")
     store.save(record)
     index = await bulk_data_manager.load_bulk_data()
     return deck_response(record, index, collections)
@@ -192,6 +195,7 @@ async def import_deck(
     record["sections"] = sections
     # Hydrate before the strip so the saved entries keep their art URL
     record = strip_display(hydrate_record(record, index))
+    record_event(record, "imported", "Imported from a decklist.", with_cards=True)
     store.save(record)
     body = await full_response(record, index, collections, store)
     body["unknown"] = unknown
@@ -256,8 +260,17 @@ async def update_deck(
             return await full_response(stored, index, collections, store)
         # Hydrate before the strip so the saved entries keep their art URL
         record = strip_display(hydrate_record(apply_update(stored, request), index))
+        record_edit(record, stored)
         store.save(record)
     return await full_response(record, index, collections, store)
+
+
+@router.get("/decks/{deck_id}/changes")
+async def deck_changes(deck_id: str, store: DeckStore = Depends(get_deck_store)):
+    """The changelog of a deck, newest first (see backend.decks.changelog)."""
+    record = _stored(store, deck_id)
+    return {"changes": changes_newest_first(record),
+            "since": (record.get("changelog") or [{}])[0].get("at") or record.get("created")}
 
 
 class BuiltIn(BaseModel):
@@ -273,6 +286,8 @@ async def set_built(deck_id: str, request: BuiltIn, store: DeckStore = Depends(g
     """
     async with _deck_lock(deck_id):
         record = _stored(store, deck_id)
+        if bool(record.get("built")) != request.built:
+            record_event(record, "built" if request.built else "unbuilt")
         record["built"] = request.built
         store.save(record)
     return {"built": request.built}

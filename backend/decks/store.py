@@ -7,6 +7,7 @@ import re
 import uuid
 
 from backend.core.paths import cache_path
+from backend.decks.changelog import record_event
 
 # The longest deck name the editor can save (DeckIn.name).
 NAME_MAX = 120
@@ -127,8 +128,12 @@ class DeckStore:
             return None
         record.pop("id", None)
         record.pop("created", None)
-        # A copy is a new idea: it holds no cards until the owner builds it.
+        # A copy is a new idea: it holds no cards until the owner builds it,
+        # and its changelog starts at the copy.
         record.pop("built", None)
+        source = record.get("name", "")
+        record["changelog"] = []
+        record_event(record, "copied", "Copied from %s." % source)
         # The name must fit DeckIn's limit, or the copy could never save.
         suffix = " (copy)"
         base = record.get("name", "")[:NAME_MAX - len(suffix)].rstrip()

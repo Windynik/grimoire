@@ -390,3 +390,28 @@ def test_the_built_switch_saves_and_a_copy_is_not_built(overrides):
         copy_id = client.post("/api/decks/%s/duplicate" % deck_id).json()["id"]
         assert not decks.get(copy_id).get("built")
         assert client.put("/api/decks/missing/built", json={"built": True}).status_code == 404
+
+
+def test_the_changes_route_lists_events_and_edits_newest_first(overrides):
+    _, _, decks = overrides
+    sac = _sac()
+    with TestClient(app) as client:
+        deck_id = client.post("/api/decks", json={"format": "modern"}).json()["id"]
+        client.put("/api/decks/%s" % deck_id, json=_body())
+        client.put("/api/decks/%s/built" % deck_id, json={"built": True})
+        client.put("/api/decks/%s/built" % deck_id, json={"built": True})  # no change: no entry
+        body = client.get("/api/decks/%s/changes" % deck_id).json()
+        kinds = [entry["kind"] for entry in body["changes"]]
+        assert kinds == ["built", "edit", "created"]
+        edit = body["changes"][1]
+        assert edit["cards"] == [{"section": "main", "name": "Sac Outlet 0", "key": sac["id"],
+                                  "delta": 3}]
+        assert [(f["field"], f["to"]) for f in edit["fields"]] == [("name", "Renamed")]
+        assert body["since"] == body["changes"][-1]["at"]
+        # The deck body leaves the changelog out.
+        assert "changelog" not in client.get("/api/decks/%s" % deck_id).json()
+        copy_id = client.post("/api/decks/%s/duplicate" % deck_id).json()["id"]
+        copied = client.get("/api/decks/%s/changes" % copy_id).json()["changes"]
+        assert [e["kind"] for e in copied] == ["copied"]
+        assert copied[0]["note"].startswith("Copied from Renamed")
+        assert client.get("/api/decks/missing/changes").status_code == 404

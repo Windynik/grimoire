@@ -40,6 +40,11 @@ export function setBuilt(id, built) {
   return putJSON(`/decks/${enc(id)}/built`, { built });
 }
 
+/** The changelog of a deck, newest first. */
+export function deckChanges(id) {
+  return getJSON(`/decks/${enc(id)}/changes`);
+}
+
 export function deleteDeck(id) {
   return del(`/decks/${enc(id)}`);
 }

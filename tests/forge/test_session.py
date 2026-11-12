@@ -986,6 +986,10 @@ async def test_a_finished_run_writes_its_audit_next_to_the_decks(tmp_path):
     assert record["started"] <= record["finished"]
     deck = saved(store, events)
     assert deck["forge"] == {"run_id": session.id, "wish": "an angels deck"}
+    # The changelog starts with the forge, and lists the cards it put in.
+    assert [e["kind"] for e in deck["changelog"]] == ["forged"]
+    assert sum(c["delta"] for c in deck["changelog"][0]["cards"]) == sum(
+        line["count"] for line in deck["sections"]["main"]) + (1 if deck.get("commander") else 0)
 
 
 @pytest.mark.asyncio

@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from typing import AsyncIterator, Dict, FrozenSet, List, Optional, Set, Tuple
 
 from backend.core.ollama_client import CallStats, OllamaClient
+from backend.decks.changelog import record_event
 from backend.decks.store import DeckStore
 from backend.forge.audit import compact_events, runs_dir, save_run
 from backend.forge.builder import BuildPlan, BuiltDeck, build_deck
@@ -611,6 +612,7 @@ class ForgeSession:
                 "playstyle": playstyle, "key_interactions": interactions}
         record = deck_to_record(deck, name, p.job_id, info, explanation, reasons, metrics)
         record["forge"] = {"run_id": self.id, "wish": p.wish}
+        record_event(record, "forged", "Built by the forge.", with_cards=True)
         deck_id = self.deck_store.save(record)
         self._deck_id = deck_id
         self._stage(4, 1.0, final=True)

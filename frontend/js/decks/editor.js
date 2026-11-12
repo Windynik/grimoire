@@ -18,6 +18,7 @@ import { renderPull, renderPullState } from "./pull.js";
 import { hidePreview, renderPane } from "./pane.js";
 import { renderSearch } from "./search.js";
 import { renderStats } from "./stats.js";
+import { renderChanges, renderChangesState } from "./changes.js";
 
 const GROUP_KEY = "grimoire.groupMode";
 const GROUP_MODES = ["type", "role", "cmc"];
@@ -107,6 +108,7 @@ function mount(host) {
     hand: pick("hand"),
     explanation: pick("explanation"),
     pull: pick("pull"),
+    changes: pick("changes"),
     exportMenu: pick("export"),
   };
 }
@@ -334,6 +336,22 @@ function createSession(host, deckId, options) {
     }
   }
 
+  // The Changes view saves first, so the newest edit is in the list.
+  let changesRequest = 0;
+  async function showChanges() {
+    const request = ++changesRequest;
+    renderChangesState(view.changes, "Reading the changes…");
+    try {
+      await flushNow();
+      const data = await api.deckChanges(deckId);
+      if (closed || request !== changesRequest) return;
+      renderChanges(view.changes, data);
+    } catch (error) {
+      if (closed || request !== changesRequest) return;
+      renderChangesState(view.changes, `Could not read the changes: ${error.message}`, true);
+    }
+  }
+
   async function copyText(text) {
     try {
       await navigator.clipboard.writeText(text);
@@ -469,6 +487,7 @@ function createSession(host, deckId, options) {
     view.center.dataset.view = tab.dataset.view;
     view.viewTabs.forEach((other) => other.setAttribute("aria-selected", String(other === tab)));
     if (tab.dataset.view === "pull") showPull();
+    if (tab.dataset.view === "changes") showChanges();
   }));
   // The side switch picks Stats or Agent inside the right panel. The layout tabs are not touched.
   view.sideTabs.forEach((tab) => tab.addEventListener("click", () => {
