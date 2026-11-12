@@ -176,7 +176,7 @@ test("focus moves into the drawer, stays there, and returns to the tile", () => 
 });
 
 test("the decks that hold the card are links to the deck", async () => {
-  usage = { [ID(1)]: [{ deck_id: "d7", name: "Wizards" }, { deck_id: "d9", name: "Tempo" }] };
+  usage = { [ID(1)]: { decks: [{ deck_id: "d7", name: "Wizards" }, { deck_id: "d9", name: "Tempo" }] } };
   drawer.openDrawer([card(1)], 0);
   await app.until(() => $$(".vault-decks a").length === 2);
   const links = $$(".vault-decks a");
@@ -185,7 +185,7 @@ test("the decks that hold the card are links to the deck", async () => {
 });
 
 test("an archive card in a deck still lists the deck, and no deck hides the section", async () => {
-  usage = { [ID(5)]: [{ deck_id: "d1", name: "Mono U" }] };
+  usage = { [ID(5)]: { decks: [{ deck_id: "d1", name: "Mono U" }] } };
   drawer.openDrawer([card(5, { quantity: undefined }), card(6)], 0);
   await app.until(() => $$(".vault-decks a").length === 1);
   key("ArrowRight");
@@ -202,7 +202,7 @@ const deferred = () => {
 const usageCalls = () => app.fetchLog.filter((r) => r.path === "/api/decks/usage").length;
 
 test("a late deck answer for an earlier card does not show", async () => {
-  usage = { [ID(1)]: [{ deck_id: "d1", name: "Old" }], [ID(2)]: [{ deck_id: "d2", name: "New" }] };
+  usage = { [ID(1)]: { decks: [{ deck_id: "d1", name: "Old" }] }, [ID(2)]: { decks: [{ deck_id: "d2", name: "New" }] } };
   const one = deferred();
   const two = deferred();
   hold = { [ID(1)]: one.promise, [ID(2)]: two.promise };
@@ -217,7 +217,7 @@ test("a late deck answer for an earlier card does not show", async () => {
 });
 
 test("a deck answer that arrives after close renders nothing", async () => {
-  usage = { [ID(1)]: [{ deck_id: "d1", name: "Late" }] };
+  usage = { [ID(1)]: { decks: [{ deck_id: "d1", name: "Late" }] } };
   const one = deferred();
   hold = { [ID(1)]: one.promise };
   drawer.openDrawer([card(1)], 0);
@@ -231,7 +231,7 @@ test("a deck answer that arrives after close renders nothing", async () => {
 });
 
 test("revisiting a card sends no second deck request", async () => {
-  usage = { [ID(1)]: [{ deck_id: "d1", name: "A" }] };
+  usage = { [ID(1)]: { decks: [{ deck_id: "d1", name: "A" }] } };
   const before = usageCalls();
   drawer.openDrawer([card(1), card(2)], 0);
   await app.until(() => $$(".vault-decks a").length === 1);
@@ -345,4 +345,15 @@ test("next at the end of the loaded cards loads the next page", async () => {
   await app.until(() => $(".vault-dpos").textContent === "5 of 5");
   assert.equal($(".vault-dnext").disabled, true);
   assert.equal(loads, 1);
+});
+
+test("the drawer counts the copies in built decks and the free copies", async () => {
+  usage = { [ID(1)]: { decks: [{ deck_id: "d7", name: "Wizards", count: 2, built: true },
+    { deck_id: "d9", name: "Tempo", count: 1, built: false }], used: 2, owned: 4, free: 2 } };
+  drawer.openDrawer([card(1)], 0);
+  await app.until(() => $(".vault-decks-summary"));
+  assert.equal($(".vault-decks-summary").textContent, "2 of 4 copies in built decks · 2 free");
+  const items = $$(".vault-decks li").map((li) => li.textContent);
+  assert.deepEqual(items, ["Wizards ×2built", "Tempo"]);
+  assert.equal($$(".vault-decks .vault-deck-tag").length, 1);
 });

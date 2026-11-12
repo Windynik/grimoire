@@ -18,6 +18,7 @@ from backend.core.bulk_data import BulkDataManager
 from backend.core.collection_store import CollectionStore
 from backend.core.ollama_client import OllamaClient
 from backend.decks.store import DeckStore
+from backend.decks.usage import CopiesInUse, free_rows
 from backend.forge.audit import load_run, runs_dir
 from backend.forge.cards import hydrate
 from backend.forge.events import TERMINAL
@@ -29,6 +30,8 @@ from backend.forge.session import ForgeManager, ForgeParams
 router = APIRouter(prefix="/api")
 
 KEEPALIVE_SECONDS = 15.0
+FREE_EMPTY = ("Your built decks use every card in this collection. "
+              "Clear \"Only free copies\" to build from all the cards.")
 
 
 class ForgeRequest(BaseModel):
@@ -42,6 +45,8 @@ class ForgeRequest(BaseModel):
     deck_size: int = Field(default=60, ge=40, le=250)
     max_copies: int = Field(default=4, ge=1, le=4)
     colors: str = Field(default="", max_length=10)
+    # Build only from the copies that no saved deck uses.
+    free_only: bool = False
 
 
 class AnswerRequest(BaseModel):
@@ -120,6 +125,11 @@ async def start_forge(
         raise HTTPException(
             status_code=400,
             detail="Card data not available. Download it on the Home screen first.")
+    if request.free_only:
+        copies = await asyncio.to_thread(CopiesInUse, deck_store, store, index)
+        collection = free_rows(collection, copies)
+        if not collection:
+            raise HTTPException(status_code=400, detail=FREE_EMPTY)
     params = ForgeParams(**{name: getattr(request, name) for name in ForgeParams.__dataclass_fields__})
     session = manager.start(params, collection, index, playbook, ollama, deck_store)
     return {"forge_id": session.id}

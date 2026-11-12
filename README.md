@@ -131,10 +131,12 @@ The Vault is the *Collection* screen. A switcher at the top picks a collection o
   | `foil` or `is:foil` | Foils only | `foil` |
   | `dupes` or `is:dupes` | Quantity above 1 | `dupes` |
   | `new` or `is:new` | Cards added since the previous import of this collection | `new` |
+  | `is:free` | Cards with at least one copy that no built deck uses | `is:free r:rare` |
+  | `is:used` | Cards that a built deck uses | `is:used` |
 
-  An unknown keyword stays plain text and matches the name. A bare `foil`, `dupes` or `new` that finds nothing counts as name text, so `new perspectives` finds New Perspectives. A price comparison never matches a card with no price. The archive search takes the same keywords, but not `foil`, `dupes`, or `new`.
+  An unknown keyword stays plain text and matches the name. A bare `foil`, `dupes` or `new` that finds nothing counts as name text, so `new perspectives` finds New Perspectives. A price comparison never matches a card with no price. The archive search takes the same keywords, but not `foil`, `dupes`, `new`, `is:free` or `is:used`.
 - **Tactile tiles.** Each tile tilts toward the pointer, and a foil card has a sheen. The tile shows the quantity, the mana cost, and the price. Tilt is off with a touch screen and with the reduced-motion setting. The view control switches between a grid and a list. The size control sets the card width.
-- **Card drawer.** Press a tile to open a drawer at the right, so the results stay in view. The drawer shows a large image, the facts, the prices, the legality of each format, and the saved decks that use the card. A card with two faces has a flip button.
+- **Card drawer.** Press a tile to open a drawer at the right, so the results stay in view. The drawer shows a large image, the facts, the prices, the legality of each format, and the saved decks that use the card, with the copies in built decks and the free copies ("3 of 4 copies in built decks · 1 free"). A *built* deck (see the editor) uses the copies of its main deck, its sideboard and its commander, in any printing. The maybeboard does not count, and a deck that is not built holds no copies. A card with two faces has a flip button.
 - **Keys.** `/` focuses the search, and `Esc` clears it. The arrow keys move between tiles, and `Enter` opens the drawer. In the drawer, the left and right arrows show the previous and next card, `F` flips the card, and `Esc` closes the drawer.
 - **Sets.** The *Sets* view lists each set with the cards you own, a completion bar, and the value you own in it. Each card name counts once in a set. Press a set to open its checklist. The checklist shows missing cards dimmed. *Missing only* hides the cards you own.
 - **Remembered view.** The Vault remembers the search, the filters, the sort, the view, and the card size for each collection in your browser. It restores them when you come back.
@@ -153,6 +155,8 @@ The engine has the last word on legality. It checks every card name from the mod
 
 When the forge ends, the editor opens on the new deck.
 
+Check *Only free copies* to leave out the copies that your built decks use, so the new deck does not take cards from the decks on your shelf.
+
 ### Decks and the editor
 
 The *Decks* screen lists your saved decks. Each deck belongs to one format.
@@ -164,6 +168,7 @@ The *Decks* screen lists your saved decks. Each deck belongs to one format.
 - **Export:** the export menu gives plain text, Arena-style text, and CSV. You can copy or download the text and Arena kinds. You can only download the CSV kind.
 - **Sample hand:** draw a hand of seven cards, and take a mulligan, or draw one more card.
 - **Pull list:** the *Pull list* view shows where each card of the deck is, grouped by collection and binder, so you can take the cards out one binder at a time. It takes the same printing first, then the deck's own collection, then the largest stack. Basic lands and cards that no collection holds have their own groups. Tick each card as you pull it, or copy the list as text.
+- **Built decks and taken copies:** turn on *Built* when you put a deck together from your real cards. Only a built deck holds its copies. New decks, imported lists, copies and forge drafts start as not built, so ideas take no cards. When other built decks use the copies of a card that this deck needs, the card gets a badge with the deck name ("in Burn"). The tooltip names each deck and gives the free copies.
 - **Agent panel:** ask the local model to suggest swaps. This needs Ollama (see below). The engine checks each swap before the editor shows it.
 
 ### Optional: local AI and models

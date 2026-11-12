@@ -122,6 +122,17 @@
     color: var(--violet);
 }
 
+#decks-view .editor-built {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    cursor: pointer;
+}
+
+#decks-view .editor-built input {
+    accent-color: var(--gold);
+}
+
 #decks-view .editor-collection,
 #decks-view .editor-group {
     display: inline-flex;
@@ -429,6 +440,14 @@
 #decks-view .deck-badge-not_a_card {
     color: var(--error);
     border-color: rgba(224, 122, 102, 0.5);
+}
+
+/* A card whose copies other decks use: the deck names can be long. */
+#decks-view .deck-badge-taken {
+    max-width: 9rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: help;
 }
 
 #decks-view .deck-row-actions {

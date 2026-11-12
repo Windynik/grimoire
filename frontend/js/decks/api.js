@@ -35,6 +35,11 @@ export function pullList(id) {
   return getJSON(`/decks/${enc(id)}/pull-list`);
 }
 
+/** Mark a deck as built (put together from real cards) or not. */
+export function setBuilt(id, built) {
+  return putJSON(`/decks/${enc(id)}/built`, { built });
+}
+
 export function deleteDeck(id) {
   return del(`/decks/${enc(id)}`);
 }

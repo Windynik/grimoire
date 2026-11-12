@@ -281,6 +281,7 @@ function params() {
     model: $("forge-model").value,
     ask_mode: $("forge-ask-mode").value,
   };
+  if ($("forge-free-only").checked) body.free_only = true;
   if (casual) {
     body.deck_size = Number($("forge-deck-size").value) || 60;
     body.max_copies = Number($("forge-max-copies").value) || 4;

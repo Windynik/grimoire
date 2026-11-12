@@ -320,6 +320,10 @@
                                     </select>
                                 </label>
                             </div>
+                            <label class="forge-free">
+                                <input type="checkbox" id="forge-free-only">
+                                <span><b>Only free copies</b> — leave out the copies that your built decks use.</span>
+                            </label>
                             <div class="forge-actions">
                                 <button type="submit" id="forge-start" class="btn btn-primary">Forge</button>
                             </div>
@@ -378,6 +382,10 @@
                                         <label class="editor-collection">
                                             <span>Collection</span>
                                             <select data-editor="collection"></select>
+                                        </label>
+                                        <label class="editor-built" title="A built deck holds its cards: other decks and the forge see those copies as taken.">
+                                            <input type="checkbox" data-editor="built">
+                                            <span>Built</span>
                                         </label>
                                     </p>
                                 </div>

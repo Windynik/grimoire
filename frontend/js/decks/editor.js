@@ -89,6 +89,7 @@ function mount(host) {
     name: pick("name"),
     format: pick("format"),
     collection: pick("collection"),
+    built: pick("built"),
     status: pick("status"),
     undo: pick("undo"),
     redo: pick("redo"),
@@ -426,6 +427,21 @@ function createSession(host, deckId, options) {
     deck.collection_job_id = view.collection.value || null;
     state.save();
   });
+  // The Built switch saves at once, apart from the edit saves.
+  view.built.addEventListener("change", async () => {
+    const wanted = view.built.checked;
+    view.built.disabled = true;
+    try {
+      await api.setBuilt(deckId, wanted);
+      showToast(wanted ? "Deck marked as built. Its cards are now taken."
+        : "Deck marked as not built. Its cards are free again.", "success");
+    } catch (error) {
+      view.built.checked = !wanted;
+      showToast(`Could not change the Built switch: ${error.message}`, "error");
+    } finally {
+      view.built.disabled = false;
+    }
+  });
   view.group.value = state.groupMode;
   view.group.addEventListener("change", () => {
     state.groupMode = GROUP_MODES.includes(view.group.value) ? view.group.value : "type";
@@ -505,6 +521,7 @@ function createSession(host, deckId, options) {
       renderAgent(view.agent, state);
       renderExportMenu(view.exportMenu, deckId, { beforeExport: saveBeforeExport, toast: showToast });
       view.name.value = deck.name;
+      view.built.checked = Boolean(record.built);
       fillCollections(collections.collections);
       setStatus("saved");
       view.loading.hidden = true;

@@ -40,7 +40,8 @@ function artOf(deck, compact) {
 export function deckTile(deck, {
   onOpen, onDuplicate, onDelete, compact = false, formatName = (key) => key || "",
 } = {}) {
-  const meta = [formatName(deck.format), plural(deck.count || 0, "card")].filter(Boolean);
+  const meta = [formatName(deck.format), plural(deck.count || 0, "card"), deck.built ? "built" : ""]
+    .filter(Boolean);
 
   if (compact) {
     return h("button", { type: "button", class: "deck-tile deck-tile-compact", onclick: onOpen },

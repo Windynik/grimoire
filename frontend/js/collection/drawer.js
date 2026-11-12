@@ -196,12 +196,23 @@ async function loadDecks(card, box, token) {
     return;
   }
   if (token !== state.token || !box.isConnected) return;
-  const decks = (usage && usage[card.scryfall_id]) || [];
+  const copies = (usage && usage[card.scryfall_id]) || {};
+  const decks = Array.isArray(copies.decks) ? copies.decks : [];
   if (!decks.length) return;
   box.hidden = false;
+  const owned = Number(copies.owned) || 0;
+  const used = Number(copies.used) || 0;
+  // Copies count across every printing and every current collection. Only a
+  // built deck holds copies; the list also names the decks that are ideas.
+  const summary = owned > 0
+    ? `${used} of ${owned} ${owned === 1 ? "copy" : "copies"} in built decks · ${Number(copies.free) || 0} free`
+    : `${used} ${used === 1 ? "copy" : "copies"} in built decks · none owned`;
   box.replaceChildren(h("b", { text: "In your decks" }),
-    h("ul", null, ...decks.map((deck) => h("li", null,
-      h("a", { href: `#deck/${encodeURIComponent(deck.deck_id)}`, text: String(deck.name || "") })))));
+    h("p", { class: "vault-decks-summary", text: summary }),
+    h("ul", null, ...decks.map((deck) => h("li", deck.built ? { class: "vault-deck-built" } : null,
+      h("a", { href: `#deck/${encodeURIComponent(deck.deck_id)}`, text: String(deck.name || "") }),
+      Number(deck.count) > 1 ? ` ×${Number(deck.count)}` : "",
+      deck.built ? h("span", { class: "vault-deck-tag", text: "built" }) : ""))));
 }
 
 // ---- actions ---------------------------------------------------------------

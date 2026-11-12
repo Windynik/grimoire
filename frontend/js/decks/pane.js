@@ -74,9 +74,26 @@ function isCommanderFormat(state) {
 // Rows
 // ---------------------------------------------------------------------------
 
+// The badge of a card whose copies other decks use: "in Burn" or "in 2 decks",
+// with the decks and the free copies in the tooltip.
+function takenBadge(info) {
+  const taken = info.taken || {};
+  const decks = taken.decks || [];
+  const label = decks.length === 1 ? `in ${decks[0].name}` : `in ${decks.length} decks`;
+  const names = decks.map((d) => (d.count > 1 ? `${d.name} ×${d.count}` : d.name)).join(", ");
+  const free = Number(taken.free) || 0;
+  const need = Number(taken.need) || 0;
+  return h("span", { class: "deck-badge deck-badge-taken", text: label,
+    title: `Other decks use these copies: ${names}. This deck needs ${need}; ${free} free.` });
+}
+
 function badges(info) {
   const box = h("span", { class: "deck-row-badges" });
   (info.issues || []).forEach((code) => {
+    if (code === "taken") {
+      box.append(takenBadge(info));
+      return;
+    }
     const label = code === "short" ? `own ${info.owned || 0}` : ISSUE_LABELS[code] || code;
     box.append(h("span", { class: `deck-badge deck-badge-${code}`, text: label }));
   });

@@ -272,3 +272,52 @@ def test_forge_run_audit_route(overrides):
         assert decks.get(deck_id)["forge"]["run_id"] == forge_id
         assert client.get("/api/forge/runs/%s" % ("0" * 32)).status_code == 404
         assert client.get("/api/forge/runs/..%2Fdecks").status_code == 404
+
+
+class _CaptureManager:
+    def __init__(self):
+        self.collection = None
+
+    def start(self, params, collection, index, playbook, ollama, deck_store):
+        self.collection = collection
+
+        class Session:
+            id = "f1"
+        return Session()
+
+
+def test_forge_free_only_leaves_out_the_copies_in_decks(overrides):
+    from backend.api.dependencies import get_forge_manager
+    _, _, decks = overrides
+    records = synthetic_records()
+    manager = _CaptureManager()
+    app.dependency_overrides[get_forge_manager] = lambda: manager
+    first, second = records[0], records[1]
+    decks.save({"name": "Uses", "format": "modern", "commander": None, "built": True,
+                "sections": {
+        "main": [{"scryfall_id": first["id"], "name": first["name"], "count": 4},
+                 {"scryfall_id": second["id"], "name": second["name"], "count": 1}],
+        "sideboard": [], "maybeboard": []}})
+    with TestClient(app) as client:
+        r = client.post("/api/forge", json={"job_id": "aaa1", "format": "modern",
+                                            "free_only": True})
+        assert r.status_code == 200
+        left = {row["scryfall_id"]: row["quantity"] for row in manager.collection}
+        assert first["id"] not in left and left[second["id"]] == 3
+        assert len(left) == len(records) - 1
+        client.post("/api/forge", json={"job_id": "aaa1", "format": "modern"})
+        assert len(manager.collection) == len(records)
+
+
+def test_forge_free_only_with_no_free_card_says_so(overrides):
+    _, _, decks = overrides
+    records = synthetic_records()
+    decks.save({"name": "All", "format": "casual", "commander": None, "built": True,
+                "sections": {
+        "main": [{"scryfall_id": r["id"], "name": r["name"], "count": 4} for r in records],
+        "sideboard": [], "maybeboard": []}})
+    with TestClient(app) as client:
+        r = client.post("/api/forge", json={"job_id": "aaa1", "format": "modern",
+                                            "free_only": True})
+        assert r.status_code == 400
+        assert "Only free copies" in r.json()["detail"]

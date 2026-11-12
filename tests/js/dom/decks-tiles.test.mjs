@@ -4,7 +4,7 @@ import { loadApp } from "./harness.mjs";
 
 const decks = [
   { id: "d1", name: "Alpha", format: "commander", count: 100, updated: "2026-11-02T10:00:00",
-    image_url: "", commander: "Some Commander" },
+    image_url: "", commander: "Some Commander", built: true },
   { id: "d2", name: "Beta", format: "commander", count: 60, updated: "2026-11-01T10:00:00",
     image_url: "", commander: null },
 ];
@@ -37,7 +37,8 @@ const log = (method, path) => app.fetchLog.filter((r) => r.method === method && 
 test("the Decks screen shows a full tile per deck", async () => {
   const found = await tiles();
   assert.match(found[0].textContent, /Alpha/);
-  assert.match(found[0].textContent, /Commander · 100 cards/);
+  assert.match(found[0].textContent, /Commander · 100 cards · built/);
+  assert.doesNotMatch(found[1].textContent, /built/);
   assert.equal(found[0].querySelectorAll(".deck-actions .btn").length, 3);
 });
 

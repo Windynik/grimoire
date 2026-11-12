@@ -402,3 +402,9 @@ def test_flag_words_can_be_names():
     explicit = parse_query("is:new is:dupe perspectives", flags_as_text=True)
     assert explicit.new and explicit.dupes and explicit.name_words == ["perspectives"]
     assert has_flag_words("Foil") and not has_flag_words("is:foil bolt")
+
+
+def test_is_free_and_is_used_are_filters_and_free_is_still_a_name():
+    query = parse_query("is:free is:used bolt")
+    assert query.free and query.used and query.name_words == ["bolt"]
+    assert parse_query("free").name_words == ["free"]

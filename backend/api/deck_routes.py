@@ -28,6 +28,7 @@ from backend.decks.records import (
 )
 from backend.decks.pull import pull_list
 from backend.decks.store import DeckStore
+from backend.decks.usage import CopiesInUse, mark_taken, taken_cards
 from backend.decks.textio import (
     MAX_COUNT, export_arena, export_csv, export_text, parse_decklist, resolve,
 )
@@ -64,13 +65,16 @@ def _collection_for(record: dict, collections: CollectionStore) -> Tuple[Optiona
     return collections.get_collection(chosen["job_id"]), chosen
 
 
-def deck_response(record: dict, index: Dict[str, dict], collections: CollectionStore) -> dict:
+def deck_response(record: dict, index: Dict[str, dict], collections: CollectionStore,
+                  decks: Optional[DeckStore] = None) -> dict:
     """Build the body every deck route returns.
 
     Args:
         record: Stored deck record
         index: Card index keyed by Scryfall id
         collections: Collection store (the analysis uses it)
+        decks: Deck store. When given, a card that needs copies that other
+            decks use gets the issue "taken" (see backend.decks.usage).
 
     Returns:
         The hydrated record plus the key "analysis" (see backend.decks.analysis.analyze)
@@ -80,7 +84,16 @@ def deck_response(record: dict, index: Dict[str, dict], collections: CollectionS
     deck.pop("edit", None)
     rows, meta = _collection_for(record, collections)
     deck["analysis"] = analyze(record, index, rows, meta, _PLAYBOOK)
+    if decks is not None:
+        copies = CopiesInUse(decks, collections, index)
+        mark_taken(deck["analysis"], record, taken_cards(record, record.get("id"), copies), index)
     return deck
+
+
+async def full_response(record: dict, index: Dict[str, dict], collections: CollectionStore,
+                        decks: DeckStore) -> dict:
+    """deck_response with the "taken" check, off the event loop (it reads every store)."""
+    return await asyncio.to_thread(deck_response, record, index, collections, decks)
 
 
 class ImportDeck(BaseModel):
@@ -113,28 +126,22 @@ MAX_USAGE_IDS = 200
 
 
 @router.get("/decks/usage")
-async def deck_usage(ids: str = "", store: DeckStore = Depends(get_deck_store)):
-    """For each card id, the decks that hold it in any section or as commander."""
+async def deck_usage(
+    ids: str = "",
+    store: DeckStore = Depends(get_deck_store),
+    bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager),
+    collections: CollectionStore = Depends(get_collection_store),
+):
+    """For each card id: the decks that use the card (any printing), and the copies.
+
+    Each value is {"decks": [{"deck_id", "name", "count"}], "used", "owned", "free"}.
+    """
     wanted = [i.strip() for i in ids.split(",") if i.strip()][:MAX_USAGE_IDS]
-    usage = {sid: [] for sid in wanted}  # type: Dict[str, List[dict]]
-    if not usage:
-        return usage
-    for summary in store.list():
-        record = store.get(summary["id"])
-        if record is None:
-            continue
-        held = set()
-        commander = record.get("commander")
-        if isinstance(commander, dict):
-            held.add(commander.get("scryfall_id"))
-        for entries in (record.get("sections") or {}).values():
-            for entry in entries:
-                if isinstance(entry, dict):
-                    held.add(entry.get("scryfall_id"))
-        for sid in wanted:
-            if sid in held:
-                usage[sid].append({"deck_id": summary["id"], "name": summary["name"]})
-    return usage
+    if not wanted:
+        return {}
+    index = await bulk_data_manager.load_bulk_data()
+    copies = await asyncio.to_thread(CopiesInUse, store, collections, index)
+    return {sid: copies.status(copies.key(sid)) for sid in wanted}
 
 
 @router.post("/decks", status_code=201)
@@ -186,7 +193,7 @@ async def import_deck(
     # Hydrate before the strip so the saved entries keep their art URL
     record = strip_display(hydrate_record(record, index))
     store.save(record)
-    body = deck_response(record, index, collections)
+    body = await full_response(record, index, collections, store)
     body["unknown"] = unknown
     return body
 
@@ -220,7 +227,7 @@ async def get_deck(
     """One saved deck."""
     record = _stored(store, deck_id)
     index = await bulk_data_manager.load_bulk_data()
-    return deck_response(record, index, collections)
+    return await full_response(record, index, collections, store)
 
 
 @router.put("/decks/{deck_id}")
@@ -246,11 +253,29 @@ async def update_deck(
         if decision == "conflict":
             raise HTTPException(status_code=409, detail=DECK_CHANGED)
         if decision == "stale":
-            return deck_response(stored, index, collections)
+            return await full_response(stored, index, collections, store)
         # Hydrate before the strip so the saved entries keep their art URL
         record = strip_display(hydrate_record(apply_update(stored, request), index))
         store.save(record)
-    return deck_response(record, index, collections)
+    return await full_response(record, index, collections, store)
+
+
+class BuiltIn(BaseModel):
+    built: bool
+
+
+@router.put("/decks/{deck_id}/built")
+async def set_built(deck_id: str, request: BuiltIn, store: DeckStore = Depends(get_deck_store)):
+    """Mark a deck as built (put together from real cards) or not.
+
+    Only a built deck holds copies of cards (see backend.decks.usage). The
+    change leaves the revision and the order mark of the editor as they are.
+    """
+    async with _deck_lock(deck_id):
+        record = _stored(store, deck_id)
+        record["built"] = request.built
+        store.save(record)
+    return {"built": request.built}
 
 
 @router.delete("/decks/{deck_id}")
@@ -273,7 +298,7 @@ async def duplicate_deck(
     if new_id is None:
         raise HTTPException(status_code=404, detail="Deck not found")
     index = await bulk_data_manager.load_bulk_data()
-    return deck_response(store.get(new_id), index, collections)
+    return await full_response(store.get(new_id), index, collections, store)
 
 
 def _slug(name: str) -> str:

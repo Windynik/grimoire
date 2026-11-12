@@ -347,7 +347,7 @@ def test_set_checklist_unknown_set_is_404(set_env):
 def test_deck_usage(env, tmp_path):
     decks = DeckStore(storage_dir=str(tmp_path / "decks"))
     app.dependency_overrides[get_deck_store] = lambda: decks
-    record = {"name": "Red", "format": "modern", "commander": None,
+    record = {"name": "Red", "format": "modern", "commander": None, "built": True,
               "sections": {"main": [{"scryfall_id": "id-bolt", "name": "Bolt", "count": 1}],
                            "sideboard": [], "maybeboard": []}}
     other = {"name": "Boss", "format": "commander",
@@ -357,9 +357,14 @@ def test_deck_usage(env, tmp_path):
     red = decks.save(record)
     boss = decks.save(other)
     body = get("/api/decks/usage?ids=id-bolt,id-wurm,id-none")
-    assert {d["deck_id"] for d in body["id-bolt"]} == {red, boss}
-    assert body["id-wurm"] == [{"deck_id": boss, "name": "Boss"}]
-    assert body["id-none"] == []
+    assert {d["deck_id"] for d in body["id-bolt"]["decks"]} == {red, boss}
+    # Both decks list Bolt, but only Red is built, so it alone uses a copy.
+    # The current collection holds 2 Bolts (the older import of the same
+    # cards does not count again), so one is free.
+    assert (body["id-bolt"]["used"], body["id-bolt"]["owned"], body["id-bolt"]["free"]) == (1, 2, 1)
+    assert body["id-wurm"]["decks"] == [{"deck_id": boss, "name": "Boss", "count": 1,
+                                         "built": False}]
+    assert body["id-none"] == {"decks": [], "used": 0, "owned": 0, "free": 0}
     assert get("/api/decks/usage?ids=") == {}
 
 
@@ -469,3 +474,27 @@ def test_a_name_with_a_flag_word_is_still_found(env):
           [row("id-np", "New Perspectives"), row("id-foil", "Foil")])
     assert names("/api/collection/np/search?q=new%20perspectives") == ["New Perspectives"]
     assert names("/api/collection/np/search?q=foil") == ["Foil"]
+
+
+def test_is_free_and_is_used_read_the_copies_in_decks(env, tmp_path):
+    decks = DeckStore(storage_dir=str(tmp_path / "decks"))
+    app.dependency_overrides[get_deck_store] = lambda: decks
+    # Both Bolts of the collection are in a built deck; the Elf is in no deck.
+    decks.save({"name": "Red", "format": "modern", "commander": None, "built": True,
+                "sections": {"main": [{"scryfall_id": "id-bolt", "name": "Bolt", "count": 2}],
+                             "sideboard": [], "maybeboard": [
+                                 {"scryfall_id": "id-elf", "name": "Elf", "count": 1}]}})
+    assert names("/api/collection/cur/search?q=is:used&sort=name") == ["Bolt"]
+    free = names("/api/collection/cur/search?q=is:free&sort=name")
+    assert "Bolt" not in free and "Elf" in free
+
+
+def test_is_used_skips_the_decks_that_are_not_built(env, tmp_path):
+    decks = DeckStore(storage_dir=str(tmp_path / "decks"))
+    app.dependency_overrides[get_deck_store] = lambda: decks
+    # A forge draft that uses both Bolts, but nobody built it.
+    decks.save({"name": "Draft", "format": "modern", "commander": None,
+                "sections": {"main": [{"scryfall_id": "id-bolt", "name": "Bolt", "count": 2}],
+                             "sideboard": [], "maybeboard": []}})
+    assert names("/api/collection/cur/search?q=is:used&sort=name") == []
+    assert "Bolt" in names("/api/collection/cur/search?q=is:free&sort=name")

@@ -78,6 +78,7 @@ def owned_cards(stored: list, index: dict, csv_set_names: Optional[Dict[str, str
 
         cards.append({
             "scryfall_id": row.get("scryfall_id"),
+            "oracle_id": entry.get("oracle_id") or "",
             "name": pick("name"),
             "mana_cost": pick("mana_cost"),
             "type_line": pick("type_line"),
@@ -222,6 +223,15 @@ class Query:
     foil: bool = False
     dupes: bool = False
     new: bool = False
+    # "is:free" (a copy no deck uses) and "is:used" (in a saved deck). The route
+    # fills `copies` (card key -> (used, owned)) when one of them is on.
+    free: bool = False
+    used: bool = False
+    copies: Optional[Dict[str, Tuple[int, int]]] = None
+
+    @property
+    def wants_copies(self) -> bool:
+        return self.free or self.used
 
 
 @dataclass
@@ -267,6 +277,9 @@ def parse_query(q: str, flags_as_text: bool = False) -> Query:
             flag = "dupes"
         if flag in FLAG_WORDS:
             setattr(query, flag, True)
+            continue
+        if low in ("is:free", "is:used"):
+            setattr(query, low[3:], True)
             continue
         price = _PRICE.match(token)
         if price:
@@ -371,6 +384,13 @@ def _query_passes(card: dict, query: Query, new_keys) -> bool:
         return False
     if query.dupes and _quantity(card.get("quantity")) <= 1:
         return False
+    if query.wants_copies:
+        key = card.get("oracle_id") or "name:" + (card.get("name") or "").strip().lower()
+        used, owned = (query.copies or {}).get(key, (0, 0))
+        if query.used and used <= 0:
+            return False
+        if query.free and owned - used <= 0:
+            return False
     if query.new and (card.get("scryfall_id"), _is_foil(card.get("foil"))) not in new_keys:
         return False
     return True
@@ -506,12 +526,12 @@ def archive_matches(info: dict, query: Query) -> bool:
     """
     if query.prices:
         info = dict(info, price=unit_price(info.get("prices"), False))
-    flags = (query.foil, query.dupes, query.new)
-    query.foil = query.dupes = query.new = False
+    flags = (query.foil, query.dupes, query.new, query.free, query.used)
+    query.foil = query.dupes = query.new = query.free = query.used = False
     try:
         return _query_passes(info, query, ())
     finally:
-        query.foil, query.dupes, query.new = flags
+        query.foil, query.dupes, query.new, query.free, query.used = flags
 
 
 # --- shelves and sets ---

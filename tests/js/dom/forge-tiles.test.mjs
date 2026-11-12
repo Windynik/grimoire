@@ -30,3 +30,21 @@ test("each commander tile has the name of its commander", async () => {
     .map((tile) => tile.getAttribute("aria-label"));
   assert.deepEqual(labels, ["Let the agent choose", "Krenko, Mob Boss"]);
 });
+
+test("the forge asks for free copies only when the box is checked", async () => {
+  const { document, window } = app;
+  const bodies = [];
+  app.route("POST /api/forge", (req) => {
+    bodies.push(req.body);
+    return { status: 400, json: { detail: "Stop here." } };
+  });
+  const form = document.getElementById("forge-form");
+  const send = () => form.dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true }));
+  send();
+  await app.until(() => bodies.length === 1 && !document.getElementById("forge-start").disabled);
+  assert.equal(bodies[0].free_only, undefined);
+  document.getElementById("forge-free-only").checked = true;
+  send();
+  await app.until(() => bodies.length === 2);
+  assert.equal(bodies[1].free_only, true);
+});

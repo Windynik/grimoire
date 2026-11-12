@@ -127,6 +127,8 @@ class DeckStore:
             return None
         record.pop("id", None)
         record.pop("created", None)
+        # A copy is a new idea: it holds no cards until the owner builds it.
+        record.pop("built", None)
         # The name must fit DeckIn's limit, or the copy could never save.
         suffix = " (copy)"
         base = record.get("name", "")[:NAME_MAX - len(suffix)].rstrip()
@@ -154,6 +156,7 @@ class DeckStore:
                     "updated": str(data.get("updated") or ""),
                     **_summary_art(data),
                     "collection_job_id": data.get("collection_job_id") or "",
+                    "built": bool(data.get("built")),
                 })
             except (OSError, ValueError, KeyError, TypeError, AttributeError):
                 continue

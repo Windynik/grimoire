@@ -9,6 +9,7 @@ a time. Pure functions. Makes no network calls.
 from typing import Dict, List, Optional, Tuple
 
 from backend.decks.records import entry_key
+from backend.decks.usage import card_key
 
 BASICS_GROUP = "Basic lands"
 # The sections whose cards go on the table. The maybeboard stays on the shelf.
@@ -20,14 +21,6 @@ def _quantity(value) -> int:
         return max(0, int(float(value)))
     except (TypeError, ValueError):
         return 1
-
-
-def _card_key(scryfall_id: Optional[str], name: str, index: Dict[str, dict]) -> str:
-    """One key for all printings of a card: the oracle id, else the lower-case name."""
-    info = index.get(scryfall_id or "")
-    if info is not None:
-        return info.get("oracle_id") or info["id"]
-    return "name:" + (name or "").strip().lower()
 
 
 def _is_basic(line: dict, index: Dict[str, dict]) -> bool:
@@ -81,7 +74,7 @@ def pull_list(record: dict, index: Dict[str, dict],
             left = _quantity(card.get("quantity"))
             if left <= 0:
                 continue
-            key = _card_key(card.get("scryfall_id"), card.get("name", ""), index)
+            key = card_key(card.get("scryfall_id"), card.get("name", ""), index)
             stacks.setdefault(key, []).append(
                 [job_id, position, str(card.get("binder") or ""), card.get("scryfall_id"),
                  card.get("foil"), left])
@@ -95,7 +88,7 @@ def pull_list(record: dict, index: Dict[str, dict],
             basics[line["name"]] = basics.get(line["name"], 0) + need
             continue
         wanted = line.get("scryfall_id")
-        options = stacks.get(_card_key(wanted, line["name"], index), [])
+        options = stacks.get(card_key(wanted, line["name"], index), [])
         # Same printing first, then the deck's own collection, then the largest
         # stack, then the newest collection.
         options.sort(key=lambda s: (s[3] != wanted, s[0] != own_job, -s[5], s[1]))

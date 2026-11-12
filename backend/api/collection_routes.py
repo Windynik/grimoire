@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 import os
 from pathlib import Path
@@ -6,7 +7,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from backend.api.dependencies import get_bulk_data_manager, get_collection_store
+from backend.api.dependencies import get_bulk_data_manager, get_collection_store, get_deck_store
 from backend.api.routes import check_format
 from backend.core.bulk_data import BulkDataManager
 from backend.core.collection_query import (
@@ -26,6 +27,8 @@ from backend.core.collection_query import (
     shelves,
 )
 from backend.core.collection_store import CollectionStore
+from backend.decks.store import DeckStore
+from backend.decks.usage import CopiesInUse, used_counts
 
 router = APIRouter(prefix="/api")
 
@@ -158,6 +161,7 @@ async def search_collection(
     color: str = "",
     store: CollectionStore = Depends(get_collection_store),
     bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager),
+    deck_store: DeckStore = Depends(get_deck_store),
 ):
     """Search a collection: keywords, multi-value filters, live facets, value."""
     formats = _csv(format)
@@ -178,7 +182,14 @@ async def search_collection(
         type_contains=card_type.strip(),
         includes_color=color.strip().upper(),
     )
-    results, facets, value = search(merged.cards, parse_query(q), filters, sort, merged.new_keys)
+    query = parse_query(q)
+    if query.wants_copies:
+        copies = await asyncio.to_thread(CopiesInUse, deck_store, store, index)
+        # Only built decks hold copies (see backend.decks.usage).
+        used = used_counts(copies.usage)
+        query.copies = {key: (used.get(key, 0), copies.owned.get(key, 0))
+                        for key in used.keys() | copies.owned.keys()}
+    results, facets, value = search(merged.cards, query, filters, sort, merged.new_keys)
     if not results and has_flag_words(q):
         # "new perspectives" or the card "Foil": the bare word was a name.
         found = search(merged.cards, parse_query(q, flags_as_text=True), filters, sort,

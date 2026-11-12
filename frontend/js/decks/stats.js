@@ -20,6 +20,7 @@ const COLOR_NAMES = { W: "White", U: "Blue", B: "Black", R: "Red", G: "Green" };
 const ISSUE_LABELS = {
   not_a_card: "unknown", not_owned: "not owned", short: "short on copies", banned: "banned",
   not_legal: "not legal", off_color: "off color", too_many: "too many",
+  taken: "copies in other decks",
 };
 
 const contexts = new WeakMap();

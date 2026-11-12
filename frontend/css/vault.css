@@ -2100,6 +2100,24 @@ body.vault-sheet-lock {
 }
 
 .vault-facts b,
+.vault-decks-summary {
+    margin: 0.2rem 0 0.4rem;
+    color: var(--text-dim);
+    font-size: 0.9rem;
+}
+
+/* A built deck holds its cards; the tag marks it in the drawer's deck list. */
+.vault-deck-tag {
+    margin-left: 0.4rem;
+    padding: 0 0.35rem;
+    border: 1px solid var(--border-bright);
+    border-radius: 999px;
+    color: var(--gold);
+    font: 600 10px var(--font-ui);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
 .vault-decks > b {
     display: block;
     font: 700 10px var(--font-ui);

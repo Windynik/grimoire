@@ -235,3 +235,45 @@ test("the Pull list tab shows the cards by binder and counts the ticks", async (
   tick.dispatchEvent(new window.Event("change", { bubbles: true }));
   assert.match(panel.querySelector(".pull-progress").textContent, /2 of 3 cards pulled/);
 });
+
+test("a card whose copies other decks use shows the deck that uses them", async () => {
+  const taken = { issues: ["taken"], owned: 4,
+    taken: { need: 2, free: 1, decks: [{ deck_id: "d9", name: "Burn", count: 3 }] } };
+  await openEditor({
+    "GET /api/decks/d1": () => ({ json: { ...deckRecord(), analysis: { cards: { "id-a": taken } } } }),
+  });
+  await app.until(() => document.querySelector(".deck-badge-taken"));
+  const badge = document.querySelector(".deck-badge-taken");
+  assert.equal(badge.textContent, "in Burn");
+  assert.equal(badge.title, "Other decks use these copies: Burn ×3. This deck needs 2; 1 free.");
+});
+
+test("the Built switch saves at once and shows the saved state", async () => {
+  const sent = [];
+  await openEditor({
+    "GET /api/decks/d1": () => ({ json: { ...deckRecord(), built: true } }),
+    "PUT /api/decks/d1/built": (req) => {
+      sent.push(req.body);
+      return { json: { built: req.body.built } };
+    },
+  });
+  const box = document.querySelector('[data-editor="built"]');
+  assert.equal(box.checked, true);
+  box.checked = false;
+  box.dispatchEvent(new window.Event("change", { bubbles: true }));
+  await app.until(() => sent.length === 1 && !box.disabled);
+  assert.deepEqual(sent[0], { built: false });
+  assert.equal(box.checked, false);
+});
+
+test("a failed Built switch goes back", async () => {
+  await openEditor({
+    "PUT /api/decks/d1/built": () => ({ status: 500, json: { detail: "Disk full." } }),
+  });
+  const box = document.querySelector('[data-editor="built"]');
+  assert.equal(box.checked, false);
+  box.checked = true;
+  box.dispatchEvent(new window.Event("change", { bubbles: true }));
+  await app.until(() => !box.disabled && !box.checked);
+  assert.ok(toasts().some((text) => text.includes("Could not change the Built switch")));
+});
