@@ -137,6 +137,12 @@ export function renderHero(parts, insights, { selected = [], onOrb } = {}) {
     [ledgerItem("foils", "Foils", "the shiny ones"), Number(data.foils) || 0, formatCount],
     [ledgerItem("sets", "Sets", "across your binders"), Number(data.sets) || 0, formatCount],
   ];
+  // The value over time, when there are two card-data downloads or more.
+  const spark = sparkline(data.history);
+  if (spark) {
+    const trend = trendText(data.history);
+    items[0][0].el.append(spark, h("span", { class: "vault-ledger-trend", text: trend }));
+  }
   parts.ledger.replaceChildren(...items.map(([item]) => item.el));
   countUp(items.map(([item, to, format]) => ({ el: item.value, to, format })));
 
@@ -273,6 +279,92 @@ function attachFanHover(root) {
     hover(event.target.closest(".vault-fan-card") ? fanCardAt(root, event.clientX) : null);
   });
   root.addEventListener("pointerleave", () => hover(null));
+}
+
+// ---- price history ---------------------------------------------------------
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+const SPARK_W = 120;
+const SPARK_H = 28;
+
+function svg(tag, attrs) {
+  const el = document.createElementNS(SVG_NS, tag);
+  Object.entries(attrs).forEach(([key, value]) => el.setAttribute(key, String(value)));
+  return el;
+}
+
+/** The change of value between the first and the last snapshot: "+$12.40 since 1 Nov 2026". */
+export function trendText(history) {
+  const points = Array.isArray(history) ? history : [];
+  if (points.length < 2) return "";
+  const change = (Number(points[points.length - 1].value) || 0) - (Number(points[0].value) || 0);
+  const sign = change > 0 ? "+" : change < 0 ? "−" : "±";
+  const since = shortDate(points[0].date);
+  return `${sign}${formatMoney(Math.abs(change))}${since ? ` since ${since}` : ""}`;
+}
+
+/**
+ * A small line of the collection value, one point per card-data download.
+ * Returns null with fewer than two points.
+ */
+export function sparkline(history) {
+  const points = (Array.isArray(history) ? history : []).map((p) => Number(p.value) || 0);
+  if (points.length < 2) return null;
+  const low = Math.min(...points);
+  const high = Math.max(...points);
+  const span = high - low || 1;
+  const xy = points.map((value, i) => [
+    (i / (points.length - 1)) * (SPARK_W - 4) + 2,
+    SPARK_H - 3 - ((value - low) / span) * (SPARK_H - 6),
+  ]);
+  const label = (history || []).map((p) => `${formatMoney(p.value)} on ${shortDate(p.date)}`).join(", ");
+  const root = svg("svg", { class: "vault-spark", viewBox: `0 0 ${SPARK_W} ${SPARK_H}`,
+    width: SPARK_W, height: SPARK_H, role: "img", "aria-label": `Value over time: ${label}` });
+  root.append(svg("polyline", { class: "vault-spark-line", fill: "none",
+    points: xy.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ") }));
+  const [lastX, lastY] = xy[xy.length - 1];
+  root.append(svg("circle", { class: "vault-spark-dot", cx: lastX.toFixed(1), cy: lastY.toFixed(1), r: 2.5 }));
+  return root;
+}
+
+function moverRow(card, list, index, onOpen) {
+  const quantity = Number(card.quantity) || 1;
+  const total = Number(card.total) || 0;
+  const sign = total > 0 ? "+" : "−";
+  return h("li", { class: `vault-mover ${total > 0 ? "is-up" : "is-down"}` },
+    h("button", { type: "button", class: "vault-mover-name", text: String(card.name || ""),
+      onclick: () => onOpen(list, index) }),
+    h("span", { class: "vault-mover-prices",
+      text: `${formatMoney(card.before)} → ${formatMoney(card.after)}${quantity > 1 ? ` ×${quantity}` : ""}` }),
+    h("span", { class: "vault-mover-total", text: `${sign}${formatMoney(Math.abs(total))}` }));
+}
+
+/**
+ * Fill the price movers: the owned cards whose price moved most between the
+ * two newest card-data downloads. Returns false (and empties root) when there
+ * is nothing to show.
+ */
+export function renderMovers(root, movers, onOpen) {
+  const up = (movers && movers.up) || [];
+  const down = (movers && movers.down) || [];
+  if (!up.length && !down.length) {
+    root.replaceChildren();
+    return false;
+  }
+  const since = shortDate(movers.since);
+  const until = shortDate(movers.until);
+  const column = (title, list) => h("div", { class: "vault-movers-col" },
+    h("h3", { class: "vault-movers-title", text: title }),
+    list.length
+      ? h("ol", { class: "vault-movers-list" }, ...list.map((card, i) => moverRow(card, list, i, onOpen)))
+      : h("p", { class: "vault-movers-none", text: "None." }));
+  root.replaceChildren(
+    h("div", { class: "vault-movers-head" },
+      h("h2", { class: "vault-movers-heading", text: "Price movers" }),
+      h("p", { class: "vault-movers-lede",
+        text: since && until ? `Between the card data of ${since} and ${until}.` : "Since the last card data." })),
+    h("div", { class: "vault-movers-cols" }, column("Up", up), column("Down", down)));
+  return true;
 }
 
 // ---- the shelves -----------------------------------------------------------

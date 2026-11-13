@@ -148,12 +148,40 @@ class CollectionStore:
                  "binder": binder_of(row)} for row in rows]
 
     def delete_collection(self, job_id: str) -> bool:
-        """Delete a stored collection. Returns True if it existed."""
+        """Delete a stored collection and its price history. Returns True if it existed."""
         collection_file = self.storage_dir / f"{job_id}.json"
         if not collection_file.exists():
             return False
         collection_file.unlink()
+        history = self._history_file(job_id)
+        if history.exists():
+            history.unlink()
         return True
+
+    # --- price history (see backend.core.price_history) ---
+
+    def _history_file(self, job_id: str) -> Path:
+        # A subfolder, so list_collections never reads it as a collection.
+        return self.storage_dir / "price_history" / f"{job_id}.json"
+
+    def get_price_history(self, job_id: str) -> Optional[Dict]:
+        """The price history of a collection, or None when it has none."""
+        path = self._history_file(job_id)
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except (OSError, ValueError):
+            return None
+        return data if isinstance(data, dict) else None
+
+    def save_price_history(self, job_id: str, history: Dict) -> None:
+        """Write the price history of a collection in one step."""
+        path = self._history_file(job_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_name(f".{path.name}.tmp")
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(history, f)
+        tmp.replace(path)
 
     def list_collections(self) -> List[Dict]:
         """All stored collections' metadata, newest first."""

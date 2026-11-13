@@ -519,3 +519,30 @@ def test_forgotten_gems_are_popular_cards_that_no_deck_holds(env, tmp_path):
     assert [c["name"] for c in get("/api/collection/cur/shelves")["gems"]] == ["Elf"]
     assert names("/api/collection/cur/search?q=is:gem&sort=edhrec") == ["Elf"]
     assert names("/api/collection/cur/search?q=is:gems") == ["Elf"]
+
+
+def test_insights_keep_one_price_snapshot_per_card_data_download(env):
+    from types import SimpleNamespace
+    store, bulk = env
+    status = SimpleNamespace(download_date="2026-11-01T00:00:00+00:00")
+    bulk.get_cache_status = lambda: status
+    first = get("/api/collection/cur/insights")
+    assert first["history"] == [{"date": "2026-11-01T00:00:00+00:00", "value": 15.0, "cards": 4}]
+    assert first["movers"] is None
+    # The same card data adds nothing.
+    assert len(get("/api/collection/cur/insights")["history"]) == 1
+    # New card data: Bolt goes from $2 to $3 (2 copies), the Wurm from $10 to $8.
+    cards = dict(bulk.cards)
+    cards["id-bolt"] = dict(cards["id-bolt"], prices=dict(cards["id-bolt"]["prices"], usd="3.00"))
+    cards["id-wurm"] = dict(cards["id-wurm"], prices=dict(cards["id-wurm"]["prices"], usd="8.00"))
+    bulk.cards = cards
+    status.download_date = "2026-11-08T00:00:00+00:00"
+    second = get("/api/collection/cur/insights")
+    assert [h["value"] for h in second["history"]] == [15.0, 15.0]
+    assert [(m["name"], m["total"]) for m in second["movers"]["up"]] == [("Bolt", 2.0)]
+    assert [(m["name"], m["total"]) for m in second["movers"]["down"]] == [("Gold Wurm", -2.0)]
+    # The history goes with the collection.
+    assert store.get_price_history("cur") is not None
+    assert store.delete_collection("cur")
+    assert store.get_price_history("cur") is None
+    assert [c["job_id"] for c in store.list_collections()] == ["old"]

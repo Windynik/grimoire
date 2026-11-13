@@ -22,7 +22,7 @@ import {
   ARCHIVE_SORTS, SETS_SORTS, SIZES, SORTS, defaultState, loadState, normalizeState, saveState,
 } from "./state.js";
 import {
-  COLOR_NAMES, renderFan, renderHero, renderShelves, renderSwitcher, syncOrbs,
+  COLOR_NAMES, renderFan, renderHero, renderMovers, renderShelves, renderSwitcher, syncOrbs,
 } from "./hero.js";
 import { formatCount, formatMoney } from "./numbers.js";
 import { formatName, renderFacets, setName } from "./sidebar.js";
@@ -758,6 +758,7 @@ async function loadHero(gen) {
     renderHero({ lede: ui.lede, ledger: ui.ledger, orbs: ui.orbs }, data, {
       selected: screen.state.colors, onOrb: orbClick,
     });
+    ui.movers.hidden = !renderMovers(ui.movers, data.movers, openCard);
     ui.hero.hidden = false;
     screen.heroSource = id;
   }
@@ -929,6 +930,7 @@ function init() {
     lede: byId("vault-lede"),
     ledger: byId("vault-ledger"),
     orbs: byId("vault-orbs"),
+    movers: byId("vault-movers"),
     fan: byId("vault-fan"),
     shelves: byId("vault-shelves"),
     main: byId("collection-view").querySelector(".vault-main"),

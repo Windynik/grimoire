@@ -316,6 +316,38 @@ test("the gems shelf explains itself, and See all searches is:gem by EDHREC rank
   assert.equal($("#vault-search").value, "is:gem");
 });
 
+test("the value shows a line over time and the price movers list up and down", async () => {
+  const history = [{ date: "2026-11-01T00:00:00Z", value: 100, cards: 10 },
+    { date: "2026-11-08T00:00:00Z", value: 112.4, cards: 10 }];
+  const movers = { since: "2026-11-01T00:00:00Z", until: "2026-11-08T00:00:00Z",
+    up: [{ ...card(130), name: "Riser", quantity: 4, before: 1, after: 2, change: 1, total: 4 }],
+    down: [] };
+  await openVault({ insights: { ...INSIGHTS, history, movers } });
+  const value = $('#vault-ledger [data-key="value"]');
+  assert.ok(value.querySelector("svg.vault-spark polyline"));
+  assert.match(value.querySelector("svg.vault-spark").getAttribute("aria-label"), /^Value over time: \$100\.00 on/);
+  assert.equal(value.querySelector(".vault-ledger-trend").textContent, "+$12.40 since 1 Nov 2026");
+  const panel = $("#vault-movers");
+  assert.equal(panel.hidden, false);
+  assert.equal(panel.querySelector(".vault-movers-lede").textContent,
+    "Between the card data of 1 Nov 2026 and 8 Nov 2026.");
+  const row = panel.querySelector(".vault-mover");
+  assert.equal(row.querySelector(".vault-mover-prices").textContent, "$1.00 → $2.00 ×4");
+  assert.equal(row.querySelector(".vault-mover-total").textContent, "+$4.00");
+  assert.equal(panel.querySelector(".vault-movers-none").textContent, "None.");
+  row.querySelector(".vault-mover-name").click();
+  await app.until(() => $(".vault-drawer.is-open .vault-dname"));
+  assert.equal(text(".vault-drawer.is-open .vault-dname"), "Riser");
+  $(".vault-dclose").click();
+});
+
+test("one price snapshot shows no line and no movers", async () => {
+  await openVault({ insights: { ...INSIGHTS, history: [{ date: "2026-11-01T00:00:00Z", value: 5, cards: 1 }],
+    movers: null } });
+  assert.equal($('#vault-ledger [data-key="value"] svg'), null);
+  assert.equal($("#vault-movers").hidden, true);
+});
+
 // ---- sidebar -------------------------------------------------------------
 
 test("facet counts render and dim at zero", async () => {

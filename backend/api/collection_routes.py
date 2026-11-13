@@ -28,6 +28,7 @@ from backend.core.collection_query import (
 )
 from backend.core.collection_store import CollectionStore
 from backend.decks.store import DeckStore
+from backend.core.price_history import add_snapshot, movers, value_history
 from backend.decks.usage import CopiesInUse, decked_keys, used_counts
 
 router = APIRouter(prefix="/api")
@@ -230,6 +231,15 @@ async def collection_insights(
         "card_data_date": data_date,
         "has_previous": merged.has_previous,
     })
+    # Each card-data download is one price snapshot of the collection.
+    history = store.get_price_history(job_id)
+    if index:
+        newer = add_snapshot(history, merged.cards, data_date)
+        if newer is not None:
+            store.save_price_history(job_id, newer)
+            history = newer
+    result["history"] = value_history(history)
+    result["movers"] = movers(history, merged.cards)
     return result
 
 
