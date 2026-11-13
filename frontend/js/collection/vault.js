@@ -765,7 +765,8 @@ async function loadHero(gen) {
     screen.shelves = shelves.value || {};
     const spotlight = screen.shelves.spotlight ? [screen.shelves.spotlight] : [];
     learnSetNames([...spotlight, ...(screen.shelves.valuable || []),
-      ...(screen.shelves.foils || []), ...(screen.shelves.new || [])]);
+      ...(screen.shelves.foils || []), ...(screen.shelves.new || []),
+      ...(screen.shelves.gems || [])]);
     ui.fan.hidden = renderFan(ui.fan, screen.shelves, openCard) === 0;
     renderShelves(ui.shelves, screen.shelves, { onOpen: openCard, onSeeAll: seeAll });
     renderShelvesVisibility();
@@ -783,6 +784,10 @@ function seeAll(shelf) {
   clearTimeout(searchTimer);
   if (shelf === "foils") {
     update((s) => { s.foil = true; });
+  } else if (shelf === "gems") {
+    // The most played gems first.
+    ui.search.value = "is:gem";
+    update((s) => { s.q = "is:gem"; s.sort = "edhrec"; });
   } else {
     ui.search.value = "new";
     update((s) => { s.q = "new"; });

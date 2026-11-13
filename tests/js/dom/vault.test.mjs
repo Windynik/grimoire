@@ -301,6 +301,21 @@ test("an empty shelf hides", async () => {
   assert.ok($('#vault-shelves .vault-shelf[data-shelf="foils"]'));
 });
 
+test("the gems shelf explains itself, and See all searches is:gem by EDHREC rank", async () => {
+  await openVault({ shelves: { ...SHELVES, gems: [card(120), card(121)] } });
+  const gems = $('#vault-shelves .vault-shelf[data-shelf="gems"]');
+  assert.equal(gems.querySelector(".vault-shelf-title").textContent, "Forgotten gems");
+  assert.match(gems.querySelector(".vault-shelf-lede").textContent, /no saved deck holds/);
+  assert.equal(gems.querySelectorAll(".vault-tile").length, 2);
+  // The gems rail sits between the new cards and the foils.
+  const order = $$("#vault-shelves .vault-shelf").map((s) => s.dataset.shelf);
+  assert.deepEqual(order, ["new", "gems", "foils"]);
+  gems.querySelector(".vault-shelf-all").click();
+  await app.until(() => lastSearch()?.query.get("q") === "is:gem");
+  assert.equal(lastSearch().query.get("sort"), "edhrec");
+  assert.equal($("#vault-search").value, "is:gem");
+});
+
 // ---- sidebar -------------------------------------------------------------
 
 test("facet counts render and dim at zero", async () => {

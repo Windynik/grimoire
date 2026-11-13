@@ -279,6 +279,8 @@ function attachFanHover(root) {
 
 const SHELVES = [
   { key: "new", title: "New since your last import", see: "new" },
+  { key: "gems", title: "Forgotten gems",
+    lede: "Popular Commander cards that you own and that no saved deck holds.", see: "gems" },
   { key: "foils", title: "Your foils", see: "foils" },
 ];
 
@@ -302,6 +304,7 @@ export function renderShelves(root, shelves, { onOpen, onSeeAll }) {
           type: "button", class: "vault-shelf-all", text: "See all",
           onclick: () => onSeeAll(shelf.see),
         })),
+      shelf.lede ? h("p", { class: "vault-shelf-lede", text: shelf.lede }) : null,
       row));
   }
   root.replaceChildren(...rails);

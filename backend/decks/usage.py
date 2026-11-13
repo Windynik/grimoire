@@ -59,6 +59,16 @@ def usage_by_card(decks: Iterable[dict], index: Dict[str, dict]) -> Dict[str, Li
     return usage
 
 
+def decked_keys(deck_store, index: Dict[str, dict]) -> set:
+    """The card keys of every saved deck, built or not (main, sideboard, commander)."""
+    keys = set()
+    for summary in deck_store.list():
+        record = deck_store.get(summary.get("id", ""))
+        if record is not None:
+            keys.update(deck_copies(record, index))
+    return keys
+
+
 def used_counts(usage: Dict[str, List[dict]], exclude_deck: Optional[str] = None) -> Dict[str, int]:
     """The copies of each card that the built decks use, without one deck when given."""
     return {key: sum(d["count"] for d in decks if d["built"] and d["deck_id"] != exclude_deck)

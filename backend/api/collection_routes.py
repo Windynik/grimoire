@@ -28,7 +28,7 @@ from backend.core.collection_query import (
 )
 from backend.core.collection_store import CollectionStore
 from backend.decks.store import DeckStore
-from backend.decks.usage import CopiesInUse, used_counts
+from backend.decks.usage import CopiesInUse, decked_keys, used_counts
 
 router = APIRouter(prefix="/api")
 
@@ -189,6 +189,8 @@ async def search_collection(
         used = used_counts(copies.usage)
         query.copies = {key: (used.get(key, 0), copies.owned.get(key, 0))
                         for key in used.keys() | copies.owned.keys()}
+    if query.wants_decks:
+        query.decked = await asyncio.to_thread(decked_keys, deck_store, index)
     results, facets, value = search(merged.cards, query, filters, sort, merged.new_keys)
     if not results and has_flag_words(q):
         # "new perspectives" or the card "Foil": the bare word was a name.
@@ -236,12 +238,14 @@ async def collection_shelves(
     job_id: str,
     store: CollectionStore = Depends(get_collection_store),
     bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager),
+    deck_store: DeckStore = Depends(get_deck_store),
 ):
-    """Spotlight, most valuable, foils, and new cards."""
+    """Spotlight, most valuable, foils, new cards, and forgotten gems."""
     index = await bulk_data_manager.load_bulk_data()
     merged = get_merged(store, job_id, index)
     day = (today() - datetime.date(1970, 1, 1)).days
-    return shelves(merged.cards, merged.new_keys, day)
+    decked = await asyncio.to_thread(decked_keys, deck_store, index)
+    return shelves(merged.cards, merged.new_keys, day, decked)
 
 
 @router.get("/collection/{job_id}/sets")

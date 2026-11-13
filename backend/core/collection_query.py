@@ -228,10 +228,18 @@ class Query:
     free: bool = False
     used: bool = False
     copies: Optional[Dict[str, Tuple[int, int]]] = None
+    # "is:gem": a popular card (see is_gem_card) that no saved deck holds. The
+    # route fills `decked` (the card keys of every saved deck) when it is on.
+    gem: bool = False
+    decked: Optional[Set[str]] = None
 
     @property
     def wants_copies(self) -> bool:
         return self.free or self.used
+
+    @property
+    def wants_decks(self) -> bool:
+        return self.gem
 
 
 @dataclass
@@ -280,6 +288,9 @@ def parse_query(q: str, flags_as_text: bool = False) -> Query:
             continue
         if low in ("is:free", "is:used"):
             setattr(query, low[3:], True)
+            continue
+        if low in ("is:gem", "is:gems"):
+            query.gem = True
             continue
         price = _PRICE.match(token)
         if price:
@@ -385,12 +396,13 @@ def _query_passes(card: dict, query: Query, new_keys) -> bool:
     if query.dupes and _quantity(card.get("quantity")) <= 1:
         return False
     if query.wants_copies:
-        key = card.get("oracle_id") or "name:" + (card.get("name") or "").strip().lower()
-        used, owned = (query.copies or {}).get(key, (0, 0))
+        used, owned = (query.copies or {}).get(card_key(card), (0, 0))
         if query.used and used <= 0:
             return False
         if query.free and owned - used <= 0:
             return False
+    if query.gem and (not is_gem_card(card) or card_key(card) in (query.decked or set())):
+        return False
     if query.new and (card.get("scryfall_id"), _is_foil(card.get("foil"))) not in new_keys:
         return False
     return True
@@ -526,17 +538,33 @@ def archive_matches(info: dict, query: Query) -> bool:
     """
     if query.prices:
         info = dict(info, price=unit_price(info.get("prices"), False))
-    flags = (query.foil, query.dupes, query.new, query.free, query.used)
-    query.foil = query.dupes = query.new = query.free = query.used = False
+    flags = (query.foil, query.dupes, query.new, query.free, query.used, query.gem)
+    query.foil = query.dupes = query.new = query.free = query.used = query.gem = False
     try:
         return _query_passes(info, query, ())
     finally:
-        query.foil, query.dupes, query.new, query.free, query.used = flags
+        query.foil, query.dupes, query.new, query.free, query.used, query.gem = flags
 
 
 # --- shelves and sets ---
 
 SHELF_SIZE = 12
+# A card in the top GEM_RANK of EDHREC (the most played Commander cards) is a
+# gem when no saved deck holds it.
+GEM_RANK = 2000
+
+
+def card_key(card: dict) -> str:
+    """One key for all printings of a card: the oracle id, else the lower-case name."""
+    return card.get("oracle_id") or "name:" + (card.get("name") or "").strip().lower()
+
+
+def is_gem_card(card: dict) -> bool:
+    """True for a popular card (EDHREC rank up to GEM_RANK) that is not a basic land."""
+    rank = card.get("edhrec_rank")
+    if not isinstance(rank, int) or rank <= 0 or rank > GEM_RANK:
+        return False
+    return "Basic" not in (card.get("type_line") or "").split("—")[0].split()
 
 
 def _unique_by_price(cards: list) -> list:
@@ -558,8 +586,26 @@ def spotlight(cards: list, day: int) -> Optional[dict]:
     return pool[day % len(pool)] if pool else None
 
 
-def shelves(cards: list, new_keys, day: int) -> dict:
-    """Spotlight plus the valuable, foil, and new shelves of a collection."""
+def forgotten_gems(cards: list, decked: Set[str]) -> list:
+    """The popular cards that no saved deck holds, most played first, one per card."""
+    seen = set()
+    gems = []
+    for card in sorted((c for c in cards if is_gem_card(c)),
+                       key=lambda c: (c["edhrec_rank"], -c.get("price", 0), c["name"])):
+        key = card_key(card)
+        if key in decked or key in seen:
+            continue
+        seen.add(key)
+        gems.append(card)
+    return gems
+
+
+def shelves(cards: list, new_keys, day: int, decked: Optional[Set[str]] = None) -> dict:
+    """Spotlight plus the valuable, foil, new and forgotten-gem shelves of a collection.
+
+    decked holds the card keys of every saved deck; without it there is no
+    gems shelf.
+    """
     new_keys = new_keys or set()
     flagged = [dict(c, new=(c["scryfall_id"], bool(c["foil"])) in new_keys) for c in cards]
     pick = spotlight(flagged, day)
@@ -568,6 +614,7 @@ def shelves(cards: list, new_keys, day: int) -> dict:
         "valuable": _unique_by_price(flagged)[:SHELF_SIZE],
         "foils": _unique_by_price([c for c in flagged if c["foil"]])[:SHELF_SIZE],
         "new": _unique_by_price([c for c in flagged if c["new"]])[:SHELF_SIZE],
+        "gems": forgotten_gems(flagged, decked)[:SHELF_SIZE] if decked is not None else [],
     }
 
 

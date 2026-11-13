@@ -747,6 +747,12 @@
     color: var(--text);
 }
 
+.vault-shelf-lede {
+    margin: -0.35rem 0 0.6rem;
+    color: var(--text-dim);
+    font-size: 0.92rem;
+}
+
 .vault-shelf-all {
     padding: 0;
     border: 0;

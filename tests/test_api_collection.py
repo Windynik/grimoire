@@ -3,8 +3,9 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.api.dependencies import get_bulk_data_manager, get_collection_store
+from backend.api.dependencies import get_bulk_data_manager, get_collection_store, get_deck_store
 from backend.core.collection_store import CollectionStore
+from backend.decks.store import DeckStore
 from main import app
 from tests.forge.conftest import make_record
 from tests.test_api import FakeBulk
@@ -38,6 +39,9 @@ def env(tmp_path):
     bulk = FakeBulk({"id-bolt": bolt, "id-wurm": wurm, "id-elf": elf})
     app.dependency_overrides[get_collection_store] = lambda: store
     app.dependency_overrides[get_bulk_data_manager] = lambda: bulk
+    # The search and the shelves read the saved decks: never the real ones.
+    empty_decks = DeckStore(storage_dir=str(tmp_path / "no-decks"))
+    app.dependency_overrides[get_deck_store] = lambda: empty_decks
     write(store, "old", "Old", "2026-01-01T00:00:00+00:00",
           [row("id-bolt", "Bolt"), row("id-elf", "Elf")])
     write(store, "cur", "Current", "2026-02-01T00:00:00+00:00",
@@ -268,7 +272,7 @@ def set_env(env):
 
 def test_shelves_lists_and_limits(set_env):
     body = get("/api/collection/cur/shelves")
-    assert set(body) == {"spotlight", "valuable", "foils", "new"}
+    assert set(body) == {"spotlight", "valuable", "foils", "new", "gems"}
     assert [c["name"] for c in body["valuable"]] == ["Gold Wurm", "Bolt", "Elf"]
     assert body["foils"] == []
     assert [c["name"] for c in body["new"]] == ["Gold Wurm", "Bolt"]
@@ -498,3 +502,20 @@ def test_is_used_skips_the_decks_that_are_not_built(env, tmp_path):
                              "sideboard": [], "maybeboard": []}})
     assert names("/api/collection/cur/search?q=is:used&sort=name") == []
     assert "Bolt" in names("/api/collection/cur/search?q=is:free&sort=name")
+
+
+def test_forgotten_gems_are_popular_cards_that_no_deck_holds(env, tmp_path):
+    _, bulk = env
+    bulk.cards["id-bolt"]["edhrec_rank"] = 10
+    bulk.cards["id-elf"]["edhrec_rank"] = 50
+    bulk.cards["id-wurm"]["edhrec_rank"] = 5000  # not popular enough
+    decks = DeckStore(storage_dir=str(tmp_path / "decks"))
+    app.dependency_overrides[get_deck_store] = lambda: decks
+    assert [c["name"] for c in get("/api/collection/cur/shelves")["gems"]] == ["Bolt", "Elf"]
+    # A deck that is not built still remembers the card.
+    decks.save({"name": "Idea", "format": "modern", "commander": None,
+                "sections": {"main": [{"scryfall_id": "id-bolt", "name": "Bolt", "count": 1}],
+                             "sideboard": [], "maybeboard": []}})
+    assert [c["name"] for c in get("/api/collection/cur/shelves")["gems"]] == ["Elf"]
+    assert names("/api/collection/cur/search?q=is:gem&sort=edhrec") == ["Elf"]
+    assert names("/api/collection/cur/search?q=is:gems") == ["Elf"]

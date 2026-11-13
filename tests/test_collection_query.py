@@ -408,3 +408,23 @@ def test_is_free_and_is_used_are_filters_and_free_is_still_a_name():
     query = parse_query("is:free is:used bolt")
     assert query.free and query.used and query.name_words == ["bolt"]
     assert parse_query("free").name_words == ["free"]
+
+
+def test_gem_cards_and_the_gem_keyword():
+    from backend.core.collection_query import forgotten_gems, is_gem_card
+    sol = {"name": "Sol Ring", "oracle_id": "o-sol", "edhrec_rank": 1, "type_line": "Artifact",
+           "price": 1.0}
+    sol_foil = dict(sol, price=5.0)
+    island = {"name": "Island", "oracle_id": "o-isl", "edhrec_rank": 2,
+              "type_line": "Basic Land — Island", "price": 0.1}
+    rare = {"name": "Rare One", "oracle_id": "o-rare", "edhrec_rank": 9000, "type_line": "Creature",
+            "price": 9.0}
+    unranked = {"name": "Unranked", "oracle_id": "o-un", "edhrec_rank": None, "type_line": "Creature",
+                "price": 1.0}
+    assert is_gem_card(sol) and not is_gem_card(island)
+    assert not is_gem_card(rare) and not is_gem_card(unranked)
+    gems = forgotten_gems([sol, sol_foil, island, rare, unranked], set())
+    assert [g["name"] for g in gems] == ["Sol Ring"] and gems[0]["price"] == 5.0
+    assert forgotten_gems([sol], {"o-sol"}) == []
+    query = parse_query("is:gem")
+    assert query.gem and query.wants_decks and query.name_words == []
