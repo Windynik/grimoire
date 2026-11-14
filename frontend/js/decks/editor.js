@@ -19,6 +19,7 @@ import { hidePreview, renderPane } from "./pane.js";
 import { renderSearch } from "./search.js";
 import { renderStats } from "./stats.js";
 import { renderChanges, renderChangesState } from "./changes.js";
+import { renderRuleZero, renderRuleZeroState } from "./rulezero.js";
 
 const GROUP_KEY = "grimoire.groupMode";
 const GROUP_MODES = ["type", "role", "cmc"];
@@ -109,6 +110,7 @@ function mount(host) {
     explanation: pick("explanation"),
     pull: pick("pull"),
     changes: pick("changes"),
+    rulezero: pick("rulezero"),
     exportMenu: pick("export"),
   };
 }
@@ -352,6 +354,32 @@ function createSession(host, deckId, options) {
     }
   }
 
+  // The Rule zero view saves first, so the card reads the newest deck.
+  let ruleZeroRequest = 0;
+  async function showRuleZero() {
+    const request = ++ruleZeroRequest;
+    renderRuleZeroState(view.rulezero, "Reading the deck…");
+    try {
+      await flushNow();
+      const card = await api.ruleZero(deckId);
+      if (closed || request !== ruleZeroRequest) return;
+      renderRuleZero(view.rulezero, card, {
+        printUrl: api.printUrl(deckId, "rule-zero"),
+        copy: async (text) => {
+          try {
+            await navigator.clipboard.writeText(text);
+            showToast("Rule-zero card copied", "success");
+          } catch (error) {
+            showToast("Could not copy the card", "error");
+          }
+        },
+      });
+    } catch (error) {
+      if (closed || request !== ruleZeroRequest) return;
+      renderRuleZeroState(view.rulezero, `Could not make the rule-zero card: ${error.message}`, true);
+    }
+  }
+
   async function copyText(text) {
     try {
       await navigator.clipboard.writeText(text);
@@ -365,6 +393,28 @@ function createSession(host, deckId, options) {
   async function saveBeforeExport() {
     await flushNow();
     if (status !== "saved") throw new Error("the last change is not saved");
+  }
+
+  // The combo check: it saves first, so the check reads the newest deck.
+  let combosBusy = false;
+  async function findCombos() {
+    if (combosBusy) return;
+    combosBusy = true;
+    render();
+    try {
+      await flushNow();
+      const body = await api.findCombos(deckId);
+      if (closed) return;
+      state.combos = body.combos || null;
+      if (body.analysis) state.analysis = body.analysis;
+      const count = ((state.combos || {}).included || []).length;
+      showToast(count ? `${count} ${count === 1 ? "combo" : "combos"} found` : "No combos found", "success");
+    } catch (error) {
+      if (!closed) showToast(error.message || "Could not find the combos", "error");
+    } finally {
+      combosBusy = false;
+      if (!closed) render();
+    }
   }
 
   // Card name per entry key, for the issue list of the stats panel.
@@ -406,7 +456,8 @@ function createSession(host, deckId, options) {
       else newest.textContent = view.collection.options.length > 1 ? "Newest collection" : "No collection";
     }
     renderPane(view.pane, state, handlers);
-    renderStats(view.stats, state.analysis, cardNames());
+    renderStats(view.stats, state.analysis, cardNames(),
+      { combos: state.combos, busy: combosBusy, onFindCombos: findCombos });
     renderSearch(view.search, state);
     renderHand(view.hand, state);
     renderExplain(view.explanation, state);
@@ -488,6 +539,7 @@ function createSession(host, deckId, options) {
     view.viewTabs.forEach((other) => other.setAttribute("aria-selected", String(other === tab)));
     if (tab.dataset.view === "pull") showPull();
     if (tab.dataset.view === "changes") showChanges();
+    if (tab.dataset.view === "rulezero") showRuleZero();
   }));
   // The side switch picks Stats or Agent inside the right panel. The layout tabs are not touched.
   view.sideTabs.forEach((tab) => tab.addEventListener("click", () => {
@@ -546,6 +598,7 @@ function createSession(host, deckId, options) {
       });
       state.commander = record.commander || null;
       state.analysis = record.analysis || {};
+      state.combos = record.combos || null;
       state.forge = { backbone: record.backbone || null, explanation: record.explanation || "" };
       history.push(state);
       renderAgent(view.agent, state);

@@ -6,6 +6,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set, Tuple
 
+from backend.core.card_flags import flag_key
 from backend.core.prices import unit_price  # noqa: F401  (part of this module's API)
 from backend.forge.cards import is_game_card
 from backend.forge.playbook import load_playbook
@@ -209,6 +210,9 @@ _PRICE = re.compile(r'^\$(>=|<=|>|<)(\d+(?:\.\d+)?)$')
 _RANGE = re.compile(r'^(\d+)(?:(-)(\d*))?$')
 
 
+# The words of the flag keyword: "flag:trade", "flag:sell", "flag:keep", "flag:lent".
+FLAG_KEYWORDS = {"trade": "trade", "sell": "sell", "keep": "keep", "lent": "lent"}
+
 @dataclass
 class Query:
     name_words: List[str] = field(default_factory=list)
@@ -232,6 +236,10 @@ class Query:
     # route fills `decked` (the card keys of every saved deck) when it is on.
     gem: bool = False
     decked: Optional[Set[str]] = None
+    # "flag:trade" and the other card flags (see backend.core.card_flags). The
+    # route fills `card_flags` (flag key -> flags) when one of them is on.
+    flags: List[str] = field(default_factory=list)
+    card_flags: Optional[Dict[str, List[str]]] = None
 
     @property
     def wants_copies(self) -> bool:
@@ -291,6 +299,9 @@ def parse_query(q: str, flags_as_text: bool = False) -> Query:
             continue
         if low in ("is:gem", "is:gems"):
             query.gem = True
+            continue
+        if low.startswith("flag:") and low[5:] in FLAG_KEYWORDS:
+            query.flags.append(FLAG_KEYWORDS[low[5:]])
             continue
         price = _PRICE.match(token)
         if price:
@@ -403,6 +414,10 @@ def _query_passes(card: dict, query: Query, new_keys) -> bool:
             return False
     if query.gem and (not is_gem_card(card) or card_key(card) in (query.decked or set())):
         return False
+    if query.flags:
+        has = (query.card_flags or {}).get(flag_key(card.get("scryfall_id"), card.get("foil")), [])
+        if not all(f in has for f in query.flags):
+            return False
     if query.new and (card.get("scryfall_id"), _is_foil(card.get("foil"))) not in new_keys:
         return False
     return True
@@ -538,12 +553,14 @@ def archive_matches(info: dict, query: Query) -> bool:
     """
     if query.prices:
         info = dict(info, price=unit_price(info.get("prices"), False))
-    flags = (query.foil, query.dupes, query.new, query.free, query.used, query.gem)
+    flags = (query.foil, query.dupes, query.new, query.free, query.used, query.gem, query.flags)
     query.foil = query.dupes = query.new = query.free = query.used = query.gem = False
+    query.flags = []
     try:
         return _query_passes(info, query, ())
     finally:
-        query.foil, query.dupes, query.new, query.free, query.used, query.gem = flags
+        (query.foil, query.dupes, query.new, query.free, query.used, query.gem,
+         query.flags) = flags
 
 
 # --- shelves and sets ---

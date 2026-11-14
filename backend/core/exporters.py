@@ -14,8 +14,9 @@ Grimoire does not track condition or language, so the exports write
 import csv
 import io
 from dataclasses import dataclass
-from typing import Callable, Dict, List
+from typing import Callable, Dict, List, Optional
 
+from backend.core.card_flags import flag_key
 from backend.core.importers import foil_value
 
 
@@ -35,10 +36,13 @@ def _quantity(value) -> int:
         return 1
 
 
-def _printing(row: dict, index: Dict[str, dict]) -> dict:
+def _printing(row: dict, index: Dict[str, dict], flags: Dict[str, List[str]]) -> dict:
     """One owned stack with its printing filled in from the card index."""
     info = index.get(row.get("scryfall_id") or "") or {}
+    quantity = _quantity(row.get("quantity"))
+    marked = flags.get(flag_key(row.get("scryfall_id"), row.get("foil")), [])
     return {
+        "trade": quantity if "trade" in marked else 0,
         "name": info.get("name") or row.get("name") or "",
         "quantity": _quantity(row.get("quantity")),
         "finish": foil_value(str(row.get("foil") or "")),
@@ -72,7 +76,7 @@ def moxfield(cards: List[dict]) -> str:
     """Moxfield's collection CSV."""
     header = ["Count", "Tradelist Count", "Name", "Edition", "Condition", "Language", "Foil",
               "Tags", "Last Modified", "Collector Number", "Alter", "Proxy", "Purchase Price"]
-    return _csv(header, [[c["quantity"], 0, c["name"], c["set"], "Near Mint", "English",
+    return _csv(header, [[c["quantity"], c["trade"], c["name"], c["set"], "Near Mint", "English",
                           "" if c["finish"] == "normal" else c["finish"], "", "",
                           c["number"], "False", "False", ""] for c in cards])
 
@@ -91,7 +95,7 @@ def deckbox(cards: List[dict]) -> str:
     header = ["Count", "Tradelist Count", "Name", "Edition", "Card Number", "Condition",
               "Language", "Foil", "Signed", "Artist Proof", "Altered Art", "Misprint",
               "Promo", "Textless", "My Price"]
-    return _csv(header, [[c["quantity"], 0, c["name"], c["set_name"], c["number"],
+    return _csv(header, [[c["quantity"], c["trade"], c["name"], c["set_name"], c["number"],
                           "Near Mint", "English", "" if c["finish"] == "normal" else "foil",
                           "", "", "", "", "", "", ""] for c in cards])
 
@@ -117,14 +121,18 @@ KINDS = {
 }  # type: Dict[str, tuple]
 
 
-def export_collection(kind: str, rows: List[dict], index: Dict[str, dict]) -> Export:
+def export_collection(kind: str, rows: List[dict], index: Dict[str, dict],
+                      flags: Optional[Dict[str, List[str]]] = None) -> Export:
     """Write the rows of a collection in one app's format.
+
+    flags (see backend.core.card_flags) mark the stacks for trade: Moxfield and
+    Deckbox get them as the trade list count.
 
     Raises:
         KeyError: The kind is not in KINDS.
     """
     label, extension, writer = KINDS[kind]  # type: str, str, Callable[[List[dict]], str]
-    cards = sorted((_printing(row, index) for row in rows if row.get("name") or
+    cards = sorted((_printing(row, index, flags or {}) for row in rows if row.get("name") or
                     row.get("scryfall_id")),
                    key=lambda c: (c["binder"].lower(), c["name"].lower(), c["set"], c["number"]))
     media = "text/csv; charset=utf-8" if extension == "csv" else "text/plain; charset=utf-8"

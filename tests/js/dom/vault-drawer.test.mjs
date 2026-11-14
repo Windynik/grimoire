@@ -357,3 +357,36 @@ test("the drawer counts the copies in built decks and the free copies", async ()
   assert.deepEqual(items, ["Wizards ×2built", "Tempo"]);
   assert.equal($$(".vault-decks .vault-deck-tag").length, 1);
 });
+
+test("the flag toggles save at once and tell the opener", async () => {
+  const puts = [];
+  app.route(`PUT /api/flags/${ID(1)}`, (req) => {
+    puts.push(req.body);
+    return { json: { scryfall_id: ID(1), foil: req.body.foil, flags: req.body.flags } };
+  });
+  const changed = [];
+  const one = card(1, { flags: ["keep"] });
+  drawer.openDrawer([one], 0, { onFlags: (c) => changed.push([...c.flags]) });
+  const toggles = $$(".vault-flag-toggle");
+  assert.deepEqual(toggles.map((b) => b.textContent), ["For trade", "To sell", "Keep", "Lent out"]);
+  assert.deepEqual(toggles.map((b) => b.getAttribute("aria-pressed")), ["false", "false", "true", "false"]);
+  toggles[0].click();
+  await app.until(() => changed.length === 1);
+  assert.deepEqual(puts[0], { flags: ["keep", "trade"], foil: true });
+  assert.deepEqual(changed[0], ["keep", "trade"]);
+  assert.equal(toggles[0].getAttribute("aria-pressed"), "true");
+});
+
+test("a failed flag save goes back and says so", async () => {
+  app.route(`PUT /api/flags/${ID(2)}`, () => ({ status: 500, json: { detail: "Disk full." } }));
+  drawer.openDrawer([card(2, { flags: [] })], 0);
+  const sell = $('.vault-flag-toggle[data-flag="sell"]');
+  sell.click();
+  await app.until(() => /Could not save the flag/.test($("#toast-container").textContent));
+  assert.equal(sell.getAttribute("aria-pressed"), "false");
+});
+
+test("a card that is not owned has no flags", async () => {
+  drawer.openDrawer([card(3, { owned: false, quantity: 0 })], 0);
+  assert.equal($(".vault-flags"), null);
+});

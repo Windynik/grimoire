@@ -6,13 +6,14 @@
 // go through manaNode and renderOracleText, the one path that sets innerHTML.
 
 import { h, manaNode } from "../shared/dom.js";
+import { showToast } from "../shared/toast.js";
 import { cardImage, cardImg } from "../shared/images.js";
 import { renderOracleText } from "../shared/mana.js";
 import { animate, reducedMotion } from "../shared/motion.js";
 import * as api from "./api.js";
 import { editable, trapTab } from "./keys.js";
 import { formatCardPrice, formatMoney } from "./numbers.js";
-import { unitPrice } from "./tile.js";
+import { FLAG_LABELS, unitPrice } from "./tile.js";
 
 const FORMATS = ["commander", "standard", "pioneer", "modern", "legacy", "vintage", "pauper", "brawl"];
 const MAX_TILT = 8; // degrees at the edge of the image
@@ -121,6 +122,37 @@ function factsOf(card) {
   return nodes;
 }
 
+// The flag toggles of an owned card. Each press saves at once.
+function flagsBlock(card) {
+  const buttons = Object.entries(FLAG_LABELS).map(([key, text]) => {
+    const on = (card.flags || []).includes(key);
+    const button = h("button", { type: "button", class: "vault-flag-toggle", "data-flag": key,
+      "aria-pressed": String(on), text });
+    button.addEventListener("click", () => toggleFlag(card, key, buttons));
+    return button;
+  });
+  return h("div", { class: "vault-flags", role: "group", "aria-label": "Flags" },
+    h("b", { text: "Flags" }), h("div", { class: "vault-flag-row" }, ...buttons));
+}
+
+async function toggleFlag(card, key, buttons) {
+  const before = [...(card.flags || [])];
+  const after = before.includes(key) ? before.filter((f) => f !== key) : [...before, key];
+  const paint = (flags) => buttons.forEach((b) => b.setAttribute("aria-pressed", String(flags.includes(b.dataset.flag))));
+  card.flags = after;
+  paint(after);
+  try {
+    const saved = await api.setFlags(card.scryfall_id, card.foil, after);
+    card.flags = saved.flags || after;
+    paint(card.flags);
+    if (typeof state.options.onFlags === "function") state.options.onFlags(card);
+  } catch (error) {
+    card.flags = before;
+    paint(before);
+    showToast(`Could not save the flag: ${error.message}`, "error");
+  }
+}
+
 function legalBlock(card) {
   if (!Object.keys(card.legalities || {}).length) {
     return h("p", { class: "vault-legal-unknown", text: "Legality unknown" });
@@ -165,6 +197,7 @@ function show() {
     h("div", { class: "vault-dtype", text: typeLine(card) }),
     oracle,
     h("div", { class: "vault-facts" }, ...factsOf(card)),
+    card.owned && card.scryfall_id ? flagsBlock(card) : null,
     rank,
     legalBlock(card),
     decks].filter(Boolean));

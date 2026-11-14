@@ -67,8 +67,21 @@ function trackBarHeight() {
 }
 
 /** Build the drifting motes (none under reduced motion), bind the nav, and publish the bar height. */
+// The skip link moves the focus to the main content. It does not change the
+// hash, because the router reads the hash as the screen to show.
+function bindSkipLink() {
+  const link = document.querySelector(".skip-link");
+  const main = document.getElementById("main");
+  if (!link || !main) return;
+  link.addEventListener("click", (event) => {
+    event.preventDefault();
+    main.focus();
+  });
+}
+
 export function startShell() {
   startMotes();
   bindNav();
+  bindSkipLink();
   trackBarHeight();
 }

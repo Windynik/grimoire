@@ -291,15 +291,23 @@ def _oracle_key(info: dict) -> str:
 
 
 def _name_map(index: Dict[str, dict]) -> Dict[str, List[dict]]:
-    """Map lower-case full and front-face names to index records, in index order."""
+    """Map lower-case full and front-face names to index records, in index order.
+
+    A front-face name ("Delver of Secrets") finds a two-faced card only when no
+    card has that full name: a reversible printing ("Tasha, the Witch Queen //
+    Tasha, the Witch Queen") must not hide the normal card.
+    """
     names = {}  # type: Dict[str, List[dict]]
+    fronts = {}  # type: Dict[str, List[dict]]
     for info in index.values():
         name = (info.get("name") or "").lower()
         if not name:
             continue
         names.setdefault(name, []).append(info)
         if " // " in name:
-            names.setdefault(name.split(" // ")[0], []).append(info)
+            fronts.setdefault(name.split(" // ")[0], []).append(info)
+    for front, found in fronts.items():
+        names.setdefault(front, found)
     return names
 
 

@@ -1,11 +1,13 @@
 import asyncio
 import datetime
 import os
+import re
 from pathlib import Path
 from collections import OrderedDict
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 
 from backend.api.dependencies import get_bulk_data_manager, get_collection_store, get_deck_store
 from backend.api.routes import check_format
@@ -28,6 +30,7 @@ from backend.core.collection_query import (
 )
 from backend.core.collection_store import CollectionStore
 from backend.decks.store import DeckStore
+from backend.core.card_flags import FLAGS, CardFlags, flag_key
 from backend.core.price_history import add_snapshot, movers, value_history
 from backend.core.provider_prices import PROVIDERS
 from backend.decks.usage import CopiesInUse, decked_keys, used_counts
@@ -193,6 +196,9 @@ async def search_collection(
                         for key in used.keys() | copies.owned.keys()}
     if query.wants_decks:
         query.decked = await asyncio.to_thread(decked_keys, deck_store, index)
+    flags = CardFlags(store.storage_dir).all()
+    if query.flags:
+        query.card_flags = flags
     results, facets, value = search(merged.cards, query, filters, sort, merged.new_keys)
     if not results and has_flag_words(q):
         # "new perspectives" or the card "Foil": the bare word was a name.
@@ -205,11 +211,36 @@ async def search_collection(
     offset = max(0, offset)
     page = [
         dict(card, owned=True,
-             new=(card["scryfall_id"], bool(card["foil"])) in merged.new_keys)
+             new=(card["scryfall_id"], bool(card["foil"])) in merged.new_keys,
+             flags=flags.get(flag_key(card["scryfall_id"], card["foil"]), []))
         for card in results[offset:offset + limit]
     ]
     return {"cards": page, "total": len(results), "offset": offset, "limit": limit,
             "facets": facets, "value": value}
+
+
+class FlagsIn(BaseModel):
+    flags: List[str] = Field(default_factory=list, max_length=len(FLAGS))
+    foil: bool = False
+
+
+@router.get("/flags")
+async def card_flags(store: CollectionStore = Depends(get_collection_store)):
+    """The card flags: their labels, and the flags of every flagged printing."""
+    return {"labels": FLAGS, "cards": CardFlags(store.storage_dir).all()}
+
+
+@router.put("/flags/{scryfall_id}")
+async def set_card_flags(scryfall_id: str, request: FlagsIn,
+                         store: CollectionStore = Depends(get_collection_store)):
+    """Replace the flags of one owned printing (foil or not)."""
+    unknown = [f for f in request.flags if f not in FLAGS]
+    if unknown:
+        raise HTTPException(status_code=400, detail="Unknown flag: %s" % unknown[0])
+    if not re.match(r"^[A-Za-z0-9-]{1,64}$", scryfall_id):
+        raise HTTPException(status_code=400, detail="Invalid card id")
+    kept = CardFlags(store.storage_dir).set(scryfall_id, request.foil, request.flags)
+    return {"scryfall_id": scryfall_id, "foil": request.foil, "flags": kept}
 
 
 @router.get("/collection/{job_id}/insights")

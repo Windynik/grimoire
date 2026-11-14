@@ -53,9 +53,31 @@ const copiesOf = (card) => {
   return Number.isFinite(value) && value > 0 ? value : 0;
 };
 
+// The card flags, as a tile and the drawer name them.
+export const FLAG_LABELS = { trade: "For trade", sell: "To sell", keep: "Keep", lent: "Lent out" };
+
+function flagMark(card) {
+  const first = (card.flags || [])[0];
+  return first ? h("span", { class: `vault-flag vault-flag-${first}`, "aria-hidden": "true",
+    text: (FLAG_LABELS[first] || first).toUpperCase() }) : null;
+}
+
+/** Show the card's flags on its tiles (the same printing and finish) after a change. */
+export function syncTileFlags(root, card) {
+  if (!root || !card || !card.scryfall_id) return;
+  root.querySelectorAll(".vault-tile").forEach((tile) => {
+    if (tile.dataset.cardId !== card.scryfall_id || tile.classList.contains("is-foil") !== Boolean(card.foil)) return;
+    tile.querySelectorAll(".vault-flag").forEach((mark) => mark.remove());
+    const mark = flagMark(card);
+    const price = tile.querySelector(".vault-price");
+    if (mark && price) price.before(mark);
+  });
+}
+
 function label(card, copies, price) {
   const parts = [String(card.name || "")];
   if (card.foil) parts.push("foil");
+  (card.flags || []).forEach((flag) => { if (FLAG_LABELS[flag]) parts.push(FLAG_LABELS[flag].toLowerCase()); });
   if (copies > 1) parts.push(`${copies} copies`);
   if (card.new) parts.push("new");
   if (price) parts.push(formatCardPrice(price));
@@ -92,6 +114,7 @@ export function vaultTile(card, { index, onOpen } = {}) {
   const caption = h("div", { class: "vault-cap" },
     h("span", { class: "vault-name", text: String(card.name || "") }),
     card.new ? h("span", { class: "vault-new", "aria-hidden": "true", text: "NEW" }) : null,
+    flagMark(card),
     h("span", { class: "vault-price", text: formatCardPrice(price) }));
   const cost = manaNode(card.mana_cost, "vault-cost");
   cost.setAttribute("aria-hidden", "true");

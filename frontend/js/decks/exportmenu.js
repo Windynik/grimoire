@@ -82,6 +82,29 @@ export function renderExportMenu(root, deckId, hooks = {}) {
     return h("li", { class: "export-row" }, h("span", { class: "export-label", text: label }), actions);
   });
 
+  // The event decklist: a page to print and hand in at a tournament.
+  const sheet = h("a", {
+    class: "export-btn", href: api.printUrl(deckId, "decklist"), target: "_blank", rel: "noopener",
+    "aria-label": "Open the event decklist to print", text: "Open",
+  });
+  sheet.addEventListener("click", async (event) => {
+    if (sheet.dataset.ready) return;
+    event.preventDefault();
+    try {
+      await before();
+    } catch (error) {
+      toast(`Could not save the deck: ${error.message}`, "error");
+      return;
+    }
+    sheet.dataset.ready = "true";
+    sheet.click();
+    delete sheet.dataset.ready;
+    details.open = false;
+  });
+  rows.push(h("li", { class: "export-row" },
+    h("span", { class: "export-label", text: "Event decklist (print)" }),
+    h("span", { class: "export-actions" }, sheet)));
+
   details.append(
     h("summary", { class: "btn btn-secondary btn-compact", text: "Export" }),
     h("ul", { class: "export-list" }, rows));

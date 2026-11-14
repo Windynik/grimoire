@@ -347,3 +347,24 @@ test("the other client calls reach their routes", async () => {
   await api.deckUsage(["a", "b"]);
   assert.equal(lastRequest("/api/decks/usage").query.get("ids"), "a,b");
 });
+
+test("a flagged card shows its first flag, and a change of flags updates the tile", async () => {
+  const flagged = card({ flags: ["trade", "keep"] });
+  const el = tile.vaultTile(flagged, {});
+  document.body.append(el);
+  assert.equal(el.querySelector(".vault-flag").textContent, "FOR TRADE");
+  assert.match(el.getAttribute("aria-label"), /for trade, keep/);
+  flagged.flags = ["lent"];
+  tile.syncTileFlags(document.body, flagged);
+  assert.equal(el.querySelector(".vault-flag").textContent, "LENT OUT");
+  flagged.flags = [];
+  tile.syncTileFlags(document.body, flagged);
+  assert.equal(el.querySelector(".vault-flag"), null);
+  // A foil tile of the same printing keeps its own flags.
+  const foil = tile.vaultTile(card({ foil: true, flags: ["sell"] }), {});
+  document.body.append(foil);
+  tile.syncTileFlags(document.body, { ...flagged, flags: [] });
+  assert.equal(foil.querySelector(".vault-flag").textContent, "TO SELL");
+  el.remove();
+  foil.remove();
+});

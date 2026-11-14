@@ -351,6 +351,13 @@ test("one price snapshot shows no line and no movers", async () => {
   assert.equal($("#vault-movers").hidden, true);
 });
 
+test("a search requested by another screen replaces the remembered search", async () => {
+  await openVault({ storage: { viewerSource: "job1" } });
+  await open({ state: { q: "flag:trade" } });
+  await app.until(() => lastSearch()?.query.get("q") === "flag:trade");
+  assert.equal($("#vault-search").value, "flag:trade");
+});
+
 // ---- sidebar -------------------------------------------------------------
 
 test("facet counts render and dim at zero", async () => {

@@ -338,3 +338,57 @@ test("an empty changelog says that edits show from now on", async () => {
     && !root.textContent.includes("Reading"));
   assert.match(root.textContent, /No changes are recorded yet/);
 });
+
+test("Find combos saves first, shows the combos and the ones a card away", async () => {
+  const found = {
+    ...deckRecord(),
+    combos: { checked: "2026-11-14T10:00:00Z", key: "k", included: [
+      { id: "1-2", cards: ["Card A", "Card B"], produces: ["Win the game"], tag: "R", tag_label: "Ruthless",
+        two_card: true, url: "https://commanderspellbook.com/combo/1-2/", description: "Do it." }],
+    almost: [{ id: "3-4", cards: ["Card A", "Card C"], produces: ["Infinite mana"], tag: "P", tag_label: "Powerful",
+      missing: ["Card C"], url: "https://commanderspellbook.com/combo/3-4/" }] },
+    analysis: { combos_stale: false },
+  };
+  const posts = [];
+  await openEditor({ "POST /api/decks/d1/combos": () => { posts.push(1); return { json: found }; } });
+  const stats = document.querySelector('[data-editor="stats"]');
+  await app.until(() => stats.querySelector(".combo-find"));
+  assert.match(stats.querySelector(".combo-note").textContent, /sends only the card names/);
+  stats.querySelector(".combo-find").click();
+  await app.until(() => stats.querySelector(".combo-item"));
+  assert.equal(posts.length, 1);
+  const items = [...stats.querySelectorAll(".combo-item")];
+  assert.equal(items[0].querySelector(".combo-cards").textContent, "Card A + Card B");
+  assert.equal(items[0].querySelector(".combo-cards").getAttribute("href"), "https://commanderspellbook.com/combo/1-2/");
+  assert.equal(items[0].querySelector(".combo-tag").textContent, "Ruthless");
+  assert.equal(items[1].querySelector(".combo-missing").textContent, "Add Card C: ");
+  assert.match(stats.querySelector(".combo-note").textContent, /^1 combo in the deck/);
+  assert.equal(stats.querySelector(".combo-find").textContent, "Find combos again");
+  assert.ok(toasts().some((t) => t.includes("1 combo found")));
+});
+
+test("the Rule zero view shows the card, copies its text and links the printable card", async () => {
+  const card = { title: "Deck One", lines: ["Commander", "Bracket 1 or 2"], text: "Deck One\nCommander\n",
+    sections: [{ title: "Game Changers", items: ["None"] }, { title: "Combos", items: ["A + B (Win the game)"] }] };
+  await openEditor({ "GET /api/decks/d1/rule-zero": () => ({ json: card }) });
+  const copied = [];
+  Object.defineProperty(window.navigator, "clipboard", { configurable: true,
+    value: { writeText: async (text) => { copied.push(text); } } });
+  click(document.querySelector('[data-editor="view-tab"][data-view="rulezero"]'));
+  const root = document.querySelector('[data-editor="rulezero"]');
+  await app.until(() => root.querySelector(".rz-card"));
+  assert.equal(root.querySelector(".rz-name").textContent, "Deck One");
+  assert.deepEqual([...root.querySelectorAll(".rz-title")].map((n) => n.textContent), ["Game Changers", "Combos"]);
+  assert.equal(root.querySelector('a[target="_blank"]').getAttribute("href"), "/api/decks/d1/print/rule-zero");
+  click([...root.querySelectorAll("button")].find((b) => b.textContent === "Copy text"));
+  await app.until(() => copied.length === 1);
+  assert.equal(copied[0], "Deck One\nCommander\n");
+});
+
+test("the export menu links the event decklist to print", async () => {
+  await openEditor();
+  const link = document.querySelector('[aria-label="Open the event decklist to print"]');
+  assert.ok(link);
+  assert.equal(link.getAttribute("href"), "/api/decks/d1/print/decklist");
+  assert.equal(link.getAttribute("target"), "_blank");
+});

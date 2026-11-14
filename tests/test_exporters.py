@@ -72,3 +72,15 @@ def test_a_card_missing_from_the_card_data_keeps_its_name():
     assert moxfield.startswith("2,0,Mystery Card,,Near Mint,English,")
     with pytest.raises(KeyError):
         export_collection("nope", rows, {})
+
+
+def test_the_trade_flag_fills_the_trade_list_count():
+    flags = {"id-bolt-2x2|": ["trade"], "id-sol-cmr|foil": ["trade", "keep"]}
+    moxfield = export_collection("moxfield", ROWS, INDEX, flags).body.splitlines()[1:]
+    counts = {line.split(",")[2]: (line.split(",")[0], line.split(",")[1]) for line in moxfield}
+    assert counts["Sol Ring"] == ("2", "2")  # the etched Sol Ring is for trade
+    rows = [r for r in moxfield if r.startswith("3,")]
+    assert rows and rows[0].startswith("3,3,Lightning Bolt")
+    assert any(r.startswith("1,0,Lightning Bolt") for r in moxfield)  # the foil Bolt is not
+    deckbox = export_collection("deckbox", ROWS, INDEX, flags).body
+    assert "3,3,Lightning Bolt" in deckbox

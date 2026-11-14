@@ -30,6 +30,7 @@
     <link rel="stylesheet" href="/css/welcome.css">
 </head>
 <body>
+    <a class="skip-link" href="#main">Skip to main content</a>
     <!-- Atmospheric background layers -->
     <div class="atmosphere" aria-hidden="true">
         <div class="glow glow-u"></div>
@@ -53,11 +54,16 @@
                     <a class="nav-item" href="#decks" data-screen="decks">Decks</a>
                     <a class="nav-item" href="#settings" data-screen="settings">Settings</a>
                 </nav>
+                <button type="button" class="palette-button" id="palette-button" aria-label="Search and commands" aria-keyshortcuts="Meta+K Control+K" title="Command palette (⌘K or Ctrl+K)">
+                    <span class="palette-button-icon" aria-hidden="true">⌕</span>
+                    <span class="palette-button-text">Search</span>
+                    <kbd class="palette-button-key" aria-hidden="true">⌘K</kbd>
+                </button>
             </div>
         </header>
 
         <!-- Main Content -->
-        <main class="main">
+        <main class="main" id="main" tabindex="-1">
             <div class="container">
                 <!-- Home View -->
                 <div id="home-view" class="view">
@@ -422,6 +428,7 @@
                                         <button type="button" role="tab" class="deck-view-tab" data-editor="view-tab" data-view="explanation" aria-selected="false">Explanation</button>
                                         <button type="button" role="tab" class="deck-view-tab" data-editor="view-tab" data-view="pull" aria-selected="false">Pull list</button>
                                         <button type="button" role="tab" class="deck-view-tab" data-editor="view-tab" data-view="changes" aria-selected="false">Changes</button>
+                                        <button type="button" role="tab" class="deck-view-tab" data-editor="view-tab" data-view="rulezero" aria-selected="false">Rule zero</button>
                                     </div>
                                     <div class="deck-view" data-view-panel="deck" role="tabpanel">
                                         <div class="deck-pane-tools">
@@ -441,6 +448,7 @@
                                     <div class="deck-view deck-explain" data-view-panel="explanation" data-editor="explanation" role="tabpanel"></div>
                                     <div class="deck-view deck-pull" data-view-panel="pull" data-editor="pull" role="tabpanel"></div>
                                     <div class="deck-view deck-changes" data-view-panel="changes" data-editor="changes" role="tabpanel"></div>
+                                    <div class="deck-view deck-rulezero" data-view-panel="rulezero" data-editor="rulezero" role="tabpanel"></div>
                                 </section>
                                 <aside class="editor-stats" data-panel="stats" data-editor="side" data-side="stats" aria-label="Deck stats and agent">
                                     <div class="side-switch" role="tablist" aria-label="Stats and agent">

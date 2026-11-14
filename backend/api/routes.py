@@ -17,6 +17,7 @@ from backend.api.dependencies import (
 )
 from backend.core.bulk_data import NON_GAME_LAYOUTS, BulkDataManager
 from backend.core.collection_query import archive_matches, parse_query
+from backend.core.card_flags import CardFlags
 from backend.core.collection_store import CollectionStore
 from backend.core.paths import cache_path
 from backend.core.prices import best_price  # noqa: F401  (re-exported)
@@ -521,7 +522,8 @@ async def export_collection(
         index = await bulk_data_manager.load_bulk_data()
         rows = store.cards_with_binders(job_id)
         meta = next((m for m in store.list_collections() if m["job_id"] == job_id), {})
-        made = await asyncio.to_thread(export_any, kind, rows, index or {})
+        flags = CardFlags(store.storage_dir).all()
+        made = await asyncio.to_thread(export_any, kind, rows, index or {}, flags)
         filename = "%s-%s.%s" % (_file_slug(meta.get("name", "")), kind, made.extension)
         return Response(content=made.body, media_type=made.media_type,
                         headers={"Content-Disposition": 'attachment; filename="%s"' % filename})

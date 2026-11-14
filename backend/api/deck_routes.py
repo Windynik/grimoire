@@ -2,8 +2,9 @@ import asyncio
 import re
 from typing import Dict, List, Optional, Tuple
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import Response
+from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel, Field
 
 from backend.api.dependencies import (
@@ -14,6 +15,7 @@ from backend.api.dependencies import (
 )
 from backend.core.bulk_data import BulkDataManager
 from backend.core.collection_store import CollectionStore
+from backend.core.tls import tls_context
 from backend.core.ollama_client import ModelError, OllamaClient
 from backend.decks.agent import run_agent
 from backend.decks.analysis import analyze, owned_counts
@@ -27,7 +29,10 @@ from backend.decks.records import (
     strip_display,
 )
 from backend.decks.changelog import changes_newest_first, record_edit, record_event
+from backend.decks.combos import FIND_URL, combo_facts, request_body, summarize
+from backend.decks.printable import decklist_page, rule_zero_page
 from backend.decks.pull import pull_list
+from backend.decks.rulezero import rule_zero
 from backend.decks.store import DeckStore
 from backend.decks.usage import CopiesInUse, mark_taken, taken_cards
 from backend.decks.textio import (
@@ -87,6 +92,9 @@ def deck_response(record: dict, index: Dict[str, dict], collections: CollectionS
     deck.pop("changelog", None)
     rows, meta = _collection_for(record, collections)
     deck["analysis"] = analyze(record, index, rows, meta, _PLAYBOOK)
+    # Whether the deck changed after its last combo check (None without a check).
+    facts = combo_facts(record)
+    deck["analysis"]["combos_stale"] = facts["stale"] if facts else None
     if decks is not None:
         copies = CopiesInUse(decks, collections, index)
         mark_taken(deck["analysis"], record, taken_cards(record, record.get("id"), copies), index)
@@ -264,6 +272,97 @@ async def update_deck(
         record_edit(record, stored)
         store.save(record)
     return await full_response(record, index, collections, store)
+
+
+COMBOS_FAILED = ("Could not reach Commander Spellbook. Check the internet connection, "
+                 "then try again.")
+
+
+async def fetch_combos(body: dict, transport=None) -> dict:
+    """Ask Commander Spellbook for the combos of a deck. Returns its "results"."""
+    async with httpx.AsyncClient(timeout=httpx.Timeout(45.0, connect=10.0), verify=tls_context(),
+                                 headers={"User-Agent": "Grimoire/1.0 (offline MTG collection app)"},
+                                 transport=transport) as client:
+        response = await client.post(FIND_URL, json=body)
+        response.raise_for_status()
+        data = response.json()
+    return data.get("results") if isinstance(data, dict) and "results" in data else data
+
+
+@router.post("/decks/{deck_id}/combos")
+async def find_combos(
+    deck_id: str,
+    store: DeckStore = Depends(get_deck_store),
+    bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager),
+    collections: CollectionStore = Depends(get_collection_store),
+):
+    """Find the combos of a deck with Commander Spellbook, and keep the summary in the deck.
+
+    Sends only the card names. The answer replaces the deck's last check.
+    """
+    record = _stored(store, deck_id)
+    body = request_body(record)
+    if not body["main"] and not body["commanders"]:
+        raise HTTPException(status_code=400, detail="Add cards to the deck first.")
+    try:
+        results = await fetch_combos(body)
+    except (httpx.HTTPError, ValueError):
+        raise HTTPException(status_code=502, detail=COMBOS_FAILED)
+    async with _deck_lock(deck_id):
+        record = _stored(store, deck_id)
+        record["combos"] = summarize(results or {}, record)
+        store.save(record)
+    index = await bulk_data_manager.load_bulk_data()
+    return await full_response(record, index, collections, store)
+
+
+async def _rule_zero(deck_id: str, store: DeckStore, bulk_data_manager: BulkDataManager,
+                     collections: CollectionStore) -> dict:
+    record = _stored(store, deck_id)
+    index = await bulk_data_manager.load_bulk_data()
+    body = await asyncio.to_thread(deck_response, record, index, collections)
+    return rule_zero(record, body["analysis"])
+
+
+@router.get("/decks/{deck_id}/rule-zero")
+async def deck_rule_zero(
+    deck_id: str,
+    store: DeckStore = Depends(get_deck_store),
+    bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager),
+    collections: CollectionStore = Depends(get_collection_store),
+):
+    """The rule-zero card of a deck: what to tell the table before a game."""
+    return await _rule_zero(deck_id, store, bulk_data_manager, collections)
+
+
+@router.get("/decks/{deck_id}/print/rule-zero", response_class=HTMLResponse)
+async def print_rule_zero(
+    deck_id: str,
+    store: DeckStore = Depends(get_deck_store),
+    bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager),
+    collections: CollectionStore = Depends(get_collection_store),
+):
+    """The rule-zero card as a page to print."""
+    return HTMLResponse(rule_zero_page(await _rule_zero(deck_id, store, bulk_data_manager,
+                                                        collections)))
+
+
+@router.get("/decks/{deck_id}/print/decklist", response_class=HTMLResponse)
+async def print_decklist(
+    deck_id: str,
+    player: str = Query("", max_length=80),
+    event: str = Query("", max_length=120),
+    date: str = Query("", max_length=40),
+    location: str = Query("", max_length=120),
+    store: DeckStore = Depends(get_deck_store),
+    bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager),
+):
+    """The event decklist of a deck as a page to print and hand in."""
+    record = _stored(store, deck_id)
+    index = await bulk_data_manager.load_bulk_data()
+    fmt = _FORMATS.get(record.get("format", ""))
+    fields = {"player": player, "event": event, "date": date, "location": location}
+    return HTMLResponse(decklist_page(record, index, fields, fmt.name if fmt else ""))
 
 
 @router.get("/decks/{deck_id}/changes")

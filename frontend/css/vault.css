@@ -190,6 +190,69 @@
     color: var(--text);
 }
 
+/* A card flag on a tile: the first flag the card has */
+.vault-flag {
+    flex: none;
+    align-self: center;
+    padding: 2px 5px;
+    border: 1px solid var(--gold-dim, var(--border-bright));
+    border-radius: 4px;
+    font: 800 9px/1.2 var(--font-ui);
+    letter-spacing: 0.1em;
+    color: var(--gold);
+}
+
+.vault-flag-sell {
+    color: var(--warning);
+    border-color: currentColor;
+}
+
+.vault-flag-lent {
+    color: var(--violet);
+    border-color: currentColor;
+}
+
+/* The flag toggles in the drawer */
+.vault-flags {
+    display: grid;
+    gap: 6px;
+    margin: 14px 0;
+}
+
+.vault-flags > b {
+    font: 700 10px var(--font-ui);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+}
+
+.vault-flag-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.vault-flag-toggle {
+    padding: 5px 10px;
+    border: 1px solid var(--border-bright);
+    border-radius: 999px;
+    background: none;
+    color: var(--text-dim);
+    font: 600 12px/1.2 var(--font-ui);
+    cursor: pointer;
+}
+
+.vault-flag-toggle[aria-pressed="true"] {
+    border-color: var(--gold);
+    background: rgba(232, 194, 106, 0.14);
+    color: var(--gold);
+}
+
+.vault-flag-toggle:focus-visible {
+    outline: 2px solid var(--violet);
+    outline-offset: 2px;
+}
+
 .vault-new {
     flex: none;
     align-self: center;

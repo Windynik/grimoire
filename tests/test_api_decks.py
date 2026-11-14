@@ -419,3 +419,55 @@ def test_the_changes_route_lists_events_and_edits_newest_first(overrides):
         assert [e["kind"] for e in copied] == ["copied"]
         assert copied[0]["note"].startswith("Copied from Renamed")
         assert client.get("/api/decks/missing/changes").status_code == 404
+
+
+def test_find_combos_saves_the_summary_and_reports_a_failure(overrides, monkeypatch):
+    import httpx
+
+    from backend.api import deck_routes
+
+    sac = _sac()
+    sent = []
+
+    async def fake(body, transport=None):
+        sent.append(body)
+        return {"included": [{"id": "1-2", "uses": [{"card": {"name": "Sac Outlet 0"}},
+                                                    {"card": {"name": "Other Card"}}],
+                              "produces": [{"feature": {"name": "Infinite death triggers"}}],
+                              "bracketTag": "P", "popularity": 5}],
+                "almostIncluded": []}
+
+    monkeypatch.setattr(deck_routes, "fetch_combos", fake)
+    with TestClient(app) as client:
+        deck_id = client.post("/api/decks", json={"format": "modern"}).json()["id"]
+        assert client.post("/api/decks/%s/combos" % deck_id).status_code == 400  # no cards yet
+        client.put("/api/decks/%s" % deck_id, json=_body())
+        body = client.post("/api/decks/%s/combos" % deck_id).json()
+        assert sent[-1] == {"main": [{"card": "Sac Outlet 0", "quantity": 3}], "commanders": []}
+        assert body["combos"]["included"][0]["cards"] == ["Sac Outlet 0", "Other Card"]
+        assert body["combos"]["included"][0]["two_card"] is True
+        # The deck keeps the check, and a reload shows it.
+        assert client.get("/api/decks/%s" % deck_id).json()["combos"]["key"]
+
+        async def broken(body, transport=None):
+            raise httpx.ConnectError("offline")
+
+        monkeypatch.setattr(deck_routes, "fetch_combos", broken)
+        failed = client.post("/api/decks/%s/combos" % deck_id)
+        assert failed.status_code == 502
+        assert "Commander Spellbook" in failed.json()["detail"]
+
+
+def test_rule_zero_and_the_printable_pages(overrides):
+    with TestClient(app) as client:
+        deck_id = client.post("/api/decks", json={"format": "modern"}).json()["id"]
+        client.put("/api/decks/%s" % deck_id, json=_body())
+        card = client.get("/api/decks/%s/rule-zero" % deck_id).json()
+        assert card["title"] == "Renamed" and card["text"].startswith("Renamed\nModern")
+        page = client.get("/api/decks/%s/print/rule-zero" % deck_id)
+        assert page.headers["content-type"].startswith("text/html")
+        assert "<h1>Renamed</h1>" in page.text
+        sheet = client.get("/api/decks/%s/print/decklist" % deck_id, params={"player": "Ann"})
+        assert '<span>Player name</span><b>Ann</b>' in sheet.text
+        assert "Main deck: 3 cards" in sheet.text
+        assert client.get("/api/decks/nope-1/print/decklist").status_code == 404

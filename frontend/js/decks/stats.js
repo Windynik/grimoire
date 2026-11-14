@@ -7,6 +7,7 @@
 
 import { h } from "../shared/dom.js";
 import { issueSummary } from "./model.js";
+import { renderCombos } from "./combos.js";
 
 const METRICS = [
   ["combined", "Score"],
@@ -56,6 +57,7 @@ function build(root) {
   const bracket = h("div", { class: "stat-bracket" });
   const bracketBlock = section("Bracket", bracket);
   bracketBlock.hidden = true;
+  const combos = h("div", { class: "stat-combos" });
   const price = h("dd", { class: "stat-value" });
   const changers = h("dd", { class: "stat-value" });
   const metrics = h("div", { class: "stat-metrics" });
@@ -65,11 +67,12 @@ function build(root) {
     section("Mana", mana),
     section("Issues", issues),
     bracketBlock,
+    section("Combos", combos),
     h("dl", { class: "stat-facts" },
       h("div", { class: "stat-fact" }, h("dt", { text: "Price" }), price),
       h("div", { class: "stat-fact" }, h("dt", { text: "Game Changers" }), changers)),
     section("Metrics", metrics));
-  return { count, countBar, curve, curveCols, mana, issues, bracket, bracketBlock, price,
+  return { count, countBar, curve, curveCols, mana, issues, bracket, bracketBlock, combos, price,
     changers, metrics };
 }
 
@@ -132,8 +135,9 @@ function metricText(key, value) {
  * @param {HTMLElement} root
  * @param {Object} analysis The analysis of the deck (may be empty before the first load).
  * @param {Object} [names] Card name per entry key, for the issue list.
+ * @param {{combos: Object|null, busy: boolean, onFindCombos: function()}} [extra] The combo check.
  */
-export function renderStats(root, analysis, names = {}) {
+export function renderStats(root, analysis, names = {}, extra = {}) {
   let ui = contexts.get(root);
   if (!ui) {
     ui = build(root);
@@ -168,6 +172,9 @@ export function renderStats(root, analysis, names = {}) {
 
   ui.bracketBlock.hidden = !data.bracket;
   ui.bracket.replaceChildren(...(data.bracket ? bracketView(data.bracket) : []));
+  renderCombos(ui.combos, extra.combos || null, {
+    stale: Boolean(data.combos_stale), busy: Boolean(extra.busy), onFind: extra.onFindCombos,
+  });
 
   const price = Number(data.price);
   ui.price.textContent = Number.isFinite(price) ? `$${price.toFixed(2)}` : "$0.00";

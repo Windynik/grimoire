@@ -1,0 +1,5 @@
+# The MCP server for AI assistants (python -m backend.mcp_server). Optional:
+# ./grimoire --with-mcp installs it. The versions match FastAPI 0.115 in
+# requirements.txt (a newer mcp pulls a starlette that FastAPI 0.115 cannot use).
+mcp==1.10.1
+starlette==0.38.6

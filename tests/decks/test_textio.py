@@ -206,3 +206,17 @@ def test_export_mtgo_puts_the_commander_in_the_sideboard():
     text = export_mtgo(_record(records), index)
     assert text == ("4 Blood Artist\n1 Delver of Secrets\n1 Fire/Ice\n20 Forest\n\n"
                     "1 Teysa Karlov\n2 Swamp\n")
+
+
+def test_a_reversible_printing_does_not_hide_the_normal_card():
+    normal = make_record("Tasha, the Witch Queen", type_line="Legendary Planeswalker — Tasha")
+    reversible = make_record("Tasha, the Witch Queen // Tasha, the Witch Queen",
+                             type_line="Legendary Planeswalker — Tasha", layout="reversible_card")
+    reversible["oracle_id"] = normal["oracle_id"]
+    delver = make_record("Delver of Secrets // Insectile Aberration", layout="transform")
+    index = {c["id"]: c for c in (normal, reversible, delver)}
+    sections, commander, unknown = resolve(
+        parse_decklist("Commander\n1 Tasha, the Witch Queen\n\nDeck\n1 Delver of Secrets\n"), index, {})
+    assert commander["name"] == "Tasha, the Witch Queen"
+    assert sections["main"][0]["name"] == "Delver of Secrets // Insectile Aberration"
+    assert unknown == []

@@ -27,14 +27,20 @@ The screenshots use a synthetic sample collection.
 
 ## Quick start
 
-You need Python 3.9 or newer.
+You need Python 3.9 or newer. One command sets everything up and starts the app (macOS and Linux):
+
+```bash
+git clone https://github.com/Windynik/grimoire.git && cd grimoire && ./grimoire
+```
+
+The first run makes a Python environment in `.venv` and installs the requirements; later runs start at once and install again only when `requirements.txt` changes. The browser opens at **http://localhost:8133**. `./grimoire --no-browser` starts without the browser, `./grimoire --setup` only sets up, `./grimoire --with-mcp` also installs the MCP server (see *For AI assistants*), and `./grimoire --check` says what it would do. `GRIMOIRE_PORT` sets another port.
+
+To set up by hand instead:
 
 ```bash
 pip install -r requirements.txt
 python main.py
 ```
-
-The server opens your browser at **http://localhost:8133**.
 
 1. **Download card data.** On a first run, the welcome screen does this for you (see *First run*). Otherwise, on *Home*, press *Download card data*. The download is about 100 MB and happens once.
 2. **Import your collection.** Drop in the collection export of your app on the welcome screen, or press *Import cards* on the *Collection* screen. You can also paste a card list. The `examples/` folder has a synthetic sample file.
@@ -142,11 +148,13 @@ The Vault is the *Collection* screen. A switcher at the top picks a collection o
   | `is:free` | Cards with at least one copy that no built deck uses | `is:free r:rare` |
   | `is:used` | Cards that a built deck uses | `is:used` |
   | `is:gem` | Forgotten gems: popular Commander cards (EDHREC top 2,000) that no saved deck holds | `is:gem c:g` |
+  | `flag:` | Cards with a flag: `trade`, `sell`, `keep` or `lent` | `flag:trade` |
 
   An unknown keyword stays plain text and matches the name. A bare `foil`, `dupes` or `new` that finds nothing counts as name text, so `new perspectives` finds New Perspectives. A price comparison never matches a card with no price. The archive search takes the same keywords, but not `foil`, `dupes`, `new`, `is:free`, `is:used` or `is:gem`.
 - **Forgotten gems.** A shelf under the hero shows up to 12 cards that you own, that are in the EDHREC top 2,000, and that no saved deck holds (built or not). Basic lands do not count. The most played cards come first. *See all* searches `is:gem`, sorted by EDHREC rank.
 - **Tactile tiles.** Each tile tilts toward the pointer, and a foil card has a sheen. The tile shows the quantity, the mana cost, and the price. Tilt is off with a touch screen and with the reduced-motion setting. The view control switches between a grid and a list. The size control sets the card width.
 - **Card drawer.** Press a tile to open a drawer at the right, so the results stay in view. The drawer shows a large image, the facts, the prices, the legality of each format, and the saved decks that use the card, with the copies in built decks and the free copies ("3 of 4 copies in built decks · 1 free"). A *built* deck (see the editor) uses the copies of its main deck, its sideboard and its commander, in any printing. The maybeboard does not count, and a deck that is not built holds no copies. A card with two faces has a flip button.
+- **Card flags.** In the drawer, mark an owned card *For trade*, *To sell*, *Keep* or *Lent out*. A flag is on one printing and finish (a foil can be for trade while the non-foil copy stays), and it holds in every collection. A flagged tile shows its first flag. `flag:trade` finds the flagged cards, and the Moxfield and Deckbox exports fill their trade list count from *For trade*.
 - **Keys.** `/` focuses the search, and `Esc` clears it. The arrow keys move between tiles, and `Enter` opens the drawer. In the drawer, the left and right arrows show the previous and next card, `F` flips the card, and `Esc` closes the drawer.
 - **Sets.** The *Sets* view lists each set with the cards you own, a completion bar, and the value you own in it. Each card name counts once in a set. Press a set to open its checklist. The checklist shows missing cards dimmed. *Missing only* hides the cards you own.
 - **Remembered view.** The Vault remembers the search, the filters, the sort, the view, and the card size for each collection in your browser. It restores them when you come back.
@@ -181,9 +189,11 @@ The *Decks* screen lists your saved decks. Each deck belongs to one format.
 - **Import:** press *Import decklist*, then paste a decklist. Plain text, Arena, MTGO and Archidekt lists all work: section lines such as *Sideboard (15)*, lines such as *SB: 2 Duress* or *Commander: Krenko, Mob Boss*, Arena's *About* block, and Archidekt category tags. A companion goes to the sideboard once. The editor flags cards you do not own.
 - **Edit:** search your cards, add or remove copies, and move cards between sections. Undo and redo work. The stats panel shows the curve, the colors, and the legality checks.
 - **Why a card is flagged:** each badge on a card has a plain reason as its tooltip, for example "Banned in Modern.", "Commander allows 1 copy of a card. This deck has 2." or "Its color identity has black. Krenko, Mob Boss allows only red." In the stats panel, each issue opens to the cards and their reasons.
-- **Commander brackets:** a Commander deck shows the facts that set the lowest bracket it can be in ([Commander Brackets](https://magic.wizards.com/en/formats/commander) from Wizards). The facts are the Game Changers (from Scryfall's card data), mass land denial, extra-turn cards and tutors. A Game Changer gives bracket 3 or higher. More than 3 Game Changers, or mass land denial, gives bracket 4 or higher. Otherwise the deck shows "Bracket 1 or 2", because how you play the deck decides between them. The app finds mass land denial and extra turns from the rules text, so they are best guesses. It does not look for two-card combos yet.
+- **Commander brackets:** a Commander deck shows the facts that set the lowest bracket it can be in ([Commander Brackets](https://magic.wizards.com/en/formats/commander) from Wizards). The facts are the Game Changers (from Scryfall's card data), mass land denial, extra-turn cards and tutors. A Game Changer gives bracket 3 or higher. More than 3 Game Changers, or mass land denial, gives bracket 4 or higher. Otherwise the deck shows "Bracket 1 or 2", because how you play the deck decides between them. The app finds mass land denial and extra turns from the rules text, so they are best guesses. Two-card combos come from the deck's last combo check (see *Combos*): a two-card combo gives bracket 3 or higher, and a combo that Commander Spellbook tags *Ruthless* gives bracket 4 or higher.
+- **Combos:** *Find combos* in the stats panel asks [Commander Spellbook](https://commanderspellbook.com) which combos the deck holds, and which ones it is one card away from. Grimoire sends only the card names, and only when you press the button; the rest of the app stays offline. The deck keeps the answer, and the panel says when the deck changed after the check. Each combo links to its page, with the steps, and shows Spellbook's tag (Ruthless, Spicy, Powerful, Core, Oddball, Exhibition).
+- **Rule zero:** the *Rule zero* view shows what to tell the table before a game: the commander, the lowest bracket the facts allow and why, the Game Changers, the combos, the extra turns, the mass land denial, the tutors and the deck's plan. *Copy text* copies it for a chat, and *Print card* opens a one-page card to print.
 - **Autosave:** the editor saves each change after a short pause. It saves again when you leave. If a save fails, the editor says so, and it refuses an export until a save works.
-- **Export:** the export menu gives plain text, text with printings (each line names its set and collector number, as Moxfield and Archidekt read it), Arena text, Magic Online text, and CSV. The Magic Online list puts the commander in the sideboard, as MTGO expects. You can copy or download each text kind. You can only download the CSV kind.
+- **Export:** the export menu gives plain text, text with printings (each line names its set and collector number, as Moxfield and Archidekt read it), Arena text, Magic Online text, and CSV. The Magic Online list puts the commander in the sideboard, as MTGO expects. You can copy or download each text kind. You can only download the CSV kind. *Event decklist (print)* opens a tournament decklist sheet: the fields to fill in by hand (player name, event, date, location), the main deck in creatures, other spells and lands, the sideboard, and the totals.
 - **Sample hand:** draw a hand of seven cards, and take a mulligan, or draw one more card.
 - **Pull list:** the *Pull list* view shows where each card of the deck is, grouped by collection and binder, so you can take the cards out one binder at a time. It takes the same printing first, then the deck's own collection, then the largest stack. Basic lands and cards that no collection holds have their own groups. Tick each card as you pull it, or copy the list as text.
 - **Built decks and taken copies:** turn on *Built* when you put a deck together from your real cards. Only a built deck holds its copies. New decks, imported lists, copies and forge drafts start as not built, so ideas take no cards. When other built decks use the copies of a card that this deck needs, the card gets a badge with the deck name ("in Burn"). The tooltip names each deck and gives the free copies.
@@ -214,6 +224,41 @@ Evaluation status:
 - With `qwen3:14b` the evaluation did not yet meet the model pass rule.
 - `gpt-oss:20b` did not finish on a 24 GB Mac with other apps open. The Mac ran out of memory, and the first model call timed out.
 - With `qwen3.5:9b` (one seed per sample), every model call returned valid JSON, and a forge took 80–140 seconds. Counters passed. Both aristocrats runs scored 0.001–0.022 below the engine baseline, and bogles reached 67% core recall (the rule is 70%).
+
+### Command palette
+
+Press **Cmd-K** (or **Ctrl-K**), or the *Search* button in the top bar, to open the command palette. Type to find a screen, an action (*New deck*, *Import cards*, *Import a decklist*, *Forgotten gems*, *Cards for trade*), or a saved deck by its name or its commander. The first line searches the Vault for the typed text. The arrow keys move, `Enter` opens, and `Esc` closes.
+
+### Accessibility
+
+- Every button, link and field has a name for a screen reader, every image has alt text, and the nav marks the current screen. A test checks every screen for this (`tests/js/dom/a11y.test.mjs`).
+- *Skip to main content* is the first stop of the Tab key.
+- The text colors keep a contrast of at least 4.5:1 on every background (WCAG AA).
+- The reduced-motion setting of your system turns off the animations and the tilt.
+
+## For AI assistants (MCP)
+
+Grimoire has a local [MCP](https://modelcontextprotocol.io) server, so an assistant such as Claude Desktop can read your collections and decks. It only reads: it cannot change, delete or buy anything. It calls the Grimoire app that runs on your computer, so start Grimoire first.
+
+```bash
+./grimoire --with-mcp      # installs the MCP package (or: pip install -r requirements-mcp.txt)
+```
+
+Then add the server to the assistant's MCP settings, for example in Claude Desktop's `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "grimoire": {
+      "command": "/path/to/grimoire/.venv/bin/python",
+      "args": ["-m", "backend.mcp_server"],
+      "cwd": "/path/to/grimoire"
+    }
+  }
+}
+```
+
+The tools: list the collections, search cards (with Grimoire's keywords), a collection summary with the price movers, list the decks, read a deck (cards, curve, bracket facts and issues), the rule-zero card, and the pull list. `GRIMOIRE_URL` points the server at another address (default `http://127.0.0.1:8133`).
 
 ## On your phone
 
@@ -249,16 +294,21 @@ grimoire
 backend/            FastAPI application
   api/              Routes and dependency wiring
   core/             Bulk data manager, CSV processor, collection store,
-                    Ollama client, progress tracking, price helper
+                    Ollama client, progress tracking, prices and price
+                    providers, price history, card flags, importers and
+                    exporters, TLS settings
+  mcp_server.py     The local MCP server for AI assistants (read-only)
   forge/            Forge agent: card tagging, synergy graph, deck builder,
                     swaps, metrics, model calls, session and events
   decks/            Saved deck store, deck records and hydration, deck
-                    analysis, text import/export, editor agent
+                    analysis, brackets, combos, rule zero, printable pages,
+                    changelog, copies in use, text import/export, editor agent
   data/playbook.json  Format rules and card-role patterns
   models/           Pydantic schemas
 frontend/           Vanilla JS single-page app (ES modules, no build step)
   index.html        The page shell and the editor template
-  js/app/           Entry point, hash router, and shell (top bar and nav)
+  js/app/           Entry point, hash router, shell (top bar and nav), and
+                    the command palette
   js/home/          Home screen
   js/collection/    The Vault (hero, sidebar, list, drawer, sets) and the importer
   js/welcome/       First-run welcome screen and its gate
@@ -274,6 +324,7 @@ frontend/           Vanilla JS single-page app (ES modules, no build step)
   css/home.css, collection.css, vault.css, welcome.css, forge.css,
   decks.css, settings.css
                     One style file per screen (collection.css is the importer)
+grimoire            One-command setup and start (./grimoire --help)
 scripts/forge_eval.py  Hidden-deck evaluation for the forge
 scripts/make_sandbox.py  Builds a safe copy of the cache for manual checks
 tests/              Pytest suite (tests/js has the JavaScript tests)
@@ -336,5 +387,6 @@ Grimoire is free software under the [MIT License](LICENSE). The card data and im
 
 - Card data and images come from [Scryfall](https://scryfall.com).
 - Store prices (Card Kingdom, Mana Pool) come from [MTGJSON](https://mtgjson.com).
+- Combos come from [Commander Spellbook](https://commanderspellbook.com).
 - Grimoire reads exports from [ManaBox](https://manabox.app).
 - Grimoire is not affiliated with or endorsed by Wizards of the Coast.

@@ -7,9 +7,13 @@ Some bracket rules are facts that the card data shows:
 - Brackets 1 to 3 have no mass land denial.
 - Brackets 1 to 3 do not chain extra turns.
 
-Other rules depend on the owner's intent (Exhibition or Core) and on two-card
-combos, which this module does not check. So the result is the lowest bracket
-that the facts allow, never a final bracket. The Game Changer flag comes from
+- Brackets 1 and 2 have no two-card combos; bracket 3 has none that win early.
+
+Two-card combos come from the deck's last Commander Spellbook check (see
+backend.decks.combos), when it has one: a two-card combo gives bracket 3 or
+higher, and a combo that Spellbook tags Ruthless gives bracket 4 or higher.
+Other rules depend on the owner's intent (Exhibition or Core). So the result
+is the lowest bracket that the facts allow, never a final bracket. The Game Changer flag comes from
 Scryfall's card data, so a card-data update brings the newest list.
 
 Mass land denial and extra turns are found from the rules text, so they are
@@ -18,6 +22,8 @@ best guesses. Pure functions. Makes no network calls.
 
 import re
 from typing import Dict, List, Optional
+
+from backend.decks.combos import combo_facts
 
 GAME_CHANGER_LIMIT = 3  # the most Game Changers that bracket 3 allows
 # Extra-turn cards from this count up can chain turns; it is a warning only.
@@ -120,13 +126,26 @@ def bracket_facts(record: dict, index: Dict[str, dict]) -> Optional[dict]:
     if denial:
         floor = 4
         reasons.append("Mass land denial (%s): bracket 4 or higher." % ", ".join(denial))
+    combos = combo_facts(record)
+    if combos and combos["two_card"]:
+        floor = max(floor, 3)
+        reasons.append("Two-card combo (%s): bracket 3 or higher." % _combo_list(combos["two_card"]))
+    if combos and combos["ruthless"]:
+        floor = 4
+        reasons.append("Ruthless combo (%s): bracket 4 or higher." % _combo_list(combos["ruthless"]))
 
     notes = []
     if len(turns) >= EXTRA_TURN_WARNING:
         notes.append("%d extra-turn cards. Brackets 1 to 3 do not chain extra turns."
                      % len(turns))
-    notes.append("The check does not look for two-card combos. Brackets 1 and 2 have "
-                 "none, and bracket 3 has none that win early.")
+    if combos is None:
+        notes.append("The check does not look for two-card combos yet. Press Find combos to "
+                     "ask Commander Spellbook. Brackets 1 and 2 have none, and bracket 3 has "
+                     "none that win early.")
+    elif combos["stale"]:
+        notes.append("The deck changed after the last combo check. Press Find combos again.")
+    else:
+        notes.append("Combos from Commander Spellbook: %d in the deck." % combos["count"])
     if floor == 2:
         notes.append("Bracket 1 or 2 depends on how you play the deck.")
     return {
@@ -138,4 +157,11 @@ def bracket_facts(record: dict, index: Dict[str, dict]) -> Optional[dict]:
         "tutors": tutors,
         "reasons": reasons,
         "notes": notes,
+        "combos": combos,
     }
+
+
+def _combo_list(combos: List[List[str]]) -> str:
+    """"A + B" for one combo, "A + B, and 2 more" for several."""
+    first = " + ".join(combos[0])
+    return first if len(combos) == 1 else "%s, and %d more" % (first, len(combos) - 1)

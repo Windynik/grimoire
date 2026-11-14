@@ -546,3 +546,22 @@ def test_insights_keep_one_price_snapshot_per_card_data_download(env):
     assert store.delete_collection("cur")
     assert store.get_price_history("cur") is None
     assert [c["job_id"] for c in store.list_collections()] == ["old"]
+
+
+def test_card_flags_mark_printings_and_the_search_reads_them(env):
+    store, _ = env
+    assert get("/api/flags") == {"labels": {"trade": "For trade", "sell": "To sell",
+                                            "keep": "Keep", "lent": "Lent out"}, "cards": {}}
+    r = client.put("/api/flags/id-bolt", json={"flags": ["sell", "trade", "trade"]})
+    assert r.json() == {"scryfall_id": "id-bolt", "foil": False, "flags": ["trade", "sell"]}
+    assert client.put("/api/flags/id-bolt", json={"flags": ["gift"]}).status_code == 400
+    assert client.put("/api/flags/NOT!", json={"flags": ["trade"]}).status_code == 400
+    # A foil copy of the same printing has its own flags.
+    client.put("/api/flags/id-elf", json={"flags": ["keep"], "foil": True})
+    assert names("/api/collection/cur/search?q=flag:trade") == ["Bolt"]
+    assert names("/api/collection/cur/search?q=flag:keep") == []  # the Elf here is not foil
+    cards = get("/api/collection/cur/search?sort=name")["cards"]
+    assert {c["name"]: c["flags"] for c in cards}["Bolt"] == ["trade", "sell"]
+    # An empty list removes the flags.
+    client.put("/api/flags/id-bolt", json={"flags": []})
+    assert get("/api/flags")["cards"] == {"id-elf|foil": ["keep"]}

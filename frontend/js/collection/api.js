@@ -4,7 +4,7 @@
 // value. A value of undefined, null, "" or [] is not sent. true and false are
 // sent as "true" and "false".
 
-import { getJSON } from "../shared/http.js";
+import { getJSON, putJSON } from "../shared/http.js";
 
 function queryString(params) {
   const query = new URLSearchParams();
@@ -56,6 +56,11 @@ export function setCards(jobId, code) {
 }
 
 /** For each card id, the decks that hold it: {id: [{deck_id, name}]}. */
+/** Replace the flags (trade, sell, keep, lent) of one owned printing, foil or not. */
+export function setFlags(id, foil, flags) {
+  return putJSON(`/flags/${encodeURIComponent(id)}`, { flags: [...flags], foil: Boolean(foil) });
+}
+
 export function deckUsage(ids) {
   return getJSON(`/decks/usage${queryString({ ids: [...(ids || [])] })}`);
 }

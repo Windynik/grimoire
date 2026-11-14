@@ -234,7 +234,12 @@ export function openEditor(deckId, options) {
 /** Show the screen: the editor for params.deckId, else the deck list. */
 export function open(params = {}) {
   if (params.deckId) return showEditor(params.deckId, params.state || {});
-  return showDeckList();
+  const shown = showDeckList();
+  // The command palette can ask for the New deck or the Import dialog.
+  const asked = params.state || {};
+  if (asked.newDeck) newDeckDialog();
+  else if (asked.importDeck) importDialog();
+  return shown;
 }
 
 /** Leave the screen. It resolves after the editor sent its pending save. */

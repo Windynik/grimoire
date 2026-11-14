@@ -40,6 +40,21 @@ export function setBuilt(id, built) {
   return putJSON(`/decks/${enc(id)}/built`, { built });
 }
 
+/** Ask Commander Spellbook for the deck's combos. Returns the deck with "combos". */
+export function findCombos(id) {
+  return postJSON(`/decks/${enc(id)}/combos`, {});
+}
+
+/** The rule-zero card of a deck: {title, lines, sections, text}. */
+export function ruleZero(id) {
+  return getJSON(`/decks/${enc(id)}/rule-zero`);
+}
+
+/** The address of a printable page of a deck ("rule-zero" or "decklist"). */
+export function printUrl(id, page) {
+  return `/api/decks/${enc(id)}/print/${page}`;
+}
+
 /** The changelog of a deck, newest first. */
 export function deckChanges(id) {
   return getJSON(`/decks/${enc(id)}/changes`);

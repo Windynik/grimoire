@@ -17,7 +17,7 @@ import {
 } from "../shared/session.js";
 import * as api from "./api.js";
 import { closeDrawer, openDrawer } from "./drawer.js";
-import { attachTilt, vaultTile } from "./tile.js";
+import { attachTilt, syncTileFlags, vaultTile } from "./tile.js";
 import {
   ARCHIVE_SORTS, SETS_SORTS, SIZES, SORTS, defaultState, loadState, normalizeState, saveState,
 } from "./state.js";
@@ -98,7 +98,10 @@ export function openCard(list, index, more = {}) {
   // The card controls of the area that opened the drawer take the focus back.
   const opener = document.activeElement;
   const area = (opener && opener.closest && opener.closest("[id^='vault-']")) || document;
-  openDrawer(list, index, { ...more, onNavigate: (card) => followCard(card, area) });
+  openDrawer(list, index, {
+    ...more, onNavigate: (card) => followCard(card, area),
+    onFlags: (card) => syncTileFlags(document.getElementById("vault-view") || document, card),
+  });
 }
 
 // The drawer moved to another card: the control of that card gets the focus on close.
@@ -1115,8 +1118,13 @@ export function leave() {
  * source, restores its remembered state, and loads the first page.
  * Resolves when the first page and the hero show.
  */
-export async function open() {
+// Counts the opens, so a requested search applies only to the newest open.
+// (screen.gen also counts the source switches, so it cannot tell.)
+let opens = 0;
+
+export async function open(params = {}) {
   init();
+  const opened = ++opens;
   const gen = ++screen.gen;
   closeMenu(false);
   closeSheet(false);
@@ -1133,4 +1141,11 @@ export async function open() {
   if (gateFirstRun("collection", collections)) return;
   screen.collections = collections;
   await switchTo(resolveSource());
+  // A search from the command palette (or another screen) replaces the search text.
+  const asked = params && params.state && typeof params.state.q === "string" ? params.state.q : null;
+  if (asked !== null && opened === opens) {
+    clearTimeout(searchTimer);
+    ui.search.value = asked;
+    update((s) => { s.q = asked; });
+  }
 }
