@@ -1,10 +1,11 @@
-// Settings screen: the local AI model, the question mode, card data, card images, and About.
+// Settings screen: the local AI model, the question mode, card data, prices, card
+// images, phone access, and About.
 //
 // Each change saves at once and shows a "Saved" toast. The forge reads the
 // saved values when its setup opens.
 
 import { h } from "../shared/dom.js";
-import { del, getJSON, postJSON } from "../shared/http.js";
+import { del, getJSON, postJSON, putJSON } from "../shared/http.js";
 import { autoStartImageSync, imageSyncState, onImageSync, startImageSync } from "../shared/imagesync.js";
 import { isRecommended } from "../shared/models.js";
 import { confirmDialog } from "../shared/modal.js";
@@ -159,6 +160,113 @@ function renderImages(sync) {
   }
 }
 
+// ---- prices ----------------------------------------------------------------
+
+let prices = null;
+let priceChecking = 0;
+
+function priceDate(iso) {
+  if (!iso) return "";
+  const date = new Date(`${String(iso).slice(0, 10)}T12:00:00`);
+  return Number.isNaN(date.getTime()) ? ""
+    : date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function pricesGroup() {
+  const list = h("div", { id: "settings-price-providers", class: "settings-providers", role: "radiogroup",
+    "aria-label": "Price provider" });
+  const status = h("p", { id: "settings-price-status", class: "settings-status", role: "status" });
+  const download = h("button", {
+    id: "settings-price-download", type: "button", class: "btn btn-secondary", text: "Download store prices",
+    onclick: downloadPrices,
+  });
+  const remove = h("button", {
+    id: "settings-price-remove", type: "button", class: "btn btn-danger", text: "Remove store prices",
+    onclick: removePrices, hidden: true,
+  });
+  prices = { list, status, download, remove, data: null };
+  return group("Prices",
+    h("p", { class: "settings-help", text: "Choose whose prices Grimoire shows, in US dollars. Store prices come from MTGJSON once a day (a download of about 20 MB). A card that the store does not price keeps its TCGplayer price." }),
+    list, status,
+    h("div", { class: "settings-actions" }, download, remove));
+}
+
+function renderPrices(data) {
+  prices.data = data;
+  const chosen = data.provider;
+  prices.list.replaceChildren(...(data.providers || []).map((p) => {
+    const input = h("input", { type: "radio", name: "price-provider", value: p.key });
+    input.checked = p.key === chosen;
+    input.addEventListener("change", () => chooseProvider(p.key));
+    const count = p.needs_download && p.cards ? ` ${Number(p.cards).toLocaleString("en-US")} cards.` : "";
+    return h("label", { class: "settings-provider" }, input,
+      h("span", { class: "settings-provider-text" },
+        h("strong", { text: String(p.label || p.key) }),
+        h("span", { class: "settings-provider-note", text: `${p.note || ""}${count}` })));
+  }));
+  const label = (key) => ((data.providers || []).find((p) => p.key === key) || {}).label || key;
+  const date = priceDate(data.date);
+  if (data.provider !== data.active) {
+    prices.status.textContent = `${label(data.provider)} needs the store prices. Download them to use it. Until then, Grimoire shows ${label(data.active)} prices.`;
+  } else if (data.active !== "scryfall") {
+    prices.status.textContent = `Grimoire shows ${label(data.active)} prices${date ? ` from ${date}` : ""}.`;
+  } else {
+    prices.status.textContent = date ? `Store prices from ${date} are on this Mac.` : "Grimoire shows TCGplayer prices from the card data.";
+  }
+  prices.download.textContent = date ? "Update store prices" : "Download store prices";
+  prices.remove.hidden = !date;
+}
+
+async function refreshPrices() {
+  const request = ++priceChecking;
+  try {
+    const data = await getJSON("/prices");
+    if (request === priceChecking && prices) renderPrices(data);
+  } catch (e) {
+    if (prices) prices.status.textContent = "Could not read the price settings.";
+  }
+}
+
+async function chooseProvider(key) {
+  try {
+    renderPrices(await putJSON("/prices/provider", { provider: key }));
+    showToast("Saved", "success");
+  } catch (e) {
+    showToast(e && e.message ? e.message : "Could not save the price provider", "error");
+    refreshPrices();
+  }
+}
+
+async function downloadPrices() {
+  prices.download.disabled = true;
+  const label = prices.download.textContent;
+  prices.download.textContent = "Downloading…";
+  try {
+    renderPrices(await postJSON("/prices/download", {}));
+    showToast("Store prices downloaded", "success");
+  } catch (e) {
+    prices.download.textContent = label;
+    showToast(e && e.message ? e.message : "Could not download the store prices", "error");
+  } finally {
+    prices.download.disabled = false;
+  }
+}
+
+async function removePrices() {
+  const ok = await confirmDialog({
+    title: "Remove store prices",
+    message: "Remove the downloaded store prices? Grimoire shows TCGplayer prices until you download them again.",
+    confirmLabel: "Remove store prices",
+  });
+  if (!ok) return;
+  try {
+    renderPrices(await del("/prices"));
+    showToast("Store prices removed", "success");
+  } catch (e) {
+    showToast("Could not remove the store prices", "error");
+  }
+}
+
 function build() {
   const model = h("select", { id: "settings-model", class: "settings-select" });
   const note = h("p", { id: "settings-model-note", class: "settings-note", role: "status", hidden: true });
@@ -190,6 +298,7 @@ function build() {
         id: "settings-clear-cache", type: "button", class: "btn btn-danger", text: "Clear card data",
         onclick: clearCardData,
       })),
+    pricesGroup(),
     imagesGroup(),
     phoneGroup(),
     group("Online research",
@@ -201,7 +310,9 @@ function build() {
     group("About",
       h("p", { class: "settings-help" }, h("strong", { text: "Version" }), " 1.0.0"),
       h("p", { class: "settings-help" }, h("strong", { text: "Powered by" }), " ",
-        h("a", { href: "https://scryfall.com", target: "_blank", rel: "noopener noreferrer", text: "Scryfall" }))),
+        h("a", { href: "https://scryfall.com", target: "_blank", rel: "noopener noreferrer", text: "Scryfall" }),
+        " and ",
+        h("a", { href: "https://mtgjson.com", target: "_blank", rel: "noopener noreferrer", text: "MTGJSON" }))),
   );
   ask.value = readSettings().askMode;
   onImageSync(renderImages);
@@ -369,6 +480,7 @@ function renderPhone(data) {
 export async function open() {
   if (!ui) ui = build();
   refreshPhone();
+  refreshPrices();
   ui.ask.value = readSettings().askMode;
   images.auto.checked = readSettings().autoImages;
   renderImages(imageSyncState());

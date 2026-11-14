@@ -3,14 +3,13 @@ import gzip
 import json
 import logging
 import os
-import ssl
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Dict, Iterator, Optional
 
-import certifi
 import httpx
 
+from backend.core.tls import tls_context
 from backend.core.paths import cache_root
 from backend.models.schemas import CacheStatus
 
@@ -138,6 +137,8 @@ class BulkDataManager:
             transport: Optional HTTP transport, for tests
         """
         self.cache_dir = Path(cache_dir) if cache_dir else cache_root()
+        # The chosen price provider (see backend.core.provider_prices), or None.
+        self.provider_prices = None
         # Raw Scryfall download; only kept on disk while the index is built
         self.bulk_data_file = self.cache_dir / "bulk_data.json"
         self.download_file = self.cache_dir / "bulk_data.json.part"
@@ -211,7 +212,7 @@ class BulkDataManager:
         self.last_error = None
         try:
             self.cache_dir.mkdir(parents=True, exist_ok=True)
-            ssl_context = ssl.create_default_context(cafile=certifi.where())
+            ssl_context = tls_context()
 
             async with httpx.AsyncClient(timeout=30.0, verify=ssl_context,
                                          transport=self._transport) as client:
@@ -319,9 +320,18 @@ class BulkDataManager:
     async def load_bulk_data(self) -> Dict[str, dict]:
         """Load the card index into memory as a dictionary keyed by Scryfall ID.
 
+        The prices are those of the chosen price provider, when one is set.
+
         Returns:
             Dictionary mapping Scryfall ID to card data
         """
+        cards = await self._load_index()
+        if self.provider_prices is not None and cards:
+            return await asyncio.to_thread(self.provider_prices.priced_index, cards)
+        return cards
+
+    async def _load_index(self) -> Dict[str, dict]:
+        """The card index with Scryfall's own prices."""
         if self._bulk_data_cache is not None:
             return self._bulk_data_cache
 

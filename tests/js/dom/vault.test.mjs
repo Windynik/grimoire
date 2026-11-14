@@ -322,8 +322,11 @@ test("the value shows a line over time and the price movers list up and down", a
   const movers = { since: "2026-11-01T00:00:00Z", until: "2026-11-08T00:00:00Z",
     up: [{ ...card(130), name: "Riser", quantity: 4, before: 1, after: 2, change: 1, total: 4 }],
     down: [] };
-  await openVault({ insights: { ...INSIGHTS, history, movers } });
+  await openVault({ insights: { ...INSIGHTS, history, movers, price_label: "Card Kingdom",
+    price_date: "2026-11-08" } });
   const value = $('#vault-ledger [data-key="value"]');
+  assert.equal(value.querySelector(".vault-ledger-note").textContent,
+    "Estimate · Card Kingdom prices from 8 Nov 2026");
   assert.ok(value.querySelector("svg.vault-spark polyline"));
   assert.match(value.querySelector("svg.vault-spark").getAttribute("aria-label"), /^Value over time: \$100\.00 on/);
   assert.equal(value.querySelector(".vault-ledger-trend").textContent, "+$12.40 since 1 Nov 2026");

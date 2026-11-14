@@ -80,7 +80,7 @@ The top bar has five screens. Each screen has its own address, such as `#home` o
 - **Collection** is the Vault, the viewer for your cards or for all cards in the archive (see below). The *Import cards* button opens the importer. The importer shows live progress and a summary of the rows it could not match (see *Importing*).
 - **Forge** builds a deck from the cards you own (see below).
 - **Decks** lists your saved decks and opens the editor (see below).
-- **Settings** shows the Ollama status, picks the model (Automatic, Engine only, or one installed model), sets how often the forge asks you a question, clears the card data, and shows the card images on this Mac. The app downloads the images of your cards in the background when it starts. A switch turns this off, and a button starts a download at any time. *Clear card data* keeps the images. *Remove images* deletes them. *Phone access* lets a phone open Grimoire (see below).
+- **Settings** shows the Ollama status, picks the model (Automatic, Engine only, or one installed model), sets how often the forge asks you a question, clears the card data, chooses the price provider (see *Prices* below), and shows the card images on this Mac. The app downloads the images of your cards in the background when it starts. A switch turns this off, and a button starts a download at any time. *Clear card data* keeps the images. *Remove images* deletes them. *Phone access* lets a phone open Grimoire (see below).
 
 ### Importing
 
@@ -112,7 +112,14 @@ An import from another app keeps every column of the source file. Grimoire adds 
 The Vault is the *Collection* screen. A switcher at the top picks a collection or the archive.
 
 - **Insights ledger.** Four counters count up: the estimated value, the rares and mythics, the foils, and the number of sets. A line above them gives the card count and the import date. The value note names the date of the Scryfall prices. Each card counts at its price in US dollars: the etched price for an etched foil, the foil price for a foil, and the regular price for other cards. A card with only a EUR or MTGO ticket price has no price. The value is the price times the quantity.
-- **Price snapshots.** Grimoire works offline, so prices change only when you update the card data. The first time the Vault opens a collection after an update, it saves a snapshot: the collection's value and the price of each card. After two updates or more, a small line under the estimated value shows the value over time ("+$52.76 since 29 Oct 2026"). A *Price movers* panel lists the 5 cards that rose most and the 5 that fell most between the last two updates. A change counts all the copies you own, and a change under 5 cents per copy does not count. Press a card name to open it in the drawer. Each collection keeps its newest 120 snapshots, and deleting a collection deletes its snapshots.
+- **Prices.** Settings › *Prices* chooses whose prices Grimoire shows, in US dollars, everywhere in the app (the Vault, the drawer, the decks and the forge):
+  - *TCGplayer* (the default): the market prices in Scryfall's card data. No extra download.
+  - *Card Kingdom*: what Card Kingdom sells each card for.
+  - *Card Kingdom buylist*: what Card Kingdom pays you for each card. Use it to see what a trade-in would bring.
+  - *Mana Pool*: what Mana Pool sells each card for.
+
+  The store prices come from [MTGJSON](https://mtgjson.com)'s daily price file and its card id table (a download of about 20 MB; about 15 MB on disk). *Download store prices* gets them, and *Update store prices* gets the newest day. A card or a finish that the store does not price keeps its TCGplayer price. Until you download the store prices, Grimoire shows TCGplayer prices. Cardmarket (EUR) and MTGO prices need a currency setting, so they are not here yet.
+- **Price snapshots.** Grimoire works offline, so prices change only when you update the card data or the store prices. The first time the Vault opens a collection after an update, it saves a snapshot: the collection's value and the price of each card. After two updates or more, a small line under the estimated value shows the value over time ("+$52.76 since 29 Oct 2026"). A *Price movers* panel lists the 5 cards that rose most and the 5 that fell most between the last two updates. A change counts all the copies you own, and a change under 5 cents per copy does not count. Press a card name to open it in the drawer. Each price provider has its own snapshots, so a switch of provider never shows as a price move. Each collection keeps its newest 120 snapshots, and deleting a collection deletes its snapshots.
 - **Today's spotlight.** A fan of cards shows one rare or mythic of your collection in the middle. The spotlight changes each day. The cards beside it are your most valuable cards. When you have no rare or mythic, the fan shows your most valuable card in the middle.
 - **Color orbs.** One orb for each color, for colorless, and for multicolor shows the share of your cards. Press an orb to filter by that color.
 - **Index sidebar.** The sidebar lists Colors, Rarity, Type, Mana value, Price, Finish, Legal in, and Set. Each value shows a live count for the current result. The counts change as you search and filter. On a narrow screen the sidebar opens as a sheet.
@@ -312,6 +319,7 @@ The script exits with code 1 when a pass rule fails.
 - Python 3.9 or newer.
 - Disk space: the card index is about 100 MB. The download needs about 550 MB free while it runs.
 - An internet connection for the first download. Ollama is optional.
+- Downloads check certificates against your computer's own trust store (through the `truststore` package), as a browser does. So they also work on a company network that inspects HTTPS with its own certificate. Without `truststore`, Grimoire uses Python's `certifi` list.
 
 ## Tech stack
 
@@ -327,5 +335,6 @@ Grimoire is free software under the [MIT License](LICENSE). The card data and im
 ## Credits
 
 - Card data and images come from [Scryfall](https://scryfall.com).
+- Store prices (Card Kingdom, Mana Pool) come from [MTGJSON](https://mtgjson.com).
 - Grimoire reads exports from [ManaBox](https://manabox.app).
 - Grimoire is not affiliated with or endorsed by Wizards of the Coast.

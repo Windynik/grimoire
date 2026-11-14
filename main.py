@@ -12,6 +12,7 @@ from backend.api.dependencies import get_image_store, get_phone_access
 from backend.api.image_routes import router as image_router
 from backend.api.collection_routes import router as collection_router
 from backend.api.phone_routes import router as phone_router
+from backend.api.price_routes import router as price_router
 from pathlib import Path
 
 
@@ -69,6 +70,7 @@ app.include_router(deck_router)
 app.include_router(image_router)
 app.include_router(collection_router)
 app.include_router(phone_router)
+app.include_router(price_router)
 
 # Serve frontend static files last (catch-all)
 frontend_path = Path(__file__).parent / "frontend"

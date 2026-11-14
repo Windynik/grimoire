@@ -127,10 +127,12 @@ export function renderHero(parts, insights, { selected = [], onOrb } = {}) {
     + `${formatCount(data.unique)} of them unique${date ? ` — gathered on ${date}` : ""}.`;
 
   const rarity = data.rarity || {};
-  const priceDate = shortDate(data.card_data_date);
+  // The prices are those of the chosen provider (TCGplayer from the card data by default).
+  const priceDate = shortDate(data.price_date || data.card_data_date);
+  const source = data.price_label ? `${data.price_label} prices` : "Scryfall prices";
   const items = [
     [ledgerItem("value", "Estimated value",
-      priceDate ? `Estimate · Scryfall prices from ${priceDate}` : "Estimate · Scryfall prices", true),
+      priceDate ? `Estimate · ${source} from ${priceDate}` : `Estimate · ${source}`, true),
     Number(data.value) || 0, formatMoney],
     [ledgerItem("rares", "Rares & mythics", `${formatCount(rarity.mythic)} mythic`),
       (Number(rarity.rare) || 0) + (Number(rarity.mythic) || 0), formatCount],

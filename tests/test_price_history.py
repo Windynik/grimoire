@@ -14,7 +14,7 @@ DAY2 = "2026-11-08T00:00:00+00:00"
 def test_a_snapshot_keeps_the_value_the_copies_and_each_unit_price():
     shot = snapshot([card("a", "Bolt", 1.5, 2), card("a", "Bolt", 4.0, 1, foil="foil"),
                      card("b", "Bear", 0, 3)], DAY1, at="now")
-    assert shot == {"data_date": DAY1, "at": "now", "value": 7.0, "cards": 6,
+    assert shot == {"source": "scryfall", "data_date": DAY1, "at": "now", "value": 7.0, "cards": 6,
                     "prices": {"a|": 1.5, "a|foil": 4.0}}
     assert slot(card("a", "Bolt", 1, foil="normal")) == "a|"
 
@@ -51,3 +51,21 @@ def test_movers_count_the_copies_and_skip_small_and_new_cards():
     assert [(m["name"], m["before"], m["after"], m["total"]) for m in found["down"]] == [
         ("Titan", 10.0, 7.0, -3.0)]
     assert movers(add_snapshot(None, old, DAY1), old) is None
+
+
+def test_each_price_source_has_its_own_snapshots_and_movers():
+    old = [card("a", "Bolt", 1.0)]
+    new = [card("a", "Bolt", 3.0)]
+    history = add_snapshot(None, old, DAY1)
+    # Card Kingdom prices start their own line: no move from TCGplayer to Card Kingdom.
+    history = add_snapshot(history, new, "2026-11-02", source="cardkingdom")
+    assert movers(history, new, source="cardkingdom") is None
+    assert value_history(history) == [{"date": DAY1, "value": 1.0, "cards": 1}]
+    assert value_history(history, "cardkingdom") == [{"date": "2026-11-02", "value": 3.0, "cards": 1}]
+    # The same Card Kingdom date adds nothing; a later one does.
+    assert add_snapshot(history, new, "2026-11-02", source="cardkingdom") is None
+    history = add_snapshot(history, [card("a", "Bolt", 4.0)], "2026-11-09", source="cardkingdom")
+    assert movers(history, new, source="cardkingdom")["up"][0]["change"] == 1.0
+    # A snapshot from before sources counts as the default provider.
+    legacy = {"snapshots": [{"data_date": DAY1, "value": 2.0, "cards": 1, "prices": {}}]}
+    assert value_history(legacy) == [{"date": DAY1, "value": 2.0, "cards": 1}]

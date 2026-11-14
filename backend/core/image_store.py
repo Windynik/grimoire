@@ -16,6 +16,7 @@ from typing import AsyncIterator, Dict, List, Optional, Tuple
 import httpx
 
 from backend.core.paths import cache_path
+from backend.core.tls import tls_context
 
 logger = logging.getLogger(__name__)
 
@@ -261,6 +262,7 @@ class ImageStore:
                 timeout=httpx.Timeout(TIMEOUT_SECONDS, connect=CONNECT_TIMEOUT_SECONDS),
                 headers={"User-Agent": USER_AGENT},
                 transport=self.transport,
+                verify=tls_context(),
                 limits=httpx.Limits(max_connections=MAX_CONNECTIONS),
                 follow_redirects=True)
             self._client_loop = loop

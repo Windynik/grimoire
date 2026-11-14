@@ -4,7 +4,9 @@ from backend.core.collection_store import CollectionStore
 from backend.core.image_store import ImageStore
 from backend.core.csv_processor import CSVProcessor
 from backend.core.ollama_client import OllamaClient
+from backend.core.paths import cache_root
 from backend.core.phone import PhoneAccess
+from backend.core.provider_prices import ProviderPrices
 from backend.decks.store import DeckStore
 from backend.forge.session import ForgeManager
 
@@ -16,13 +18,21 @@ def get_phone_access() -> PhoneAccess:
 
 
 @lru_cache()
+def get_provider_prices() -> ProviderPrices:
+    """The chosen price provider and the downloaded store prices."""
+    return ProviderPrices(cache_root())
+
+
+@lru_cache()
 def get_bulk_data_manager() -> BulkDataManager:
-    """Get singleton BulkDataManager instance.
+    """Get singleton BulkDataManager instance, with the chosen price provider.
 
     Returns:
         BulkDataManager instance
     """
-    return BulkDataManager()
+    manager = BulkDataManager()
+    manager.provider_prices = get_provider_prices()
+    return manager
 
 
 @lru_cache()

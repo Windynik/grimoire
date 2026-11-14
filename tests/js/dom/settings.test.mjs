@@ -34,6 +34,13 @@ const PHONE_ON = {
   devices: [{ id: "d1", name: "iPhone", created: "2026-11-12T10:00:00+00:00" }],
   pair: { code: "K7M2QX", url: "http://192.168.1.20:8135/pair?code=K7M2QX", expires_in: 598 }, error: null,
 };
+const PROVIDERS = [
+  { key: "scryfall", label: "TCGplayer", note: "Market prices from the card data. No extra download.", needs_download: false, cards: 900 },
+  { key: "cardkingdom", label: "Card Kingdom", note: "What Card Kingdom sells each card for.", needs_download: true, cards: 0 },
+  { key: "cardkingdom_buylist", label: "Card Kingdom buylist", note: "What Card Kingdom pays you for each card.", needs_download: true, cards: 0 },
+  { key: "manapool", label: "Mana Pool", note: "What Mana Pool sells each card for.", needs_download: true, cards: 0 },
+];
+const PRICES_PLAIN = { provider: "scryfall", active: "scryfall", date: null, downloaded: null, providers: PROVIDERS };
 const STATUS_MISSING = { count: 2, bytes: 3145728, owned_total: 10, owned_small: 4, owned_normal: 2 };
 let imageStatus = STATUS_MISSING;
 
@@ -65,6 +72,7 @@ async function setup({ ai = AI_UP, saved = null, status = STATUS_MISSING, keepRu
   app.route("DELETE /api/cache", () => ({ json: { ok: true } }));
   app.route("DELETE /api/images", () => ({ json: { removed: 2 } }));
   app.route("GET /api/phone", () => ({ json: PHONE_OFF }));
+  app.route("GET /api/prices", () => ({ json: PRICES_PLAIN }));
   window.localStorage.clear();
   if (saved) window.localStorage.setItem(KEY, JSON.stringify(saved));
   app.fetchLog.length = 0;
@@ -347,10 +355,10 @@ test("the status line shows thumbnails, full images, and megabytes", async () =>
     "Thumbnails: 4 of 10. Full images: 2 of 10. (3.0 MB on this Mac)");
 });
 
-test("the Card images section follows Card data and the switch defaults on", async () => {
+test("Prices and Card images follow Card data, and the images switch defaults on", async () => {
   await setup();
   const titles = [...document.querySelectorAll("#settings-body h3")].map((n) => n.textContent);
-  assert.deepEqual(titles.slice(0, 4), ["Local AI", "Questions", "Card data", "Card images"]);
+  assert.deepEqual(titles.slice(0, 5), ["Local AI", "Questions", "Card data", "Prices", "Card images"]);
   assert.equal($("settings-auto-images").checked, true);
   assert.equal($("settings-auto-images").getAttribute("role"), "switch");
   assert.equal($("settings-auto-images").disabled, false);
@@ -491,4 +499,51 @@ test("a firewall that blocks Python is named in the phone status", async () => {
   app.route("GET /api/phone", () => ({ json: { ...PHONE_ON, firewall: "The Mac's firewall blocks incoming connections to Python (/opt/py/python3.13), so a phone gets \"connection reset\"." } }));
   open();
   await app.until(() => /firewall blocks incoming connections/.test($("settings-phone-status").textContent));
+});
+
+
+test("the Prices group chooses a provider, downloads store prices and names them", async () => {
+  await setup();
+  const list = document.getElementById("settings-price-providers");
+  await app.until(() => list.querySelectorAll("input[type=radio]").length === 4);
+  assert.equal(list.querySelector("input:checked").value, "scryfall");
+  assert.equal(document.getElementById("settings-price-status").textContent,
+    "Grimoire shows TCGplayer prices from the card data.");
+  assert.equal(document.getElementById("settings-price-remove").hidden, true);
+
+  const puts = [];
+  app.route("PUT /api/prices/provider", (req) => {
+    puts.push(req.body);
+    return { json: { ...PRICES_PLAIN, provider: req.body.provider } };
+  });
+  const kingdom = list.querySelector('input[value="cardkingdom"]');
+  kingdom.checked = true;
+  kingdom.dispatchEvent(new window.Event("change", { bubbles: true }));
+  await app.until(() => puts.length === 1);
+  assert.deepEqual(puts[0], { provider: "cardkingdom" });
+  await app.until(() => /needs the store prices/.test(document.getElementById("settings-price-status").textContent));
+  assert.equal(document.getElementById("settings-price-status").textContent,
+    "Card Kingdom needs the store prices. Download them to use it. Until then, Grimoire shows TCGplayer prices.");
+
+  const loaded = { provider: "cardkingdom", active: "cardkingdom", date: "2026-11-13", downloaded: "2026-11-14T08:00:00Z",
+    providers: PROVIDERS.map((p) => (p.needs_download ? { ...p, cards: 91234 } : p)) };
+  app.route("POST /api/prices/download", () => ({ json: loaded }));
+  document.getElementById("settings-price-download").click();
+  await app.until(() => /from 13 Nov 2026/.test(document.getElementById("settings-price-status").textContent));
+  assert.equal(document.getElementById("settings-price-status").textContent,
+    "Grimoire shows Card Kingdom prices from 13 Nov 2026.");
+  assert.match(list.textContent, /91,234 cards\./);
+  assert.equal(document.getElementById("settings-price-download").textContent, "Update store prices");
+  assert.equal(document.getElementById("settings-price-remove").hidden, false);
+});
+
+test("a failed price download shows the server's reason and keeps the button", async () => {
+  await setup();
+  await app.until(() => document.querySelectorAll("#settings-price-providers input").length === 4);
+  app.route("POST /api/prices/download", () => ({ status: 502, json: { detail: "Could not download the store prices from MTGJSON." } }));
+  const button = document.getElementById("settings-price-download");
+  button.click();
+  await app.until(() => /Could not download the store prices/.test(document.getElementById("toast-container").textContent));
+  await app.until(() => !button.disabled);
+  assert.equal(button.textContent, "Download store prices");
 });
