@@ -321,3 +321,32 @@ def test_forge_free_only_with_no_free_card_says_so(overrides):
                                             "free_only": True})
         assert r.status_code == 400
         assert "Only free copies" in r.json()["detail"]
+
+
+def test_the_forge_adds_up_the_chosen_collections(overrides):
+    from backend.api.dependencies import get_forge_manager
+    store, bulk, _ = overrides
+    records = synthetic_records()
+    # A second collection: one more copy of the first card, and a new card.
+    extra = make_record("Pool Extra Card", type_line="Legendary Creature — Elf", mana_cost="{G}",
+                        color_identity=("G",))
+    bulk.cards[extra["id"]] = extra
+    store.store_collection("bbb2", [
+        {"Scryfall ID": records[0]["id"], "Quantity": 1, "Name": records[0]["name"]},
+        {"Scryfall ID": extra["id"], "Quantity": 2, "Name": extra["name"]}], bulk.cards)
+    manager = _CaptureManager()
+    app.dependency_overrides[get_forge_manager] = lambda: manager
+    with TestClient(app) as client:
+        r = client.post("/api/forge", json={"job_id": "aaa1", "format": "casual",
+                                            "job_ids": ["bbb2", "aaa1", "bbb2"]})
+        assert r.status_code == 200
+        ids = [row["scryfall_id"] for row in manager.collection]
+        assert len(ids) == len(records) + 2  # both collections, one after the other
+        assert ids.count(records[0]["id"]) == 2 and extra["id"] in ids
+        assert client.post("/api/forge", json={"job_id": "aaa1", "format": "casual",
+                                                "job_ids": ["dead"]}).status_code == 404
+        # The commander list reads the whole pool.
+        body = client.get("/api/forge/commanders/aaa1?format=commander&also=bbb2").json()
+        assert "Pool Extra Card" in [c["name"] for c in body["commanders"]]
+        alone = client.get("/api/forge/commanders/aaa1?format=commander").json()
+        assert "Pool Extra Card" not in [c["name"] for c in alone["commanders"]]

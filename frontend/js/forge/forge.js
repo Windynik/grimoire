@@ -12,6 +12,7 @@ import { Timeline, STAGE_NAMES } from "./timeline.js";
 import { cardImage, cardImg } from "../shared/images.js";
 import { animate } from "../shared/motion.js";
 import { showToast } from "../shared/toast.js";
+import { h } from "../shared/dom.js";
 import { activeCollection } from "../shared/session.js";
 import { openEditor } from "../decks/decks.js";
 
@@ -19,6 +20,8 @@ const AI_OFF_MESSAGE = "Local AI is off. The engine still builds the deck. "
   + "Install Ollama and run `ollama pull qwen3.5:9b` for deeper decks.";
 const STORAGE_KEY = "forgeId";
 const COMMANDER_KEY = "forgeCommander";
+// The chosen collections of the forge (a JSON list), kept for the next visit.
+const POOL_KEY = "grimoire.forge.collections";
 // {forge_id, deck_id} of the last finished forge. The server drops a finished
 // forge after 5 minutes; a later reload shows the saved deck from this key.
 const DECK_KEY = "forgeDeck";
@@ -120,20 +123,67 @@ function renderBanner() {
 // Setup data
 // ---------------------------------------------------------------------------
 
+// The ids of the checked collections, in list order.
+function selectedJobs() {
+  return [...document.querySelectorAll("#forge-collections input:checked")].map((box) => box.value);
+}
+
+function savedPool() {
+  try {
+    const list = JSON.parse(globalThis.localStorage.getItem(POOL_KEY) || "[]");
+    return Array.isArray(list) ? list.map(String) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function savePool(jobs) {
+  try {
+    globalThis.localStorage.setItem(POOL_KEY, JSON.stringify(jobs));
+  } catch (e) {
+    // A blocked storage only forgets the choice.
+  }
+}
+
+// The note under the collections: how many cards the pool has, or what is missing.
+function renderPoolNote() {
+  const boxes = [...document.querySelectorAll("#forge-collections input")];
+  const chosen = boxes.filter((box) => box.checked);
+  const cards = chosen.reduce((sum, box) => sum + (Number(box.dataset.cards) || 0), 0);
+  const note = $("forge-collections-note");
+  if (!boxes.length) {
+    note.textContent = "";
+  } else if (!chosen.length) {
+    note.textContent = "Choose at least one collection.";
+  } else if (chosen.length === 1) {
+    note.textContent = `The forge builds from ${cards.toLocaleString()} cards in this collection.`;
+  } else {
+    note.textContent = `The forge builds from ${cards.toLocaleString()} cards in ${chosen.length} collections. The copies of a card in two collections add up.`;
+  }
+  $("forge-start").disabled = !chosen.length;
+}
+
 async function loadCollections() {
-  const select = $("forge-collection");
+  const list = $("forge-collections");
   const data = await api.getCollections();
   const collections = data.collections || [];
-  const previous = select.value;
-  select.textContent = "";
-  collections.forEach((c) => {
-    select.appendChild(option(c.job_id, `${c.name} (${Number(c.card_count).toLocaleString()})`));
-  });
-  const wanted = previous || activeCollection();
-  const valid = collections.some((c) => c.job_id === wanted);
-  if (collections.length) select.value = valid ? wanted : collections[0].job_id;
+  const previous = selectedJobs();
+  const ids = new Set(collections.map((c) => c.job_id));
+  // The choice of this page, else the saved choice, else the collection in view.
+  let wanted = (previous.length ? previous : savedPool()).filter((id) => ids.has(id));
+  if (!wanted.length) {
+    const active = activeCollection();
+    wanted = [ids.has(active) ? active : (collections[0] || {}).job_id].filter(Boolean);
+  }
+  list.replaceChildren(...collections.map((c) => {
+    const box = h("input", { type: "checkbox", value: c.job_id, "data-cards": String(Number(c.card_count) || 0) });
+    box.checked = wanted.includes(c.job_id);
+    return h("label", { class: "forge-collection" }, box,
+      h("span", { class: "forge-collection-name", text: String(c.name || "Collection") }),
+      h("span", { class: "forge-collection-count", text: Number(c.card_count || 0).toLocaleString() }));
+  }));
   $("forge-empty").hidden = collections.length > 0;
-  $("forge-start").disabled = collections.length === 0;
+  renderPoolNote();
 }
 
 async function loadFormats() {
@@ -228,9 +278,9 @@ function moveTileFocus(event) {
 async function loadCommanders() {
   const fmt = currentFormat();
   const group = $("forge-commander-group");
-  const jobId = $("forge-collection").value;
+  const jobIds = selectedJobs();
   group.hidden = !(fmt && fmt.commander);
-  if (group.hidden || !jobId) return;
+  if (group.hidden || !jobIds.length) return;
 
   const request = ++state.commanderRequest;
   const grid = $("forge-commander-grid");
@@ -239,7 +289,7 @@ async function loadCommanders() {
   grid.textContent = "";
   let data;
   try {
-    data = await api.getCommanders(jobId, fmt.key);
+    data = await api.getCommanders(jobIds, fmt.key);
   } catch (e) {
     if (request !== state.commanderRequest) return;
     note.textContent = e.message;
@@ -252,9 +302,10 @@ async function loadCommanders() {
   (data.commanders || []).forEach((c) => grid.appendChild(makeTile(c.name, c)));
   const keep = [...grid.children].some((t) => t.dataset.name === state.commander);
   selectCommander(keep ? state.commander : "");
+  const where = jobIds.length > 1 ? "these collections" : "this collection";
   note.textContent = data.total
-    ? `${data.total} commander${data.total === 1 ? "" : "s"} in this collection.`
-    : "No commanders found in this collection. The agent will choose.";
+    ? `${data.total} commander${data.total === 1 ? "" : "s"} in ${where}.`
+    : `No commanders found in ${where}. The agent will choose.`;
 }
 
 function applyFormat() {
@@ -273,8 +324,10 @@ function params() {
   const casual = fmt && fmt.key === "casual";
   const colors = [...document.querySelectorAll(".forge-color[aria-pressed='true']")]
     .map((b) => b.dataset.color).join("");
+  const jobs = selectedJobs();
   const body = {
-    job_id: $("forge-collection").value,
+    job_id: jobs[0] || "",
+    job_ids: jobs,
     format: fmt ? fmt.key : "",
     commander: fmt && fmt.commander ? state.commander : "",
     wish: $("forge-wish").value.trim(),
@@ -790,7 +843,7 @@ async function startForge(body) {
 async function submit(event) {
   event.preventDefault();
   const button = $("forge-start");
-  if (!$("forge-collection").value) return;
+  if (!selectedJobs().length) return;
   button.disabled = true;
   try {
     await startForge(params());
@@ -888,7 +941,9 @@ function init() {
   $("forge-ask-mode").addEventListener("change", () => {
     state.askTouched = true;
   });
-  $("forge-collection").addEventListener("change", () => {
+  $("forge-collections").addEventListener("change", () => {
+    savePool(selectedJobs());
+    renderPoolNote();
     state.commander = "";
     loadCommanders();
   });

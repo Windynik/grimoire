@@ -83,6 +83,7 @@
 }
 
 #forge-view select,
+#forge-view .gselect,
 #forge-view input[type="number"],
 #forge-view textarea {
     width: 100%;
@@ -891,6 +892,46 @@
     }
 
     #forge-view .forge-core::after { opacity: 0.5; }
+}
+
+/* The collections of the card pool: one checkbox chip each */
+#forge-view .forge-collection-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+#forge-view .forge-collection {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.45rem 0.8rem 0.45rem 0.6rem;
+    border: 1px solid var(--border-bright);
+    border-radius: 999px;
+    background: var(--surface-2);
+    cursor: pointer;
+    transition: border-color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+}
+
+#forge-view .forge-collection:has(input:checked) {
+    border-color: var(--gold);
+    background: rgba(232, 194, 106, 0.12);
+}
+
+#forge-view .forge-collection input {
+    margin: 0;
+    accent-color: var(--gold);
+}
+
+#forge-view .forge-collection input:focus-visible {
+    outline: 2px solid var(--violet);
+    outline-offset: 2px;
+}
+
+#forge-view .forge-collection-count {
+    color: var(--text-dim);
+    font-size: 0.82rem;
+    font-variant-numeric: tabular-nums;
 }
 
 #forge-view .forge-field-note {

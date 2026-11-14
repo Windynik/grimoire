@@ -141,7 +141,9 @@
 }
 
 #decks-view .editor-collection select,
-#decks-view .editor-group select {
+#decks-view .editor-group select,
+#decks-view .editor-collection .gselect,
+#decks-view .editor-group .gselect {
     max-width: 18rem;
     padding: 0.3rem 0.5rem;
     font: inherit;
@@ -616,7 +618,8 @@
 }
 
 #decks-view .search-field,
-#decks-view .search-selects select {
+#decks-view .search-selects select,
+#decks-view .search-selects .gselect {
     width: 100%;
     padding: 0.4rem 0.55rem;
     font: inherit;

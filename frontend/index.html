@@ -283,11 +283,12 @@
                         <p id="forge-ai-banner" class="forge-banner" hidden>Local AI is off. The engine still builds the deck. Install Ollama and run <code>ollama pull qwen3.5:9b</code> for deeper decks.</p>
                         <p id="forge-empty" class="forge-banner" hidden>No collection yet. <a href="#import">Import a CSV</a> first, then come back here.</p>
                         <form id="forge-form" class="forge-form" autocomplete="off">
+                            <fieldset class="forge-field forge-collections">
+                                <legend>Collections</legend>
+                                <div id="forge-collections" class="forge-collection-list"></div>
+                                <p id="forge-collections-note" class="forge-hint" role="status"></p>
+                            </fieldset>
                             <div class="forge-row">
-                                <label class="forge-field">
-                                    <span>Collection</span>
-                                    <select id="forge-collection"></select>
-                                </label>
                                 <label class="forge-field">
                                     <span>Format</span>
                                     <select id="forge-format"></select>

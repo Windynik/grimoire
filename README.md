@@ -45,7 +45,7 @@ python main.py
 1. **Download card data.** On a first run, the welcome screen does this for you (see *First run*). Otherwise, on *Home*, press *Download card data*. The download is about 100 MB and happens once.
 2. **Import your collection.** Drop in the collection export of your app on the welcome screen, or press *Import cards* on the *Collection* screen. You can also paste a card list. The `examples/` folder has a synthetic sample file.
 3. **Browse.** Use the *Collection* screen (the Vault) to explore your cards.
-4. **Forge a deck.** Open *Forge*, pick a format (and optionally a commander), and start the forge.
+4. **Forge a deck.** Open *Forge*, check one or more collections, pick a format (and optionally a commander), and start the forge.
 
 For the optional local model, install Ollama and pull a model:
 
@@ -167,6 +167,8 @@ The Vault is the *Collection* screen. A switcher at the top picks a collection o
 
 ### The Deck Forge
 
+Check the collections that the forge may build from: one, or several together. The copies of a card in two collections add up (two binders with 2 copies each give 4), and the commander list shows the commanders of all the checked collections. The forge remembers the choice. The new deck belongs to the first checked collection.
+
 The forge runs five stages. The screen shows each stage as it runs.
 
 1. **Study cards** — the engine reads the full rules text of your cards.
@@ -228,6 +230,10 @@ Evaluation status:
 ### Command palette
 
 Press **Cmd-K** (or **Ctrl-K**), or the *Search* button in the top bar, to open the command palette. Type to find a screen, an action (*New deck*, *Import cards*, *Import a decklist*, *Forgotten gems*, *Cards for trade*), or a saved deck by its name or its commander. The first line searches the Vault for the typed text. The arrow keys move, `Enter` opens, and `Esc` closes.
+
+### Dropdowns
+
+On a computer, every dropdown opens a list in the app's own style: the current choice has a check mark, the arrow keys, Home, End and the Page keys move, Enter or Space chooses, Escape closes, and typing a letter jumps to the next option with it. On a touch screen the dropdowns keep the phone's own picker, which is easier to use there.
 
 ### Accessibility
 

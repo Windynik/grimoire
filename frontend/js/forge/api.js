@@ -16,8 +16,11 @@ export function getFormats() {
   return request("/forge/formats");
 }
 
-export function getCommanders(jobId, format) {
-  return request(`/forge/commanders/${encodeURIComponent(jobId)}?format=${encodeURIComponent(format)}`);
+/** The commanders of the pool: jobIds[0] and the other chosen collections ("also"). */
+export function getCommanders(jobIds, format) {
+  const [first, ...more] = Array.isArray(jobIds) ? jobIds : [jobIds];
+  const also = more.length ? `&also=${encodeURIComponent(more.join(","))}` : "";
+  return request(`/forge/commanders/${encodeURIComponent(first)}?format=${encodeURIComponent(format)}${also}`);
 }
 
 export function getAiStatus() {

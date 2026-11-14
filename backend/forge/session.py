@@ -11,7 +11,7 @@ import logging
 import re
 import time
 import uuid
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import AsyncIterator, Dict, FrozenSet, List, Optional, Set, Tuple
 
@@ -93,6 +93,8 @@ class ForgeParams:
     deck_size: int = 60
     max_copies: int = 4
     colors: str = ""
+    # Every collection of the card pool, job_id first. Empty means job_id alone.
+    job_ids: List[str] = field(default_factory=list)
 
 
 class ForgeError(Exception):

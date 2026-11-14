@@ -1,7 +1,7 @@
 import asyncio
 import json
 import re
-from typing import AsyncIterator, Literal, Optional
+from typing import AsyncIterator, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import StreamingResponse
@@ -30,6 +30,7 @@ from backend.forge.session import ForgeManager, ForgeParams
 router = APIRouter(prefix="/api")
 
 KEEPALIVE_SECONDS = 15.0
+MAX_COLLECTIONS = 20
 FREE_EMPTY = ("Your built decks use every card in this collection. "
               "Clear \"Only free copies\" to build from all the cards.")
 
@@ -47,6 +48,8 @@ class ForgeRequest(BaseModel):
     colors: str = Field(default="", max_length=10)
     # Build only from the copies that no saved deck uses.
     free_only: bool = False
+    # More collections for the card pool: their copies add up with job_id's.
+    job_ids: List[str] = Field(default_factory=list, max_length=MAX_COLLECTIONS)
 
 
 class AnswerRequest(BaseModel):
@@ -70,6 +73,30 @@ async def _load_collection(job_id: str, store: CollectionStore) -> list:
     return collection
 
 
+def pool_ids(job_id: str, more: List[str]) -> List[str]:
+    """job_id, then the other chosen collections, each once, in order."""
+    ids = []
+    for one in [job_id, *more]:
+        one = (one or "").strip()
+        if one and one not in ids:
+            ids.append(one)
+    if len(ids) > MAX_COLLECTIONS:
+        raise HTTPException(status_code=400, detail="Choose at most %d collections." % MAX_COLLECTIONS)
+    return ids
+
+
+async def _load_pool(job_ids: List[str], store: CollectionStore) -> list:
+    """The rows of every chosen collection, one after the other.
+
+    The forge merges the rows per card, so the copies of a card in two
+    collections add up.
+    """
+    rows = []
+    for job_id in job_ids:
+        rows.extend(await _load_collection(job_id, store))
+    return rows
+
+
 @router.get("/forge/formats")
 async def forge_formats():
     """Formats the forge can build, in playbook order."""
@@ -84,15 +111,19 @@ async def forge_formats():
 async def forge_commanders(
     job_id: str,
     format: str = "commander",
+    also: str = "",
     store: CollectionStore = Depends(get_collection_store),
     bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager),
 ):
-    """Owned, legal cards that can lead a commander deck."""
+    """Owned, legal cards that can lead a commander deck.
+
+    also lists more collections (comma separated) whose cards join the pool.
+    """
     playbook = load_playbook()
     fmt = playbook.formats.get(format)
     if fmt is None:
         raise HTTPException(status_code=400, detail="Unknown format")
-    collection = await _load_collection(job_id, store)
+    collection = await _load_pool(pool_ids(job_id, also.split(",")), store)
     if not fmt.commander:
         raise HTTPException(status_code=400, detail="Format has no commander")
     index = await bulk_data_manager.load_bulk_data()
@@ -119,7 +150,8 @@ async def start_forge(
     playbook = load_playbook()
     if request.format not in playbook.formats:
         raise HTTPException(status_code=400, detail="Unknown format")
-    collection = await _load_collection(request.job_id, store)
+    request.job_ids = pool_ids(request.job_id, request.job_ids)
+    collection = await _load_pool(request.job_ids, store)
     index = await bulk_data_manager.load_bulk_data()
     if not index:
         raise HTTPException(

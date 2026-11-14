@@ -4,6 +4,7 @@
 import { register, start } from "./router.js";
 import { startShell } from "./shell.js";
 import { startPalette } from "./palette.js";
+import { startSelects } from "../shared/select.js";
 import * as home from "../home/home.js";
 import * as collection from "../collection/vault.js";
 import * as importScreen from "../collection/import.js";
@@ -23,6 +24,8 @@ register("welcome", welcome);
 
 startShell();
 startPalette();
+// Styled dropdowns on a computer; a touch screen keeps the native picker.
+startSelects();
 await start();
 
 // Tests wait for this flag. It is set after the first route ran.
