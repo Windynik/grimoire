@@ -152,6 +152,10 @@ def test_export_kinds_and_headers(overrides):
         assert r.headers["content-disposition"] == 'attachment; filename="my-deck-v2.csv"'
         assert r.text.splitlines()[0].startswith("Section,Count,Name")
         assert sac["id"] in r.text
+        r = client.get(url, params={"kind": "printings"})
+        assert r.text == "Deck\n3 Sac Outlet 0"  # no collector number: the plain line
+        r = client.get(url, params={"kind": "mtgo"})
+        assert r.text == "3 Sac Outlet 0\n"
         assert client.get(url, params={"kind": "pdf"}).status_code == 400
         assert client.get("/api/decks/nope-1/export").status_code == 404
 

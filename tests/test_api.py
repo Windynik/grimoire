@@ -448,3 +448,23 @@ def test_the_web_app_manifest_has_its_type():
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("application/manifest+json")
     assert response.json()["display"] == "standalone"
+
+
+def test_collection_export_in_the_format_of_another_app(export_env):
+    response = client.post(
+        "/api/process", files={"file": ("my_cards.csv", MANABOX_CSV, "text/csv")}
+    )
+    job_id = response.json()["job_id"]
+    for kind, start in (("moxfield", "Count,Tradelist Count,Name,Edition"),
+                        ("archidekt", "Quantity,Name,Finish"),
+                        ("deckbox", "Count,Tradelist Count,Name,Edition,Card Number"),
+                        ("manabox", "Binder Name,Name,Set code")):
+        got = client.get(f"/api/collection/{job_id}/export", params={"kind": kind})
+        assert got.status_code == 200, kind
+        assert got.text.startswith(start), kind
+        assert got.headers["content-type"].startswith("text/csv")
+        assert f"-{kind}.csv" in got.headers["content-disposition"]
+    listed = client.get(f"/api/collection/{job_id}/export", params={"kind": "list"})
+    assert listed.headers["content-type"].startswith("text/plain")
+    assert listed.text.strip()
+    assert client.get(f"/api/collection/{job_id}/export", params={"kind": "pdf"}).status_code == 400

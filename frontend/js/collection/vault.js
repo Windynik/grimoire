@@ -1007,10 +1007,13 @@ function init() {
     else if (event.key === "Escape" && event.target !== ui.search) closeSheet();
   });
   ui.moreError.querySelector("button").addEventListener("click", retryMore);
+  // The Export menu: each button downloads one format.
   ui.exportLink.addEventListener("click", (event) => {
-    event.preventDefault();
+    const button = event.target.closest("button[data-kind]");
+    if (!button) return;
+    ui.exportLink.open = false;
     const current = collectionOf(screen.source);
-    if (current) exportCollection(current);
+    if (current) exportCollection(current, button.dataset.kind);
   });
 
   ui.grid.addEventListener("keydown", onGridKey);

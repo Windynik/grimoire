@@ -907,19 +907,31 @@ test("prices on the screen use thousands separators", async () => {
   assert.equal(text("#vault-grid .vault-price"), "$1,234.50");
 });
 
-test("Export CSV downloads the collection and is hidden in the archive", async () => {
+test("the Export menu downloads each format and is hidden in the archive", async () => {
   const clicks = [];
   const original = window.HTMLAnchorElement.prototype.click;
   window.HTMLAnchorElement.prototype.click = function spy() { clicks.push(this.getAttribute("download")); };
   try {
     await openVault();
     app.route("GET /api/collection/job1/export", () => ({ body: "name\nBolt\n", headers: { "content-type": "text/csv" } }));
-    const link = $("#collection-export");
-    assert.equal(link.hidden, false);
-    link.dispatchEvent(new window.MouseEvent("click", { bubbles: true, cancelable: true }));
+    const menu = $("#collection-export");
+    assert.equal(menu.hidden, false);
+    const kinds = $$("#collection-export [data-kind]").map((b) => b.dataset.kind);
+    assert.deepEqual(kinds, ["enhanced", "manabox", "moxfield", "archidekt", "deckbox", "list"]);
+    menu.open = true;
+    menu.querySelector('[data-kind="enhanced"]').click();
     await app.until(() => clicks.length === 1);
-    assert.ok(app.fetchLog.some((r) => r.path === "/api/collection/job1/export"));
     assert.equal(clicks[0], "ManaBox Collection.csv");
+    assert.equal(menu.open, false);
+    menu.querySelector('[data-kind="moxfield"]').click();
+    await app.until(() => clicks.length === 2);
+    assert.equal(clicks[1], "ManaBox Collection (Moxfield).csv");
+    const asked = app.fetchLog.filter((r) => r.path === "/api/collection/job1/export");
+    assert.equal(asked[0].query.get("kind"), null);
+    assert.equal(asked[1].query.get("kind"), "moxfield");
+    menu.querySelector('[data-kind="list"]').click();
+    await app.until(() => clicks.length === 3);
+    assert.equal(clicks[2], "ManaBox Collection.txt");
   } finally {
     window.HTMLAnchorElement.prototype.click = original;
   }
@@ -930,7 +942,7 @@ test("Export CSV downloads the collection and is hidden in the archive", async (
 test("a failed export shows the server's reason", async () => {
   await openVault();
   app.route("GET /api/collection/job1/export", () => ({ status: 409, json: { detail: "Import the CSV again to export it." } }));
-  $("#collection-export").click();
+  $('#collection-export [data-kind="enhanced"]').click();
   await app.until(() => /Import the CSV again/.test(text("#toast-container")));
 });
 

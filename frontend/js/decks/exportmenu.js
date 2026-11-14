@@ -1,13 +1,16 @@
-// Export menu of the editor: copy or download the saved deck as plain text,
-// Arena text, or CSV. The export reads the saved deck, so the caller's
-// beforeExport hook sends any pending edit first.
+// Export menu of the editor: copy or download the saved deck as plain text, text
+// with printings (Moxfield, Archidekt), Arena or Magic Online text, or CSV. The
+// export reads the saved deck, so the caller's beforeExport hook sends any
+// pending edit first.
 
 import { h } from "../shared/dom.js";
 import * as api from "./api.js";
 
 const KINDS = [
   { kind: "text", label: "Plain text", copy: true, file: "deck.txt" },
+  { kind: "printings", label: "With printings (Moxfield, Archidekt)", copy: true, file: "deck-printings.txt" },
   { kind: "arena", label: "Arena", copy: true, file: "deck-arena.txt" },
+  { kind: "mtgo", label: "Magic Online", copy: true, file: "deck-mtgo.txt" },
   { kind: "csv", label: "CSV", copy: false, file: "deck.csv" },
 ];
 

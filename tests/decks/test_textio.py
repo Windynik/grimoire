@@ -4,6 +4,8 @@ import io
 from backend.decks.textio import (
     export_arena,
     export_csv,
+    export_mtgo,
+    export_printings,
     export_text,
     parse_decklist,
     resolve,
@@ -184,3 +186,23 @@ def test_parse_drops_archidekt_category_tags():
     parsed = parse_decklist("1x Sol Ring (cmr) 472 [Ramp]\n1x Arcane Signet (cmr) 297 [Ramp,Mana]")
     assert parsed == [("main", 1, "Sol Ring", "CMR", "472"),
                       ("main", 1, "Arcane Signet", "CMR", "297")]
+
+
+def test_export_with_printings_reads_back_with_the_same_printings():
+    index, records = _pool()
+    record = _record(records)
+    text = export_printings(record, index)
+    assert text.startswith("Commander\n1 Teysa Karlov (MH3) 12\n\nDeck\n4 Blood Artist (MH3) 123")
+    assert "1 Delver of Secrets // Insectile Aberration (ISD) 51" in text
+    assert "20 Forest\n" in text and text.endswith("Maybeboard\n1 Blood Artist (MH3) 123")
+    parsed = parse_decklist(text)
+    assert ("commander", 1, "Teysa Karlov", "MH3", "12") in parsed
+    assert ("main", 1, "Fire // Ice", "APC", "128") in parsed
+    assert ("maybeboard", 1, "Blood Artist", "MH3", "123") in parsed
+
+
+def test_export_mtgo_puts_the_commander_in_the_sideboard():
+    index, records = _pool()
+    text = export_mtgo(_record(records), index)
+    assert text == ("4 Blood Artist\n1 Delver of Secrets\n1 Fire/Ice\n20 Forest\n\n"
+                    "1 Teysa Karlov\n2 Swamp\n")

@@ -31,7 +31,8 @@ from backend.decks.pull import pull_list
 from backend.decks.store import DeckStore
 from backend.decks.usage import CopiesInUse, mark_taken, taken_cards
 from backend.decks.textio import (
-    MAX_COUNT, export_arena, export_csv, export_text, parse_decklist, resolve,
+    MAX_COUNT, export_arena, export_csv, export_mtgo, export_printings, export_text,
+    parse_decklist, resolve,
 )
 from backend.forge.playbook import load_playbook
 
@@ -327,15 +328,17 @@ async def export_deck(
     store: DeckStore = Depends(get_deck_store),
     bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager),
 ):
-    """Download a deck as plain text, an Arena list, or CSV."""
-    if kind not in ("text", "arena", "csv"):
+    """Download a deck as plain text, text with printings, an Arena or MTGO list, or CSV."""
+    writers = {"printings": export_printings, "arena": export_arena, "mtgo": export_mtgo,
+               "csv": export_csv}
+    if kind != "text" and kind not in writers:
         raise HTTPException(status_code=400, detail="Unknown export kind: %s" % kind)
     record = _stored(store, deck_id)
     if kind == "text":
         body = export_text(record)
     else:
         index = await bulk_data_manager.load_bulk_data()
-        body = export_arena(record, index) if kind == "arena" else export_csv(record, index)
+        body = writers[kind](record, index)
     csv_kind = kind == "csv"
     media = "text/csv" if csv_kind else "text/plain; charset=utf-8"
     filename = "%s.%s" % (_slug(record.get("name", "")), "csv" if csv_kind else "txt")

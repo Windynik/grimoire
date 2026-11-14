@@ -1,4 +1,4 @@
-"""Deck text export (plain, Arena, CSV) and decklist import.
+"""Deck text export (plain, with printings, Arena, MTGO, CSV) and decklist import.
 
 Pure functions on deck records and the card index. Makes no network calls.
 """
@@ -104,6 +104,67 @@ def export_arena(record: dict, index: Dict[str, dict]) -> str:
         sections.append("\n".join(["Sideboard"] + [_arena_line(e, index)
                                                      for e in data["sideboard"]]))
     return "\n\n".join(sections)
+
+
+def _printing_line(entry: dict, index: Dict[str, dict]) -> str:
+    """"{count} {name} ({SET}) {number}" with the full card name, else "{count} {name}"."""
+    info = index.get(entry.get("scryfall_id") or "") or {}
+    code, number = info.get("set"), info.get("collector_number")
+    if code and number:
+        return "%d %s (%s) %s" % (entry["count"], entry["name"], code.upper(), number)
+    return "%d %s" % (entry["count"], entry["name"])
+
+
+def export_printings(record: dict, index: Dict[str, dict]) -> str:
+    """Return the plain-text decklist with the printing of each card.
+
+    The same sections as export_text, and each line names its set and
+    collector number, as Moxfield, Archidekt and ManaBox read them.
+    """
+    sections = []  # type: List[str]
+    commander = record.get("commander")
+    if commander:
+        sections.append("Commander\n" + _printing_line(dict(commander, count=1), index))
+    data = record.get("sections", {})
+    sections.append("\n".join(["Deck"] + [_printing_line(e, index) for e in data.get("main", [])]))
+    for key, title in (("sideboard", "Sideboard"), ("maybeboard", "Maybeboard")):
+        if data.get(key):
+            sections.append("\n".join([title] + [_printing_line(e, index) for e in data[key]]))
+    return "\n\n".join(sections)
+
+
+def _mtgo_name(name: str) -> str:
+    """MTGO names a split card "Fire/Ice" and a double-faced card by its front face."""
+    if " // " not in name:
+        return name
+    return name.split(" // ")[0]
+
+
+def export_mtgo(record: dict, index: Dict[str, dict]) -> str:
+    """Return a decklist that Magic Online imports (.txt).
+
+    The main deck, a blank line, then the sideboard. A commander goes in the
+    sideboard, as MTGO expects. The maybeboard stays out.
+    """
+    def line(entry: dict) -> str:
+        info = index.get(entry.get("scryfall_id") or "") or {}
+        name = entry["name"]
+        if " // " in name and info.get("layout") == "split":
+            name = name.replace(" // ", "/")
+        else:
+            name = _mtgo_name(name)
+        return "%d %s" % (entry["count"], name)
+
+    data = record.get("sections", {})
+    main = [line(e) for e in data.get("main", [])]
+    side = [line(e) for e in data.get("sideboard", [])]
+    commander = record.get("commander")
+    if commander:
+        side.insert(0, line(dict(commander, count=1)))
+    text = "\n".join(main)
+    if side:
+        text += "\n\n" + "\n".join(side)
+    return text + "\n"
 
 
 def export_csv(record: dict, index: Dict[str, dict]) -> str:

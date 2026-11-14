@@ -187,7 +187,17 @@
                                 <p class="vault-over" id="vault-over">The Vault</p>
                                 <div class="vault-actions">
                                     <a class="vault-import" id="collection-import" href="#import">Import cards</a>
-                                    <a class="vault-import vault-export" id="collection-export" href="#collection" title="Download this collection as a CSV" hidden>Export CSV</a>
+                                    <details class="vault-export-menu" id="collection-export" hidden>
+                                        <summary class="vault-import vault-export" title="Download this collection">Export</summary>
+                                        <div class="vault-export-list" role="menu" aria-label="Export formats">
+                                            <button type="button" role="menuitem" data-kind="enhanced">CSV with card data</button>
+                                            <button type="button" role="menuitem" data-kind="manabox">ManaBox CSV</button>
+                                            <button type="button" role="menuitem" data-kind="moxfield">Moxfield CSV</button>
+                                            <button type="button" role="menuitem" data-kind="archidekt">Archidekt CSV</button>
+                                            <button type="button" role="menuitem" data-kind="deckbox">Deckbox CSV</button>
+                                            <button type="button" role="menuitem" data-kind="list">Card list (text)</button>
+                                        </div>
+                                    </details>
                                 </div>
                             </div>
                             <div class="vault-title-row">

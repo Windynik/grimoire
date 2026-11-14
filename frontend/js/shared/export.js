@@ -4,14 +4,24 @@
 import { h } from "./dom.js";
 import { showToast } from "./toast.js";
 
+// The file name ending of each export kind. "enhanced" is the imported CSV
+// with the card data added; the others are the formats of other apps.
+const SUFFIX = {
+  enhanced: ".csv", manabox: " (ManaBox).csv", moxfield: " (Moxfield).csv",
+  archidekt: " (Archidekt).csv", deckbox: " (Deckbox).csv", list: ".txt",
+};
+
 /**
- * Download the CSV of one collection.
+ * Download one collection as a file.
  *
  * @param {{job_id: string, name: string}} collection
+ * @param {string} [kind] "enhanced" (default), "manabox", "moxfield", "archidekt", "deckbox" or "list".
  */
-export async function exportCollection(collection) {
+export async function exportCollection(collection, kind = "enhanced") {
+  const suffix = SUFFIX[kind] || ".csv";
+  const query = kind === "enhanced" ? "" : `?kind=${encodeURIComponent(kind)}`;
   try {
-    const res = await fetch(`/api/collection/${encodeURIComponent(collection.job_id)}/export`);
+    const res = await fetch(`/api/collection/${encodeURIComponent(collection.job_id)}/export${query}`);
     if (!res.ok) {
       let detail = `Export failed (HTTP ${res.status})`;
       try {
@@ -25,7 +35,7 @@ export async function exportCollection(collection) {
     }
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
-    const link = h("a", { href: url, download: `${collection.name || "collection"}.csv` });
+    const link = h("a", { href: url, download: `${collection.name || "collection"}${suffix}` });
     document.body.appendChild(link);
     link.click();
     link.remove();

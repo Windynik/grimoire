@@ -302,6 +302,52 @@
     content: "↓ ";
 }
 
+/* The Export menu: a summary that opens a list of formats */
+.vault-export-menu {
+    position: relative;
+}
+
+.vault-export-menu > summary {
+    list-style: none;
+    cursor: pointer;
+}
+
+.vault-export-menu > summary::-webkit-details-marker {
+    display: none;
+}
+
+.vault-export-list {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 8px);
+    z-index: 20;
+    display: grid;
+    min-width: 190px;
+    padding: 6px;
+    border: 1px solid var(--border-bright);
+    border-radius: var(--radius-md);
+    background: var(--surface-2);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+}
+
+.vault-export-list button {
+    padding: 8px 10px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--text);
+    font: 500 13px/1.2 var(--font-ui);
+    text-align: left;
+    cursor: pointer;
+}
+
+.vault-export-list button:hover,
+.vault-export-list button:focus-visible {
+    background: rgba(232, 194, 106, 0.12);
+    color: var(--gold);
+    outline: none;
+}
+
 .vault-import:hover,
 .vault-import:focus-visible {
     border-bottom-color: var(--gold);

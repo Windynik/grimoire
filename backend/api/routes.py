@@ -7,7 +7,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException
 from pydantic import BaseModel, Field
-from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 
 from backend.api.dependencies import (
     get_bulk_data_manager,
@@ -21,6 +21,7 @@ from backend.core.collection_store import CollectionStore
 from backend.core.paths import cache_path
 from backend.core.prices import best_price  # noqa: F401  (re-exported)
 from backend.core.csv_processor import CSVProcessor, enrich_rows, write_enriched_csv
+from backend.core.exporters import KINDS as EXPORT_KINDS, export_collection as export_any
 from backend.core.importers import ImportFormatError, binder_of, decode_upload
 from backend.core.ollama_client import OllamaClient
 from backend.forge.cards import is_game_card
@@ -492,17 +493,38 @@ async def download_result(job_id: str):
     )
 
 
+def _file_slug(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", (name or "").lower()).strip("-") or "collection"
+
+
 @router.get("/collection/{job_id}/export")
 async def export_collection(
     job_id: str,
+    kind: str = "enhanced",
     store: CollectionStore = Depends(get_collection_store),
     bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager),
 ):
-    """Export the enhanced CSV, rebuilding it from the original rows if needed."""
+    """Export a collection.
+
+    kind "enhanced" (the default) gives the imported CSV with the card data
+    added, rebuilt from the original rows if needed. The other kinds give the
+    format of another app (see backend.core.exporters.KINDS).
+    """
     if not re.match(r'^[a-f0-9-]+$', job_id):
         raise HTTPException(status_code=400, detail="Invalid job ID format")
+    if kind != "enhanced" and kind not in EXPORT_KINDS:
+        raise HTTPException(status_code=400, detail="Unknown export kind: %s" % kind)
     if store.get_collection(job_id) is None:
         raise HTTPException(status_code=404, detail="Collection not found")
+
+    if kind != "enhanced":
+        index = await bulk_data_manager.load_bulk_data()
+        rows = store.cards_with_binders(job_id)
+        meta = next((m for m in store.list_collections() if m["job_id"] == job_id), {})
+        made = await asyncio.to_thread(export_any, kind, rows, index or {})
+        filename = "%s-%s.%s" % (_file_slug(meta.get("name", "")), kind, made.extension)
+        return Response(content=made.body, media_type=made.media_type,
+                        headers={"Content-Disposition": 'attachment; filename="%s"' % filename})
 
     output_file = progress_file(job_id)
     if not output_file.exists():

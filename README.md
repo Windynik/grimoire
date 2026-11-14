@@ -143,6 +143,12 @@ The Vault is the *Collection* screen. A switcher at the top picks a collection o
 - **Keys.** `/` focuses the search, and `Esc` clears it. The arrow keys move between tiles, and `Enter` opens the drawer. In the drawer, the left and right arrows show the previous and next card, `F` flips the card, and `Esc` closes the drawer.
 - **Sets.** The *Sets* view lists each set with the cards you own, a completion bar, and the value you own in it. Each card name counts once in a set. Press a set to open its checklist. The checklist shows missing cards dimmed. *Missing only* hides the cards you own.
 - **Remembered view.** The Vault remembers the search, the filters, the sort, the view, and the card size for each collection in your browser. It restores them when you come back.
+- **Export.** The *Export* menu at the top of the Vault downloads the collection as:
+  - *CSV with card data*: your imported CSV with the card data added (the same file as *Export CSV* on Home).
+  - *ManaBox*, *Moxfield*, *Archidekt* or *Deckbox CSV*: the file that each app's collection import reads, with the set, the collector number and the finish of each card. ManaBox keeps the binder of each card, and Archidekt gets it as a tag. Deckbox has no etched finish, so an etched card goes out as a foil.
+  - *Card list (text)*: one line per stack, such as `4 Lightning Bolt (2X2) 117 *F*`. Most apps take it as pasted text.
+
+  Grimoire does not track condition or language, so each export says Near Mint and English. Grimoire's own importer reads every format back with the same cards.
 
 ### The Deck Forge
 
@@ -170,7 +176,7 @@ The *Decks* screen lists your saved decks. Each deck belongs to one format.
 - **Why a card is flagged:** each badge on a card has a plain reason as its tooltip, for example "Banned in Modern.", "Commander allows 1 copy of a card. This deck has 2." or "Its color identity has black. Krenko, Mob Boss allows only red." In the stats panel, each issue opens to the cards and their reasons.
 - **Commander brackets:** a Commander deck shows the facts that set the lowest bracket it can be in ([Commander Brackets](https://magic.wizards.com/en/formats/commander) from Wizards). The facts are the Game Changers (from Scryfall's card data), mass land denial, extra-turn cards and tutors. A Game Changer gives bracket 3 or higher. More than 3 Game Changers, or mass land denial, gives bracket 4 or higher. Otherwise the deck shows "Bracket 1 or 2", because how you play the deck decides between them. The app finds mass land denial and extra turns from the rules text, so they are best guesses. It does not look for two-card combos yet.
 - **Autosave:** the editor saves each change after a short pause. It saves again when you leave. If a save fails, the editor says so, and it refuses an export until a save works.
-- **Export:** the export menu gives plain text, Arena-style text, and CSV. You can copy or download the text and Arena kinds. You can only download the CSV kind.
+- **Export:** the export menu gives plain text, text with printings (each line names its set and collector number, as Moxfield and Archidekt read it), Arena text, Magic Online text, and CSV. The Magic Online list puts the commander in the sideboard, as MTGO expects. You can copy or download each text kind. You can only download the CSV kind.
 - **Sample hand:** draw a hand of seven cards, and take a mulligan, or draw one more card.
 - **Pull list:** the *Pull list* view shows where each card of the deck is, grouped by collection and binder, so you can take the cards out one binder at a time. It takes the same printing first, then the deck's own collection, then the largest stack. Basic lands and cards that no collection holds have their own groups. Tick each card as you pull it, or copy the list as text.
 - **Built decks and taken copies:** turn on *Built* when you put a deck together from your real cards. Only a built deck holds its copies. New decks, imported lists, copies and forge drafts start as not built, so ideas take no cards. When other built decks use the copies of a card that this deck needs, the card gets a badge with the deck name ("in Burn"). The tooltip names each deck and gives the free copies.
