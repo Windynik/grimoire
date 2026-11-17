@@ -27,7 +27,15 @@ The screenshots use a synthetic sample collection.
 
 ## Quick start
 
-You need Python 3.9 or newer. One command sets everything up and starts the app (macOS and Linux):
+You need Python 3.9 or newer. One line installs Grimoire (macOS and Linux):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Windynik/grimoire/main/install.sh | bash
+```
+
+The installer puts the app in `~/grimoire`, sets it up, and adds a `grimoire` command in `~/.local/bin` (it says how to add that folder to your PATH when it is missing). Then type `grimoire` to start the app. Run the same line again to update: the update keeps your card data, collections and decks. Options go after `bash -s --`, for example `curl -fsSL … | bash -s -- --with-mcp --start`: `--with-mcp` also installs the MCP server, `--start` starts the app at the end, and `--no-setup` only fetches the app. `GRIMOIRE_HOME` sets another app folder. Without git, the installer downloads the code as an archive. To read the script before you run it, download it first: `curl -fsSL -o install.sh https://raw.githubusercontent.com/Windynik/grimoire/main/install.sh`.
+
+If you already have the code, one command sets up and starts the app:
 
 ```bash
 git clone https://github.com/Windynik/grimoire.git && cd grimoire && ./grimoire
