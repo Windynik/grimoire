@@ -1,43 +1,6 @@
-// App shell: the top bar nav and the drifting motes of the atmosphere.
+// App shell: the top bar nav, the skip link, and the bar height.
 
 import { navigate } from "./router.js";
-import { onReducedMotionChange, reducedMotion } from "../shared/motion.js";
-
-const MOTE_COUNT = 22;
-const MOTE_COLORS = [
-  "var(--gold-bright)", "var(--mana-u)", "var(--mana-r)",
-  "var(--mana-g)", "var(--mana-w)", "var(--mana-b)",
-];
-
-function spawnMotes(atmosphere) {
-  for (let i = 0; i < MOTE_COUNT; i++) {
-    const mote = document.createElement("span");
-    mote.className = "mote";
-    mote.style.left = `${Math.random() * 100}%`;
-    mote.style.setProperty("--size", `${2 + Math.random() * 3}px`);
-    mote.style.setProperty("--clr", MOTE_COLORS[i % MOTE_COLORS.length]);
-    mote.style.setProperty("--mote-dur", `${16 + Math.random() * 20}s`);
-    // A negative delay puts each mote mid-flight when the page loads.
-    mote.style.setProperty("--mote-delay", `${-Math.random() * 36}s`);
-    mote.style.setProperty("--drift", `${(Math.random() - 0.5) * 120}px`);
-    atmosphere.appendChild(mote);
-  }
-}
-
-function clearMotes(atmosphere) {
-  atmosphere.querySelectorAll(".mote").forEach((mote) => mote.remove());
-}
-
-// The motes drift only when the owner allows motion.
-function startMotes() {
-  const atmosphere = document.querySelector(".atmosphere");
-  if (!atmosphere) return;
-  if (!reducedMotion()) spawnMotes(atmosphere);
-  onReducedMotionChange((reduced) => {
-    clearMotes(atmosphere);
-    if (!reduced) spawnMotes(atmosphere);
-  });
-}
 
 // A plain click on a nav link goes through the router, so a click on the link
 // of the open screen opens that screen again. Other clicks (a new tab) stay native.
@@ -66,7 +29,6 @@ function trackBarHeight() {
   else window.addEventListener("resize", set);
 }
 
-/** Build the drifting motes (none under reduced motion), bind the nav, and publish the bar height. */
 // The skip link moves the focus to the main content. It does not change the
 // hash, because the router reads the hash as the screen to show.
 function bindSkipLink() {
@@ -79,8 +41,8 @@ function bindSkipLink() {
   });
 }
 
+/** Bind the nav and the skip link, and publish the bar height. */
 export function startShell() {
-  startMotes();
   bindNav();
   bindSkipLink();
   trackBarHeight();

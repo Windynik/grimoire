@@ -170,8 +170,9 @@ test("the old header whimsy is gone", () => {
   assert.deepEqual(scripts, ["/js/app/main.js"]);
 });
 
-test("the shell builds the drifting motes", () => {
-  assert.equal(document.querySelectorAll(".atmosphere .mote").length, 22);
+test("the page has no decorative background layer", () => {
+  assert.equal(document.querySelector(".atmosphere"), null);
+  assert.equal(document.querySelectorAll(".mote").length, 0);
 });
 
 test("no window.grimoire globals remain", () => {

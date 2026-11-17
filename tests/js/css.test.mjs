@@ -100,6 +100,14 @@ test("tokens.css defines the three font families", () => {
   assert.match(tokens, /--font-ui:\s*"Geist", system-ui, sans-serif;/);
 });
 
+test("the page has no decorative background", () => {
+  const html = indexHtml();
+  assert.doesNotMatch(html, /class="atmosphere"|class="glow|class="grain"/, "index.html");
+  for (const file of cssFiles()) {
+    assert.doesNotMatch(file.text, /\.atmosphere\b|\.glow\b|\.grain\b|\.mote\b|mote-rise/, file.name);
+  }
+});
+
 test("index.html loads the stylesheets in token order", () => {
   const sheets = [...indexHtml().matchAll(/<link rel="stylesheet" href="([^"]+)"/g)].map((m) => m[1]);
   assert.deepEqual(sheets, [

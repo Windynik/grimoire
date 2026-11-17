@@ -16,11 +16,6 @@ before(async () => {
   });
 });
 
-test("reduced motion builds no motes", () => {
-  assert.ok(app.document.querySelector(".atmosphere"));
-  assert.equal(app.document.querySelectorAll(".atmosphere .mote").length, 0);
-});
-
 test("reduced motion still opens Home", () => {
   assert.ok(app.document.getElementById("home-view").classList.contains("active"));
 });

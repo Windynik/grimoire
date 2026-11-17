@@ -1,56 +1,5 @@
-/* App shell: the atmosphere behind every screen, the slim top bar, and the
-   main nav. Every rule uses the tokens in tokens.css. */
-
-/* --------------------------------------------------------------------------
-   Atmosphere — fixed background glows, film grain, and drifting motes
-   -------------------------------------------------------------------------- */
-.atmosphere {
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-    overflow: hidden;
-    pointer-events: none;
-}
-
-.glow {
-    position: absolute;
-    width: 55vmax;
-    height: 55vmax;
-    border-radius: 50%;
-    filter: blur(120px);
-    opacity: 0.10;
-}
-
-.glow-u { background: var(--mana-u); top: -25vmax; right: -15vmax; opacity: 0.13; }
-.glow-r { background: var(--mana-r); bottom: -30vmax; left: -20vmax; opacity: 0.08; }
-.glow-g { background: var(--mana-g); bottom: -25vmax; right: 20vmax; opacity: 0.07; }
-
-.grain {
-    position: absolute;
-    inset: 0;
-    opacity: 0.5;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.04 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-}
-
-/* The motes come from js/app/shell.js. It makes none under reduced motion. */
-.mote {
-    position: absolute;
-    bottom: -12px;
-    width: var(--size, 3px);
-    height: var(--size, 3px);
-    border-radius: 50%;
-    background: var(--clr, var(--gold-bright));
-    box-shadow: 0 0 6px 1px var(--clr, var(--gold-bright));
-    opacity: 0;
-    animation: mote-rise var(--mote-dur, calc(var(--dur-slow) * 33)) linear var(--mote-delay, 0ms) infinite;
-}
-
-@keyframes mote-rise {
-    0%   { transform: translate(0, 0) scale(1); opacity: 0; }
-    8%   { opacity: 0.65; }
-    60%  { opacity: 0.4; }
-    100% { transform: translate(var(--drift, 0px), -105vh) scale(0.4); opacity: 0; }
-}
+/* App shell: the slim top bar and the main nav. Every rule uses the tokens
+   in tokens.css. */
 
 /* --------------------------------------------------------------------------
    Top bar
