@@ -78,26 +78,30 @@ function keyframeBodies(css) {
 
 const LAYOUT = /^(width|height|min-width|max-width|min-height|max-height|top|left|right|bottom|inset|margin(-[a-z]+)?|padding(-[a-z]+)?)$/;
 
-test("retired fonts are gone", () => {
-  const retired = /Marcellus|Figtree|IBM[ +]Plex[ +]Mono|\bInter\b|Cormorant|Cinzel(?![ +]Decorative)/;
-  for (const file of cssFiles()) assert.doesNotMatch(file.text, retired, file.name);
+// The app works offline: it loads no web fonts and uses the fonts of the system.
+const SYSTEM_UI = '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
+
+test("the app loads no web fonts", () => {
   const html = indexHtml();
+  assert.doesNotMatch(html, /fonts\.googleapis\.com|fonts\.gstatic\.com/, "index.html");
+  const retired = /Cinzel|Spectral|Geist|Marcellus|Figtree|Cormorant|\bInter\b|IBM[ +]Plex/;
+  for (const file of cssFiles()) assert.doesNotMatch(file.text, retired, file.name);
   assert.doesNotMatch(html, retired, "index.html");
-  const link = html.match(/href="(https:\/\/fonts\.googleapis\.com\/css2\?[^"]+)"/);
-  assert.ok(link, "index.html loads the fonts");
-  const families = new URL(link[1].replace(/&amp;/g, "&")).searchParams.getAll("family");
-  assert.deepEqual(families, [
-    "Cinzel Decorative:wght@700",
-    "Spectral:ital,wght@0,500;0,600;1,500",
-    "Geist:wght@400;500;600;700;800",
-  ]);
 });
 
-test("tokens.css defines the three font families", () => {
-  const tokens = cssFiles().find((f) => f.name.endsWith("tokens.css")).text;
-  assert.match(tokens, /--font-display:\s*"Cinzel Decorative", Georgia, serif;/);
-  assert.match(tokens, /--font-serif:\s*"Spectral", Georgia, serif;/);
-  assert.match(tokens, /--font-ui:\s*"Geist", system-ui, sans-serif;/);
+test("tokens.css defines one text font and one number font", () => {
+  const tokens = tokensCss();
+  assert.match(tokens, /--font-ui:\s*-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;/);
+  assert.doesNotMatch(tokens, /--font-display|--font-serif/);
+  for (const file of cssFiles()) {
+    assert.doesNotMatch(file.text, /var\(--font-(display|serif)\)/, file.name);
+  }
+});
+
+test("no text is italic", () => {
+  for (const file of cssFiles()) {
+    assert.doesNotMatch(file.text, /font-style:\s*italic|font:\s*italic/, file.name);
+  }
 });
 
 test("the page has no decorative background", () => {
@@ -153,9 +157,7 @@ test("tokens.css declares the global token set", () => {
     "--space-1": "4px", "--space-2": "8px", "--space-3": "12px",
     "--space-4": "16px", "--space-5": "24px", "--space-6": "32px",
     "--radius-sm": "10px", "--radius-md": "14px", "--radius-lg": "22px",
-    "--font-display": '"Cinzel Decorative", Georgia, serif',
-    "--font-serif": '"Spectral", Georgia, serif',
-    "--font-ui": '"Geist", system-ui, sans-serif',
+    "--font-ui": SYSTEM_UI,
     "--font-mono": 'ui-monospace, "SF Mono", Menlo, monospace',
     "--dur-fast": "150ms", "--dur-base": "250ms", "--dur-slow": "600ms",
     "--ease-out": "cubic-bezier(0.2, 0.8, 0.2, 1)",

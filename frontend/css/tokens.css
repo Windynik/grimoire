@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Grimoire design tokens — "moonlit grimoire"
+   Grimoire design tokens
    The only file that holds the accent hex values and the raw motion times.
    frontend/js/shared/motion.js holds the same durations and easings.
    ========================================================================== */
@@ -72,10 +72,8 @@
     --shadow-1: 0 6px 18px rgba(0, 0, 0, 0.35);
     --shadow-2: 0 18px 50px rgba(0, 0, 0, 0.6);
 
-    /* Type */
-    --font-display: "Cinzel Decorative", Georgia, serif;
-    --font-serif: "Spectral", Georgia, serif;
-    --font-ui: "Geist", system-ui, sans-serif;
+    /* Type: the fonts of the system. The app works offline, so it loads no web fonts. */
+    --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
     --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
 
     /* Motion. Movement uses transform and opacity only. */

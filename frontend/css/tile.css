@@ -46,7 +46,7 @@
 
 .deck-title {
     margin: 0;
-    font-family: var(--font-serif);
+    font-family: var(--font-ui);
     font-weight: 600;
     font-size: 1.1rem;
     letter-spacing: 0.04em;

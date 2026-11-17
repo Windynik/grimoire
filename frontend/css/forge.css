@@ -11,7 +11,7 @@
 }
 
 #forge-view .forge-title {
-    font-family: var(--font-display);
+    font-family: var(--font-ui);
     font-size: 1.9rem;
     font-weight: 700;
     letter-spacing: 0.06em;
@@ -21,8 +21,7 @@
 
 #forge-view .forge-lede,
 #forge-view .forge-hint {
-    font-family: var(--font-serif);
-    font-style: italic;
+    font-family: var(--font-ui);
     color: var(--text-dim);
     font-size: 0.92rem;
     margin-bottom: 1rem;
@@ -173,7 +172,7 @@
     justify-content: center;
     padding: 0.75rem;
     text-align: center;
-    font-family: var(--font-serif);
+    font-family: var(--font-ui);
     font-weight: 600;
     font-size: 0.95rem;
     border: 2px dashed var(--border-bright);
@@ -410,7 +409,7 @@
     align-items: center;
     justify-content: center;
     height: 100%;
-    font-family: var(--font-display);
+    font-family: var(--font-ui);
     font-weight: 700;
     font-size: 2.6rem;
     color: var(--gold);
@@ -643,7 +642,7 @@
     align-items: center;
     gap: 8px;
     margin-bottom: 9px;
-    font-family: var(--font-serif);
+    font-family: var(--font-ui);
     font-weight: 600;
     font-size: 13px;
     letter-spacing: 0.5px;
@@ -817,21 +816,21 @@
 #forge-view .forge-curve-x span { flex: 1; text-align: center; }
 
 #forge-view .forge-reveal-name {
-    font-family: var(--font-serif);
+    font-family: var(--font-ui);
     font-weight: 600;
     font-size: 16px;
     color: var(--gold);
 }
 
 #forge-view .forge-explain-title {
-    font-family: var(--font-serif);
+    font-family: var(--font-ui);
     font-weight: 600;
     color: var(--gold);
 }
 
 #forge-view .forge-explain-body h4 {
     margin: 8px 0 2px;
-    font-family: var(--font-serif);
+    font-family: var(--font-ui);
     font-size: 12.5px;
     font-weight: 600;
     color: var(--gold);

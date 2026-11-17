@@ -72,7 +72,6 @@
 
 .upload-hint {
     font-size: 1rem;
-    font-style: italic;
     color: var(--text-dim);
     margin-top: 0.35rem;
 }
@@ -250,7 +249,6 @@
 
 .import-more {
     color: var(--text-dim);
-    font-style: italic;
     margin-bottom: 1.5rem;
 }
 
