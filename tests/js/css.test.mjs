@@ -108,6 +108,21 @@ test("the page has no decorative background", () => {
   }
 });
 
+test("buttons use sentence case and stay still", () => {
+  const base = cssFiles().find((f) => f.name === join("css", "base.css")).text;
+  const rule = (selector) => {
+    const at = base.indexOf(`\n${selector} {`);
+    assert.ok(at >= 0, `base.css has ${selector}`);
+    return base.slice(at, base.indexOf("}", at));
+  };
+  const btn = rule(".btn");
+  assert.doesNotMatch(btn, /text-transform|letter-spacing/);
+  assert.doesNotMatch(btn, /border-radius:\s*999px/, "no pill shape");
+  assert.ok(!base.includes(".btn::after"), "no shine sweep on hover");
+  assert.doesNotMatch(rule(".btn-primary"), /gradient/, "the primary button is one flat color");
+  assert.ok(!/\.btn-primary:hover[^{]*\{[^}]*transform/.test(base), "the primary button does not lift");
+});
+
 test("index.html loads the stylesheets in token order", () => {
   const sheets = [...indexHtml().matchAll(/<link rel="stylesheet" href="([^"]+)"/g)].map((m) => m[1]);
   assert.deepEqual(sheets, [
