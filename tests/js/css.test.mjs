@@ -369,3 +369,17 @@ test("the page can be installed on a phone home screen", () => {
   }
   assert.ok(statSync(join(FRONTEND, "apple-touch-icon.png")).size > 0);
 });
+
+test("the deck editor views are a plain tab bar that never wraps", () => {
+  const decks = cssFiles().find((f) => f.name === join("css", "decks.css")).text;
+  const rule = (selector) => {
+    const at = decks.indexOf(`${selector} {`);
+    assert.ok(at >= 0, `decks.css has ${selector}`);
+    return decks.slice(at, decks.indexOf("}", at));
+  };
+  const tab = rule("#decks-view .deck-view-tab");
+  assert.match(tab, /white-space:\s*nowrap/);
+  assert.doesNotMatch(tab, /border-radius:\s*999px/, "no pill shape");
+  // On a narrow screen the bar scrolls sideways instead of hiding the last tabs.
+  assert.match(rule("#decks-view .deck-views"), /overflow-x:\s*auto/);
+});

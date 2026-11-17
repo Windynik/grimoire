@@ -1043,31 +1043,45 @@
 }
 
 /* View switch of the center column: Deck, Hand, Explanation */
+/* A plain tab bar: one line, an underline on the open view. On a narrow
+   screen it scrolls sideways, so no tab hides past the edge. */
 #decks-view .deck-views {
     display: flex;
-    gap: 0.4rem;
+    gap: 0;
     margin-bottom: 0.9rem;
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    scrollbar-width: thin;
 }
 
 #decks-view .deck-view-tab {
-    padding: 0.35rem 0.8rem;
+    flex: none;
+    margin-bottom: -1px;
+    padding: 0.45rem 0.7rem;
     font: inherit;
-    font-size: 0.85rem;
+    font-size: 0.88rem;
+    white-space: nowrap;
     color: var(--text-dim);
     background: transparent;
-    border: 1px solid var(--border);
-    border-radius: 999px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
     cursor: pointer;
 }
 
-#decks-view .deck-view-tab[aria-selected="true"] {
-    color: var(--gold);
-    border-color: var(--gold);
+#decks-view .deck-view-tab:hover {
+    color: var(--text);
 }
 
+#decks-view .deck-view-tab[aria-selected="true"] {
+    color: var(--text);
+    border-bottom-color: var(--gold);
+}
+
+/* The bar clips what passes its edge, so the focus ring sits inside the tab. */
 #decks-view .deck-view-tab:focus-visible {
     outline: 2px solid var(--violet);
-    outline-offset: 2px;
+    outline-offset: -2px;
 }
 
 #decks-view .editor-deck:not([data-view="deck"]) [data-view-panel="deck"],
