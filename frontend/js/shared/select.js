@@ -11,6 +11,11 @@
 // The button is a select-only combobox (WAI-ARIA): Enter, Space or the arrows
 // open the list; the arrows, Home, End and Page keys move; Enter or Space
 // chooses; Escape closes; typing a letter jumps to the next option with it.
+//
+// A multiple select works the same, but a choice turns one option on or off
+// and the list stays open. The button names up to two chosen options ("Binder
+// + Trade Box"), else the count ("3 collections", with data-count-label), and
+// data-placeholder when none is chosen.
 
 import { h } from "./dom.js";
 
@@ -47,8 +52,15 @@ function selectedOption(select) {
 function sync(select) {
   const state = ENHANCED.get(select);
   if (!state) return;
-  const current = selectedOption(select);
-  state.value.textContent = current ? optionLabel(current) : "";
+  if (select.multiple) {
+    const chosen = [...select.options].filter((option) => option.selected);
+    state.value.textContent = !chosen.length ? (select.dataset.placeholder || "None")
+      : chosen.length <= 2 ? chosen.map(optionLabel).join(" + ")
+        : `${chosen.length} ${select.dataset.countLabel || "selected"}`;
+  } else {
+    const current = selectedOption(select);
+    state.value.textContent = current ? optionLabel(current) : "";
+  }
   state.trigger.disabled = select.disabled;
   state.trigger.hidden = select.hidden;
   const name = (select.getAttribute("aria-label") || "").trim() || state.name;
@@ -121,6 +133,7 @@ function openMenu(select, start) {
   const menu = h("ul", { id: `gselect-menu-${++uid}`, class: "gselect-menu", role: "listbox", tabindex: "-1" });
   const name = state.trigger.getAttribute("aria-label");
   if (name) menu.setAttribute("aria-label", name);
+  if (select.multiple) menu.setAttribute("aria-multiselectable", "true");
   const current = INDEX ? INDEX.get.call(select) : select.selectedIndex;
   open = { select, trigger: state.trigger, menu, active: current >= 0 ? current : 0, typed: "", typedAt: 0 };
   if (typeof start === "number") open.active = start;
@@ -163,6 +176,17 @@ function closeMenu(focus = true) {
 
 function choose(index) {
   const { select } = open;
+  if (select.multiple) {
+    // Turn one option on or off; the list stays open for the next one.
+    const option = select.options[index];
+    if (!option || option.disabled) return;
+    option.selected = !option.selected;
+    open.active = index;
+    sync(select);
+    select.dispatchEvent(new Event("input", { bubbles: true }));
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+    return;
+  }
   closeMenu();
   const before = INDEX ? INDEX.get.call(select) : select.selectedIndex;
   if (index === before || !select.options[index]) return;
@@ -256,9 +280,9 @@ function patchSetters() {
   });
 }
 
-/** Give one select the styled button and list. A select with data-native, or a multiple select, stays native. */
+/** Give one select the styled button and list. A select with data-native stays native. */
 export function enhanceSelect(select) {
-  if (!select || ENHANCED.has(select) || select.multiple || select.hasAttribute("data-native")) return;
+  if (!select || ENHANCED.has(select) || select.hasAttribute("data-native")) return;
   const value = h("span", { class: "gselect-value" });
   const trigger = h("button", {
     type: "button", class: `gselect ${select.className || ""}`.trim(), role: "combobox",
@@ -289,7 +313,7 @@ export function enhanceSelect(select) {
 
   new MutationObserver(() => sync(select)).observe(select, {
     childList: true, subtree: true, characterData: true, attributes: true,
-    attributeFilter: ["disabled", "hidden", "aria-label", "selected", "label"],
+    attributeFilter: ["disabled", "hidden", "aria-label", "selected", "label", "data-placeholder"],
   });
   sync(select);
 }

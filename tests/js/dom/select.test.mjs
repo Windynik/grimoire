@@ -131,3 +131,33 @@ test("a select with an aria-label names the button with it, and data-native stay
   mod.enhanceSelect(host.querySelector("select"));
   assert.equal(host.querySelector("button.gselect"), null);
 });
+
+const BOXES = `<label><span>Collections</span><select multiple data-placeholder="Newest collection"
+  data-count-label="collections"><option value="a">Binder</option><option value="b">Trade Box</option>
+  <option value="c">Pasted list</option></select></label>`;
+
+test("a multiple select shows the chosen names, and a choice keeps the list open", () => {
+  const { select, button } = make(BOXES);
+  assert.equal(button.textContent, "Newest collection");
+  const changes = [];
+  select.addEventListener("change", () => changes.push([...select.selectedOptions].map((o) => o.value)));
+  button.click();
+  const menu = document.querySelector(".gselect-menu");
+  assert.equal(menu.getAttribute("aria-multiselectable"), "true");
+  const option = (n) => menu.querySelectorAll('[role="option"]')[n];
+  option(0).click();
+  assert.ok(mod.isOpen(), "the list stays open");
+  assert.equal(option(0).getAttribute("aria-selected"), "true");
+  option(1).click();
+  assert.deepEqual(changes, [["a"], ["a", "b"]]);
+  assert.equal(button.textContent, "Binder + Trade Box");
+  button.dispatchEvent(key("End"));
+  button.dispatchEvent(key(" "));
+  assert.equal(button.textContent, "3 collections");
+  button.dispatchEvent(key("Home"));
+  button.dispatchEvent(key("Enter"));  // Enter also toggles: Binder goes out
+  assert.deepEqual(changes.at(-1), ["b", "c"]);
+  button.dispatchEvent(key("Escape"));
+  assert.equal(mod.isOpen(), false);
+  assert.equal(button.textContent, "Trade Box + Pasted list");
+});
