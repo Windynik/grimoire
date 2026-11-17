@@ -1,5 +1,7 @@
-// Number and date formats of the Vault screen. One money format for every
-// price and total on the screen: "$1,234.50".
+// Number and date formats of the collection screen. One money format for
+// every price and total on the screen: "$1,234.50".
+
+import { formatDay } from "../shared/format.js";
 
 /** "1,002" for a count. */
 export function formatCount(value) {
@@ -18,20 +20,7 @@ export function formatCardPrice(value) {
   return number > 0 ? formatMoney(number) : "—";
 }
 
-function dateOf(iso) {
-  if (!iso) return null;
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-/** "19 July 2026", or "" when there is no valid date. */
-export function longDate(iso) {
-  const date = dateOf(iso);
-  return date ? date.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : "";
-}
-
 /** "4 Jun 2026", or "" when there is no valid date. */
 export function shortDate(iso) {
-  const date = dateOf(iso);
-  return date ? date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "";
+  return formatDay(iso);
 }

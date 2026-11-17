@@ -3,6 +3,7 @@
 // answer in the deck. Server text goes in with textContent only.
 
 import { h } from "../shared/dom.js";
+import { formatDay } from "../shared/format.js";
 
 const SHOWN = 6;
 
@@ -31,9 +32,7 @@ function list(combos, missing) {
 }
 
 function checkedText(iso) {
-  const date = iso ? new Date(iso) : null;
-  return date && !Number.isNaN(date.getTime())
-    ? date.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "";
+  return formatDay(iso);
 }
 
 /**

@@ -6,7 +6,7 @@ import { navigate } from "../app/router.js";
 import * as decksApi from "../decks/api.js";
 import { deckTile } from "../decks/tile.js";
 import { h } from "../shared/dom.js";
-import { formatDate } from "../shared/format.js";
+import { formatDate, formatDay } from "../shared/format.js";
 import { confirmDialog } from "../shared/modal.js";
 import {
   activeCollection, setActiveCollection, setViewerSource, viewerSource,
@@ -136,7 +136,7 @@ function openCollection(c) {
 }
 
 function collectionRow(c) {
-  const created = c.created ? ` · ${new Date(c.created).toLocaleDateString()}` : "";
+  const created = formatDay(c.created) ? ` · ${formatDay(c.created)}` : "";
   const count = Number(c.card_count || 0).toLocaleString();
 
   const view = h("button", {

@@ -3,14 +3,8 @@
 // Deck names and server text go in with textContent only.
 
 import { h } from "../shared/dom.js";
-import { plural } from "../shared/format.js";
+import { formatDay, plural } from "../shared/format.js";
 import { cardImg } from "../shared/images.js";
-
-function formatDate(value) {
-  const date = new Date(value);
-  if (!value || Number.isNaN(date.getTime())) return "";
-  return date.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
-}
 
 // The art card of a deck summary: image_url, image_id (its Scryfall id) and
 // image_name. An older summary with no image_id falls back to the raw URL.
@@ -51,7 +45,7 @@ export function deckTile(deck, {
         h("span", { class: "deck-meta", text: meta.join(" · ") })));
   }
 
-  const updated = formatDate(deck.updated);
+  const updated = formatDay(deck.updated);
   if (updated) meta.push(`Updated ${updated}`);
 
   const open = h("button", {

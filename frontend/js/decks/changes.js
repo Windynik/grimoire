@@ -4,6 +4,7 @@
 // Server text goes in with textContent only.
 
 import { h } from "../shared/dom.js";
+import { formatDay } from "../shared/format.js";
 
 // After this many card lines, the rest of an entry folds away.
 const SHOWN_CARDS = 12;
@@ -30,11 +31,11 @@ export function dayLabel(iso, now = new Date()) {
   yesterday.setDate(now.getDate() - 1);
   if (dayKey(date) === dayKey(now)) return "Today";
   if (dayKey(date) === dayKey(yesterday)) return "Yesterday";
-  return date.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  return formatDay(iso);
 }
 
 function timeText(iso) {
-  return new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  return new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 }
 
 function cardLine(card) {

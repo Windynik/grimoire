@@ -5,6 +5,7 @@
 // saved values when its setup opens.
 
 import { h } from "../shared/dom.js";
+import { formatDay } from "../shared/format.js";
 import { del, getJSON, postJSON, putJSON } from "../shared/http.js";
 import { autoStartImageSync, imageSyncState, onImageSync, startImageSync } from "../shared/imagesync.js";
 import { isRecommended } from "../shared/models.js";
@@ -167,9 +168,8 @@ let priceChecking = 0;
 
 function priceDate(iso) {
   if (!iso) return "";
-  const date = new Date(`${String(iso).slice(0, 10)}T12:00:00`);
-  return Number.isNaN(date.getTime()) ? ""
-    : date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  // A date with no time: noon keeps the same day in every time zone.
+  return formatDay(`${String(iso).slice(0, 10)}T12:00:00`);
 }
 
 function pricesGroup() {
