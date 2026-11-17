@@ -426,7 +426,6 @@ def test_find_combos_saves_the_summary_and_reports_a_failure(overrides, monkeypa
 
     from backend.api import deck_routes
 
-    sac = _sac()
     sent = []
 
     async def fake(body, transport=None):

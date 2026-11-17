@@ -247,9 +247,8 @@ def test_rewriting_the_older_collection_refreshes_new_flags(env):
 import datetime
 
 from backend.api import collection_routes, routes
-from backend.api.dependencies import get_csv_processor, get_deck_store
+from backend.api.dependencies import get_csv_processor
 from backend.core.csv_processor import CSVProcessor
-from backend.decks.store import DeckStore
 
 
 @pytest.fixture

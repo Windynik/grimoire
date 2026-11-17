@@ -6,7 +6,7 @@ by collection and binder, so the owner can take the cards out one binder at
 a time. Pure functions. Makes no network calls.
 """
 
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 from backend.decks.records import deck_collections, entry_key
 from backend.decks.usage import card_key
