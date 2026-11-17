@@ -2,50 +2,29 @@
 //
 // Three steps light up on a path at the left. The scene at the right shows the
 // current step:
-//   1. the card data download, with a sigil and a progress ring;
-//   2. the import of a collection export or of the sample collection, on a binder
-//      page with ten card slots that light up as the rows go by; at the end,
-//      real cards of the new collection flip into the slots;
-//   3. the reveal: the most valuable cards fan in and the ledger counts up.
+//   1. the card data download, with a progress bar and a status line;
+//   2. the import of a collection export or of the sample collection, with a
+//      drop box and a progress bar;
+//   3. the summary: the numbers of the new collection.
 //
-// The gate that sends Home and the Vault here lives in gate.js. This module
-// builds its UI on the first open().
+// The gate that sends Home and the collection screen here lives in gate.js.
+// This module builds its UI on the first open().
 //
-// Server text goes in with textContent only (h()). Card images use cardImg.
+// Server text goes in with textContent only (h()).
 
 import { navigate, parseHash, redirect } from "../app/router.js";
 import { formatCount, formatMoney } from "../collection/numbers.js";
 import { h } from "../shared/dom.js";
 import { getJSON } from "../shared/http.js";
 import { isImportFile, WRONG_FILE } from "../shared/importfile.js";
-import { cardImg } from "../shared/images.js";
-import { DURATION, reducedMotion } from "../shared/motion.js";
 import { setActiveCollection, setViewerSource, setWelcomeSkipped } from "../shared/session.js";
 import { readSSE } from "../shared/sse.js";
 import { showToast } from "../shared/toast.js";
 
-const RING = 2 * Math.PI * 146; // the length of the ring (r = 146 in the SVG)
-const SLOTS = 10;
-const FAN = 5;
-const FAN_SPOTS = [0, -1, 1, -2, 2]; // the most valuable card goes in the middle
-const COUNT_MS = DURATION.slow * 2;
-// The flip of the binder slots: each card starts FLIP_STEP after the one
-// before and flips for DURATION.base (css/welcome.css, .welcome-slot-card).
-// Ten cards end at 574 ms, inside DURATION.slow.
-const FLIP_STEP = DURATION.fast * 0.24;
-const flipMs = (cards) => (cards > 0 ? DURATION.base + (cards - 1) * FLIP_STEP : 0);
 const STOPPED = "The import stopped. Try again.";
-const UNSHOWN = "The import finished, but its summary did not show. Open the Vault to see the cards.";
+const UNSHOWN = "The import finished, but its summary did not show. Open the collection to see the cards.";
 const DOWNLOAD_STOPPED = "The download stopped. Try again.";
-const DOWNLOAD_LABEL = "Download card data · 100 MB";
-// Flavor lines of the download, one for each fifth of the percent.
-const FLAVOR = [
-  "Gathering every card of the Multiverse…",
-  "Learning every mana cost…",
-  "Sorting the rules text…",
-  "Noting what each card is legal in…",
-  "Almost there…",
-];
+const DOWNLOAD_LABEL = "Download card data (about 100 MB)";
 
 const $ = (id) => document.getElementById(id);
 
@@ -57,9 +36,7 @@ const screen = {
   quarter: 0, // the last quarter of the import that screen readers heard
   job: null, // the job id of the new collection
 };
-let countFrame = 0;
 let ui = null;
-let endFlip = null; // ends the wait for the binder flip at once, while it runs
 
 // ---- the path and the panels -----------------------------------------------
 
@@ -91,7 +68,7 @@ function showStep(n, { focus = false } = {}) {
   syncSkip();
   if (!focus || !onView() || !focusInside()) return;
   // The control of the old step is gone: the focus moves to the new step.
-  if (n === 2) ui.binder.focus();
+  if (n === 2) ui.dropzone.focus();
   if (n === 3) ui.revealTitle.focus();
 }
 
@@ -114,17 +91,15 @@ function holdFocus(el) {
 
 // ---- step 1: the card data -------------------------------------------------
 
-function setSigil(percent, label) {
+function setMeter(percent) {
   const p = Math.max(0, Math.min(100, Number(percent) || 0));
-  ui.ring.setAttribute("stroke-dashoffset", (RING * (1 - p / 100)).toFixed(2));
-  ui.sigil.setAttribute("aria-valuenow", String(Math.round(p)));
-  if (label !== undefined) ui.sigilLabel.textContent = label;
+  ui.meterFill.style.transform = `scaleX(${p / 100})`;
+  ui.meter.setAttribute("aria-valuenow", String(Math.round(p)));
 }
 
-function resetSigil() {
-  setSigil(0, "Card library");
-  ui.pct.textContent = "✦";
-  ui.ticker.textContent = "";
+function resetDownload() {
+  setMeter(0);
+  ui.status.textContent = "";
   ui.downloadBtn.disabled = false;
   ui.downloadBtn.textContent = DOWNLOAD_LABEL;
 }
@@ -146,16 +121,15 @@ async function download() {
   let finished = false;
   ui.downloadBtn.disabled = true;
   ui.downloadBtn.textContent = "Downloading…";
-  setSigil(0, "Downloading");
-  ui.pct.textContent = "0%";
-  ui.ticker.textContent = FLAVOR[0];
-  holdFocus(ui.sigil);
+  setMeter(0);
+  ui.status.textContent = "Downloading card data: 0%";
+  holdFocus(ui.meter);
 
   const fail = (message) => {
     finished = true;
     screen.downloading = false;
     showToast(message || DOWNLOAD_STOPPED, "error");
-    resetSigil();
+    resetDownload();
     syncSkip();
   };
 
@@ -173,16 +147,14 @@ async function download() {
       }
       if (data.percentage !== undefined) {
         const p = Math.max(0, Math.min(100, Number(data.percentage) || 0));
-        setSigil(p);
-        ui.pct.textContent = `${Math.round(p)}%`;
-        ui.ticker.textContent = FLAVOR[Math.min(FLAVOR.length - 1, Math.floor(p / 20))];
+        setMeter(p);
+        ui.status.textContent = `Downloading card data: ${Math.round(p)}%`;
       }
       if (data.status === "complete") {
         finished = true;
-        setSigil(100, "Ready");
-        ui.pct.textContent = "✓";
+        setMeter(100);
         const count = await cardCount();
-        ui.ticker.textContent = count ? `${formatCount(count)} cards ready offline.` : "The card data is ready offline.";
+        ui.status.textContent = count ? `${formatCount(count)} cards ready offline.` : "The card data is ready offline.";
         ui.downloadBtn.textContent = "Card data ready";
         screen.downloading = false;
         if (gen === screen.gen) showStep(2, { focus: true });
@@ -199,23 +171,16 @@ async function download() {
 
 // ---- step 2: the import ----------------------------------------------------
 
-function buildSlots() {
-  ui.slots.replaceChildren(...Array.from({ length: SLOTS }, () => h("span", { class: "welcome-slot" })));
-}
-
-/** Show the binder ready for a file: no progress, dark slots. */
+/** Show the drop box ready for a file, with no progress. */
 function resetImport() {
   ui.file.value = "";
   ui.actions.hidden = false;
   ui.progress.hidden = true;
-  ui.drop.hidden = false;
-  ui.binder.classList.remove("is-busy", "is-drag");
-  ui.binder.setAttribute("aria-disabled", "false");
+  ui.dropzone.hidden = false;
+  ui.dropzone.classList.remove("is-drag");
   ui.choose.disabled = false;
   ui.sample.disabled = false;
-  ui.doneRow.hidden = true;
   ui.announce.textContent = "";
-  buildSlots();
   syncSkip();
 }
 
@@ -234,10 +199,6 @@ function showProgress(event) {
   // The server loads the card index first, so the total is 0 for a few seconds.
   ui.row.textContent = total > 0 ? `Row ${formatCount(current)} of ${formatCount(total)}` : "Reading the card data…";
   ui.card.textContent = event.current_card ? String(event.current_card) : "";
-  // The slots light up as the rows go by. Cards do not show here: the stream
-  // does not name the imported cards.
-  const lit = Math.floor(share * SLOTS);
-  [...ui.slots.children].forEach((slot, i) => slot.classList.toggle("is-lit", i < lit));
   const quarter = Math.floor(share * 4);
   if (quarter > screen.quarter && quarter < 4) {
     screen.quarter = quarter;
@@ -247,10 +208,8 @@ function showProgress(event) {
 
 function startProgress() {
   ui.actions.hidden = true;
-  ui.drop.hidden = true;
+  ui.dropzone.hidden = true;
   ui.progress.hidden = false;
-  ui.binder.classList.add("is-busy");
-  ui.binder.setAttribute("aria-disabled", "true");
   ui.choose.disabled = true;
   ui.sample.disabled = true;
   screen.quarter = 0;
@@ -265,8 +224,8 @@ function failImport(message) {
   const lost = screen.step === 2 && focusInside();
   showToast(message || STOPPED, "error");
   resetImport();
-  // The progress region that had the focus hid: the binder takes it back.
-  if (lost && onView()) ui.binder.focus();
+  // The progress region that had the focus hid: the drop box takes it back.
+  if (lost && onView()) ui.dropzone.focus();
 }
 
 async function runImport(request) {
@@ -296,7 +255,7 @@ async function runImport(request) {
         try {
           await finishImport(event.result || {});
         } catch (error) {
-          // The collection exists, but the reveal failed: say so, and go back to step 2.
+          // The collection exists, but the summary failed: say so, and go back to step 2.
           failImport(UNSHOWN);
         }
       } else if (event.type === "error") {
@@ -332,20 +291,6 @@ function chooseFile() {
   ui.file.click();
 }
 
-// Up to n cards with different names, in the order of the list.
-function uniqueCards(list, n) {
-  const names = new Set();
-  const out = [];
-  for (const card of list || []) {
-    if (out.length === n) break;
-    const name = card && String(card.name || "");
-    if (!card || !card.scryfall_id || names.has(name)) continue;
-    names.add(name);
-    out.push(card);
-  }
-  return out;
-}
-
 async function load(path) {
   try {
     return await getJSON(path);
@@ -354,28 +299,7 @@ async function load(path) {
   }
 }
 
-/** Put real cards of the new collection in the slots, with a flip stagger. */
-function fillSlots(cards) {
-  [...ui.slots.children].forEach((slot, i) => {
-    // Every row is read: each slot is lit. A slot without a card stays empty.
-    slot.classList.add("is-lit");
-    const card = cards[i];
-    if (!card) {
-      slot.replaceChildren();
-      return;
-    }
-    const face = h("span", { class: "welcome-slot-card" }, cardImg(card, { size: "small" }));
-    face.style.setProperty("--i", String(i));
-    slot.replaceChildren(face);
-  });
-}
-
-/**
- * Remember the new collection and read its shelves and insights. Real cards
- * flip into the binder, and "Open the Vault →" shows under it at once, so
- * nothing waits on the flip. When the flip ends, the reveal (step 3) shows.
- * Without shelves, or under reduced motion, the reveal shows at once.
- */
+/** Remember the new collection, read its numbers, and show the summary (step 3). */
 async function finishImport(result) {
   try {
     const job = result.job_id ? String(result.job_id) : null;
@@ -393,81 +317,20 @@ async function finishImport(result) {
     ui.row.textContent = `${formatCount(matched)} of ${formatCount(total)} rows matched`;
     ui.card.textContent = total > matched ? `${formatCount(total - matched)} to check` : "";
     announce(`Import done: ${formatCount(matched)} of ${formatCount(total)} rows matched.`);
-
-    const base = job ? `/collection/${encodeURIComponent(job)}` : null;
-    const [shelves, insights] = base
-      ? await Promise.all([load(`${base}/shelves`), load(`${base}/insights`)])
-      : [null, null];
-    const still = reducedMotion();
-    ui.view.classList.toggle("is-still", still);
-    const picks = uniqueCards(shelves && shelves.valuable, SLOTS);
-    if (picks.length) {
-      fillSlots(picks);
-      if (!still) {
-        ui.doneRow.hidden = false;
-        holdFocus(ui.done);
-        await new Promise((resolve) => {
-          const timer = setTimeout(resolve, flipMs(picks.length));
-          endFlip = () => {
-            clearTimeout(timer);
-            resolve();
-          };
-        });
-        endFlip = null;
-      }
-    }
+    const insights = job ? await load(`/collection/${encodeURIComponent(job)}/insights`) : null;
     screen.importing = false;
-    reveal(insights, shelves);
+    showSummary(insights);
   } finally {
     screen.importing = false;
   }
 }
 
-// ---- step 3: the reveal ----------------------------------------------------
+// ---- step 3: the summary ---------------------------------------------------
 
-function countUp(items) {
-  if (countFrame) cancelAnimationFrame(countFrame);
-  countFrame = 0;
-  const finish = () => items.forEach((item) => { item.el.textContent = item.format(item.to); });
-  if (reducedMotion() || typeof requestAnimationFrame !== "function") {
-    finish();
-    return;
-  }
-  const start = performance.now();
-  items.forEach((item) => { item.el.textContent = item.format(0); });
-  const step = () => {
-    const t = Math.min(1, (performance.now() - start) / COUNT_MS);
-    if (t >= 1) {
-      countFrame = 0;
-      finish();
-      return;
-    }
-    const eased = 1 - (1 - t) ** 4;
-    items.forEach((item) => { item.el.textContent = item.format(item.to * eased); });
-    countFrame = requestAnimationFrame(step);
-  };
-  countFrame = requestAnimationFrame(step);
-}
-
-function renderFan(cards) {
-  ui.fan.replaceChildren(...cards.map((card, i) => {
-    const k = FAN_SPOTS[i];
-    const li = h("li", { class: `welcome-fan-card${Math.abs(k) === 2 ? " is-outer" : ""}` },
-      cardImg(card, { className: "welcome-fan-img", alt: String(card.name || ""), priority: "high" }));
-    li.style.setProperty("--k", String(k));
-    li.style.setProperty("--ak", String(Math.abs(k)));
-    li.style.setProperty("--i", String(i));
-    return li;
-  }));
-  ui.fan.hidden = cards.length === 0;
-}
-
-function ledgerItem(key, label, gold) {
-  const value = h("span", { class: "welcome-ledger-value", "aria-hidden": "true" });
-  const spoken = h("span", { class: "welcome-sr" });
-  const el = h("div", { class: `welcome-ledger-item${gold ? " is-gold" : ""}`, "data-key": key },
-    value, spoken, h("span", { class: "welcome-ledger-label", text: label }));
-  return { el, value, spoken };
+function ledgerItem(key, label, text, gold) {
+  return h("div", { class: `welcome-ledger-item${gold ? " is-gold" : ""}`, "data-key": key },
+    h("span", { class: "welcome-ledger-value", text }),
+    h("span", { class: "welcome-ledger-label", text: label }));
 }
 
 function renderLedger(insights) {
@@ -477,37 +340,24 @@ function renderLedger(insights) {
     return;
   }
   const rarity = insights.rarity || {};
-  const rows = [
-    ["value", "Estimated value", Number(insights.value) || 0, formatMoney, true],
-    ["cards", "Cards", Number(insights.cards) || 0, formatCount, false],
-    ["rares", "Rares & mythics", (Number(rarity.rare) || 0) + (Number(rarity.mythic) || 0), formatCount, false],
-  ];
-  const items = rows.map(([key, label, to, format, gold]) => {
-    const item = ledgerItem(key, label, gold);
-    // Screen readers get the final value, not the count.
-    item.spoken.textContent = format(to);
-    return { ...item, to, format };
-  });
-  ui.ledger.replaceChildren(...items.map((item) => item.el));
+  const rares = (Number(rarity.rare) || 0) + (Number(rarity.mythic) || 0);
+  ui.ledger.replaceChildren(
+    ledgerItem("value", "Estimated value", formatMoney(Number(insights.value) || 0), true),
+    ledgerItem("cards", "Cards", formatCount(Number(insights.cards) || 0), false),
+    ledgerItem("rares", "Rares & mythics", formatCount(rares), false));
   ui.ledger.hidden = false;
-  countUp(items.map(({ value, to, format }) => ({ el: value, to, format })));
 }
 
-function reveal(insights, shelves) {
-  const fan = uniqueCards(shelves && shelves.valuable, FAN);
+function showSummary(insights) {
   const count = insights ? Number(insights.cards) || 0 : 0;
   ui.revealSub.textContent = insights
-    ? `${formatCount(count)} ${count === 1 ? "card" : "cards"} found their place.${fan.length ? " Here are your crown jewels." : ""}`
-    : "Your cards are in the Vault.";
-  renderFan(fan);
-  // The step shows first, so the fan and the counters start in view.
-  showStep(3, { focus: true });
+    ? `Imported ${formatCount(count)} ${count === 1 ? "card" : "cards"}.`
+    : "The cards are in your collection.";
   renderLedger(insights);
+  showStep(3, { focus: true });
 }
 
-function openVault() {
-  // The owner leaves during the flip: the flow ends now, not after the flip.
-  if (endFlip) endFlip();
+function openCollection() {
   if (screen.job) {
     setActiveCollection(screen.job);
     setViewerSource(null);
@@ -517,7 +367,7 @@ function openVault() {
 
 // ---- entry -----------------------------------------------------------------
 
-function onBinderKey(event) {
+function onDropzoneKey(event) {
   if (event.key !== "Enter" && event.key !== " ") return;
   event.preventDefault();
   chooseFile();
@@ -529,16 +379,12 @@ function init() {
     view: $("welcome-view"),
     skip: $("welcome-skip"),
     fill: $("welcome-path-fill"),
-    sigil: $("welcome-sigil"),
-    ring: $("welcome-ring"),
-    pct: $("welcome-pct"),
-    sigilLabel: $("welcome-sigil-label"),
-    ticker: $("welcome-ticker"),
+    meter: $("welcome-meter"),
+    meterFill: $("welcome-meter-fill"),
+    status: $("welcome-status"),
     downloadBtn: $("welcome-download-btn"),
     file: $("welcome-file"),
-    binder: $("welcome-binder"),
-    slots: $("welcome-slots"),
-    drop: $("welcome-drop"),
+    dropzone: $("welcome-dropzone"),
     actions: $("welcome-actions"),
     choose: $("welcome-choose"),
     sample: $("welcome-sample"),
@@ -548,39 +394,34 @@ function init() {
     row: $("welcome-row"),
     card: $("welcome-card"),
     announce: $("welcome-announce"),
-    doneRow: $("welcome-done-row"),
-    done: $("welcome-done"),
     revealTitle: $("welcome-reveal-title"),
     revealSub: $("welcome-reveal-sub"),
-    fan: $("welcome-fan"),
     ledger: $("welcome-ledger"),
     open: $("welcome-open"),
   };
-  buildSlots();
 
   ui.skip.addEventListener("click", skip);
   ui.downloadBtn.addEventListener("click", download);
-  ui.binder.addEventListener("click", chooseFile);
-  ui.binder.addEventListener("keydown", onBinderKey);
+  ui.dropzone.addEventListener("click", chooseFile);
+  ui.dropzone.addEventListener("keydown", onDropzoneKey);
   ui.choose.addEventListener("click", chooseFile);
   ui.sample.addEventListener("click", importSample);
   ui.file.addEventListener("change", () => {
     const file = ui.file.files && ui.file.files[0];
     if (file) importFile(file);
   });
-  ui.binder.addEventListener("dragover", (event) => {
+  ui.dropzone.addEventListener("dragover", (event) => {
     event.preventDefault();
-    if (!screen.importing) ui.binder.classList.add("is-drag");
+    if (!screen.importing) ui.dropzone.classList.add("is-drag");
   });
-  ui.binder.addEventListener("dragleave", () => ui.binder.classList.remove("is-drag"));
-  ui.binder.addEventListener("drop", (event) => {
+  ui.dropzone.addEventListener("dragleave", () => ui.dropzone.classList.remove("is-drag"));
+  ui.dropzone.addEventListener("drop", (event) => {
     event.preventDefault();
-    ui.binder.classList.remove("is-drag");
+    ui.dropzone.classList.remove("is-drag");
     const files = event.dataTransfer && event.dataTransfer.files;
     if (files && files.length > 0) importFile(files[0]);
   });
-  ui.open.addEventListener("click", openVault);
-  ui.done.addEventListener("click", openVault);
+  ui.open.addEventListener("click", openCollection);
 }
 
 async function cardDataReady() {
@@ -610,7 +451,6 @@ async function collectionList() {
  */
 export async function open() {
   init();
-  ui.view.classList.toggle("is-still", reducedMotion());
   if (screen.downloading || screen.importing) return;
   const gen = ++screen.gen;
   screen.job = null;
@@ -618,7 +458,7 @@ export async function open() {
   ui.view.dataset.step = "0";
   ui.view.querySelectorAll(".welcome-panel").forEach((panel) => { panel.hidden = true; });
   syncSkip();
-  resetSigil();
+  resetDownload();
   resetImport();
   const [ready, collections] = await Promise.all([cardDataReady(), collectionList()]);
   if (gen !== screen.gen) return;

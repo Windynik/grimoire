@@ -8,7 +8,6 @@ const READY = { status: "ready", card_count: 30000, file_size_mb: 120.5, downloa
 const MISSING = { status: "missing" };
 const BOX = { job_id: "job1", name: "Test box", card_count: 3, created: null };
 const NEW_BOX = { job_id: "job9", name: "Sample collection", card_count: 1002, created: null };
-const RING = 2 * Math.PI * 146;
 
 function card(i, over = {}) {
   return {
@@ -178,7 +177,7 @@ test("Skip opens the archive, and the gate lets it stay", async () => {
   await setup();
   const skip = $("#welcome-skip");
   assert.ok(shown("#welcome-skip"));
-  assert.match(skip.textContent, /Skip — just browse all cards/);
+  assert.equal(skip.textContent, "Skip: browse all cards");
   skip.click();
   await app.until(() => window.location.hash === "#collection" && active("collection"));
   await app.until(() => $("#collection-view").dataset.vault === "ready");
@@ -248,12 +247,23 @@ test("ready card data skips step 1", async () => {
   assert.ok(!app.fetchLog.some((r) => r.path === "/api/cache/download"));
 });
 
-test("step 1 downloads the card data with the sigil ring, then step 2 shows", async () => {
+test("the intro uses plain words", async () => {
+  await setup();
+  assert.equal(text("#welcome-title"), "Set up Grimoire");
+  assert.equal($(".welcome-hello"), null);
+  assert.deepEqual($$(".welcome-step-title").map((el) => el.textContent),
+    ["Download card data", "Import your collection", "Open your collection"]);
+  assert.equal(text("#welcome-skip"), "Skip: browse all cards");
+  assert.doesNotMatch($("#welcome-view").textContent, /magical|planeswalker|vault|crown|Multiverse/i);
+});
+
+test("step 1 downloads the card data with a progress bar, then step 2 shows", async () => {
   await setup({ status: MISSING });
   assert.equal($("#welcome-view").dataset.step, "1");
   assert.ok(shown("#welcome-download"));
   assert.ok(shown("#welcome-skip"), "Skip shows on step 1 too");
-  assert.equal(text("#welcome-download-btn"), "Download card data · 100 MB");
+  assert.equal(text("#welcome-download-btn"), "Download card data (about 100 MB)");
+  assert.equal($("#welcome-sigil"), null, "no animated sigil");
 
   const stream = openStream();
   app.route("POST /api/cache/download", () => stream.reply());
@@ -261,25 +271,20 @@ test("step 1 downloads the card data with the sigil ring, then step 2 shows", as
   await app.until(() => posts("/api/cache/download").length === 1);
   assert.ok($("#welcome-download-btn").disabled);
   assert.ok(!shown("#welcome-skip"), "Skip hides while the download runs");
-  assert.equal(document.activeElement, $("#welcome-sigil"), "the sigil holds the focus");
+  assert.equal(document.activeElement, $("#welcome-meter"), "the progress bar holds the focus");
 
   stream.send({ percentage: 5 });
-  await app.until(() => text("#welcome-pct") === "5%");
-  const early = text("#welcome-ticker");
-  assert.ok(early.length > 0);
+  await app.until(() => text("#welcome-status") === "Downloading card data: 5%");
   stream.send({ percentage: 40 });
-  await app.until(() => text("#welcome-pct") === "40%");
-  const ring = $("#welcome-ring");
-  assert.equal(Number(ring.getAttribute("stroke-dashoffset")).toFixed(1), (RING * 0.6).toFixed(1));
-  assert.equal($("#welcome-sigil").getAttribute("aria-valuenow"), "40");
-  stream.send({ percentage: 90 });
-  await app.until(() => text("#welcome-pct") === "90%");
-  assert.notEqual(text("#welcome-ticker"), early, "the flavor line changes with the percent");
+  await app.until(() => text("#welcome-status") === "Downloading card data: 40%");
+  assert.equal($("#welcome-meter-fill").style.transform, "scaleX(0.4)");
+  assert.equal($("#welcome-meter").getAttribute("aria-valuenow"), "40");
 
   app.route("GET /api/cache/status", () => ({ json: READY }));
   stream.send({ percentage: 100, status: "complete" });
   stream.end();
   await app.until(() => $("#welcome-view").dataset.step === "2");
+  assert.equal(text("#welcome-status"), "30,000 cards ready offline.");
   assert.ok(shown("#welcome-import"));
   assert.ok(shown("#welcome-skip"));
   assert.ok($(".welcome-step[data-step='1']").classList.contains("is-done"));
@@ -301,24 +306,25 @@ test("a failed download stays on step 1 with a toast", async () => {
 
 // ---- step 2: the import ----------------------------------------------------
 
-test("the binder opens the file chooser with a click, Enter and Space", async () => {
+test("the drop box opens the file chooser with a click, Enter and Space", async () => {
   await setup();
   const input = $("#welcome-file");
   let clicks = 0;
   input.click = () => { clicks += 1; };
   try {
-    $("#welcome-binder").click();
+    $("#welcome-dropzone").click();
     for (const key of ["Enter", " "]) {
-      $("#welcome-binder").dispatchEvent(new window.KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
+      $("#welcome-dropzone").dispatchEvent(new window.KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
     }
     $("#welcome-choose").click();
     assert.equal(clicks, 4);
   } finally {
     delete input.click;
   }
-  assert.equal($("#welcome-binder").getAttribute("role"), "button");
-  assert.equal($("#welcome-binder").getAttribute("tabindex"), "0");
-  assert.equal($$("#welcome-slots .welcome-slot").length, 10);
+  assert.equal($("#welcome-dropzone").getAttribute("role"), "button");
+  assert.equal($("#welcome-dropzone").getAttribute("tabindex"), "0");
+  assert.equal(text(".welcome-drop-title"), "Drop a collection export here");
+  assert.equal($("#welcome-slots"), null, "no binder slots");
   const how = $("details.welcome-how");
   assert.match(how.querySelector("summary").textContent, /How do I export my collection\?/);
   assert.equal(how.querySelectorAll("ul li").length, 4);
@@ -333,26 +339,27 @@ test("a file that is not a CSV or a list gets a toast and no import", async () =
   assert.ok(shown("#welcome-actions"));
 });
 
-test("a dropped CSV imports with live rows, real cards flip into the slots, then the reveal shows", async () => {
+test("a dropped CSV imports with live rows, then the summary shows", async () => {
   const { addCollection } = await setup();
   const stream = openStream();
   app.route("POST /api/process/stream", () => stream.reply());
 
-  const binder = $("#welcome-binder");
+  const zone = $("#welcome-dropzone");
   const over = new window.Event("dragover", { bubbles: true, cancelable: true });
-  binder.dispatchEvent(over);
-  assert.ok(binder.classList.contains("is-drag"));
+  zone.dispatchEvent(over);
+  assert.ok(zone.classList.contains("is-drag"));
   const drop = new window.Event("drop", { bubbles: true, cancelable: true });
   const file = new window.File(["Name\nSol Ring\n"], "mine.CSV", { type: "text/csv" });
   Object.defineProperty(drop, "dataTransfer", { value: { files: [file] } });
-  binder.dispatchEvent(drop);
-  assert.ok(!binder.classList.contains("is-drag"));
+  zone.dispatchEvent(drop);
+  assert.ok(!zone.classList.contains("is-drag"));
 
   await app.until(() => posts("/api/process/stream").length === 1);
   // The file goes out as the "file" part of a multipart form.
   assert.ok(posts("/api/process/stream")[0].body.has("file"));
   await app.until(() => shown("#welcome-progress"));
   assert.ok(!shown("#welcome-actions"));
+  assert.ok(!shown("#welcome-dropzone"), "the drop box hides while the import runs");
   assert.ok(!shown("#welcome-skip"), "Skip hides while the import runs");
   assert.equal(text("#welcome-announce"), "Import started.");
   assert.equal($("#welcome-row").getAttribute("aria-live"), null, "the rows are not read one by one");
@@ -364,8 +371,6 @@ test("a dropped CSV imports with live rows, real cards flip into the slots, then
   assert.equal(text("#welcome-card"), "Sol Ring");
   assert.equal($("#welcome-progress-fill").style.transform, "scaleX(0.4)");
   assert.equal($("#welcome-progress .welcome-track").getAttribute("aria-valuenow"), "40");
-  assert.equal($$("#welcome-slots .welcome-slot.is-lit").length, 4);
-  assert.equal($$("#welcome-slots img").length, 0, "no card shows in the binder: the stream names no card");
   assert.equal(text("#welcome-announce"), "Import 25% done.");
   stream.send(progress(12, 25, "Opt", 1));
   await app.until(() => text("#welcome-row") === "Row 12 of 25");
@@ -375,27 +380,16 @@ test("a dropped CSV imports with live rows, real cards flip into the slots, then
   stream.send(progress(25, 25, "Last Card", 1));
   stream.send(done(25, 1));
   stream.end();
-  // At done, real cards of the new collection (from its shelves) flip into the slots.
-  await app.until(() => $$("#welcome-slots .welcome-slot-card").length === 10);
-  const slotSources = $$("#welcome-slots .welcome-slot-card img.card-img-sharp").map((img) => img.getAttribute("src"));
-  // The unique names: card 2 shares the name of card 1, so it is skipped.
-  assert.deepEqual(slotSources, [1, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((i) => `/api/images/${ID(i)}/front?size=small`));
-  // "Open the Vault" shows at once under the binder: nothing waits on the flip.
-  assert.equal($("#welcome-view").dataset.step, "2");
-  assert.ok(shown("#welcome-done"));
-  assert.equal(text("#welcome-done"), "Open the Vault →");
+  // No animation to wait for: the summary follows the stream at once.
+  await app.until(() => $("#welcome-view").dataset.step === "3", 300);
   assert.equal(text("#welcome-row"), "24 of 25 rows matched");
   assert.equal(text("#welcome-announce"), "Import done: 24 of 25 rows matched.");
   assert.equal(window.localStorage.getItem("lastJobId"), "job9");
-
-  // The flip of ten cards ends within 600 ms; then the reveal follows.
-  const started = Date.now();
-  await app.until(() => $("#welcome-view").dataset.step === "3", 1500);
-  assert.ok(Date.now() - started < 1000);
   assert.ok(shown("#welcome-reveal"));
   assert.ok(shown("#welcome-open"));
-  const sources = $$("#welcome-fan img.card-img-sharp").map((img) => img.getAttribute("src"));
-  assert.deepEqual(sources, [1, 3, 4, 5, 6].map((i) => `/api/images/${ID(i)}/front?size=normal`));
+  assert.equal($("#welcome-fan"), null, "no card fan");
+  assert.equal($("#welcome-done"), null, "one Open button, on the summary");
+  assert.ok(!app.fetchLog.some((r) => r.path.endsWith("/shelves")), "the summary needs no shelves");
   assert.ok($(".welcome-step[data-step='2']").classList.contains("is-done"));
   assert.ok(!shown("#welcome-skip"), "Skip leaves once the collection exists");
 });
@@ -407,19 +401,6 @@ test("the sample button imports the sample collection", async () => {
   await importSample(stream);
   assert.equal(posts("/api/process/stream").length, 0);
   await app.until(() => $("#welcome-view").dataset.step === "3", 1500);
-});
-
-test("Open the Vault under the binder works while the cards flip in", async () => {
-  const { addCollection } = await setup();
-  addCollection(NEW_BOX);
-  await importSample(openStream());
-  const button = await app.until(() => (shown("#welcome-done") ? $("#welcome-done") : null));
-  assert.equal($("#welcome-view").dataset.step, "2");
-  button.click();
-  await app.until(() => window.location.hash === "#collection" && active("collection"));
-  assert.equal(window.localStorage.getItem("lastJobId"), "job9");
-  await app.until(() => $("#collection-view").dataset.vault === "ready");
-  assert.ok(app.fetchLog.some((r) => r.path === "/api/collection/job9/search"));
 });
 
 test("a double click on the sample button sends one import", async () => {
@@ -437,21 +418,6 @@ test("a double click on the sample button sends one import", async () => {
   assert.equal($("#welcome-progress").getAttribute("tabindex"), "-1");
   stream.send({ type: "error", detail: "Stopped by the test" });
   stream.end();
-  await app.until(() => shown("#welcome-actions"));
-});
-
-test("a reveal that throws returns to step 2 and lets a new import start", async () => {
-  await setup({ shelves: { valuable: 5 } });
-  await importSample(openStream());
-  await app.until(() => toasts().some((t) => /summary did not show/.test(t)));
-  await app.until(() => shown("#welcome-actions"));
-  assert.equal($("#welcome-view").dataset.step, "2");
-  const next = openStream();
-  app.route("POST /api/process/sample", () => next.reply());
-  $("#welcome-sample").click();
-  await app.until(() => posts("/api/process/sample").length === 2);
-  next.send({ type: "error", detail: "Stopped by the test" });
-  next.end();
   await app.until(() => shown("#welcome-actions"));
 });
 
@@ -477,20 +443,20 @@ test("leaving mid-import and coming back shows the live progress", async () => {
   await app.until(() => shown("#welcome-actions"));
 });
 
-test("leaving mid-download and coming back shows the live ring", async () => {
+test("leaving mid-download and coming back shows the live progress", async () => {
   await setup({ status: MISSING });
   const stream = openStream();
   app.route("POST /api/cache/download", () => stream.reply());
   $("#welcome-download-btn").click();
   stream.send({ percentage: 30 });
-  await app.until(() => text("#welcome-pct") === "30%");
+  await app.until(() => text("#welcome-status") === "Downloading card data: 30%");
   await go("#settings");
   stream.send({ percentage: 60 });
   await app.settle();
   await go("#welcome");
   await app.settle();
   assert.equal($("#welcome-view").dataset.step, "1");
-  await app.until(() => text("#welcome-pct") === "60%");
+  await app.until(() => text("#welcome-status") === "Downloading card data: 60%");
   assert.ok($("#welcome-download-btn").disabled);
   stream.send({ error: "Download failed" });
   stream.end();
@@ -510,7 +476,7 @@ test("an import error returns to step 2 with a toast", async () => {
   await app.until(() => shown("#welcome-actions"));
   assert.equal($("#welcome-view").dataset.step, "2");
   assert.ok(!shown("#welcome-progress"));
-  assert.equal($$("#welcome-slots .welcome-slot.is-lit").length, 0);
+  assert.ok(shown("#welcome-dropzone"), "the drop box comes back");
   assert.equal($("#welcome-file").value, "");
 
   // A refusal before the stream shows the server's reason.
@@ -530,27 +496,29 @@ test("an import error returns to step 2 with a toast", async () => {
   assert.equal($("#welcome-view").dataset.step, "2");
 });
 
-// ---- step 3: the reveal ----------------------------------------------------
+// ---- step 3: the summary ---------------------------------------------------
 
-test("the reveal shows the fan, counts the ledger up, and opens the Vault", async () => {
+test("the summary shows the final numbers at once and opens the collection", async () => {
   const { addCollection } = await setup();
   addCollection(NEW_BOX);
+  let ledger = null;
+  const observer = new window.MutationObserver(() => {
+    if ($("#welcome-view").dataset.step === "3" && !ledger) {
+      ledger = $$("#welcome-ledger .welcome-ledger-value").map((el) => el.textContent);
+    }
+  });
+  observer.observe($("#welcome-view"), { attributes: true, attributeFilter: ["data-step"] });
   await importSample(openStream());
-  await app.until(() => $("#welcome-view").dataset.step === "3", 1500);
-  assert.ok(!$("#welcome-view").classList.contains("is-still"));
+  await app.until(() => $("#welcome-view").dataset.step === "3", 300);
+  observer.disconnect();
 
-  assert.equal(text("#welcome-reveal-title"), "Your vault is ready.");
-  assert.equal(text("#welcome-reveal-sub"), "1,002 cards found their place. Here are your crown jewels.");
-  const fan = $$("#welcome-fan .welcome-fan-card");
-  assert.equal(fan.length, 5);
-  assert.deepEqual(fan.map((li) => li.querySelector("img.card-img-sharp").getAttribute("alt")),
-    ["Card 1", "Card 3", "Card 4", "Card 5", "Card 6"]);
-  assert.deepEqual(fan.map((li) => li.style.getPropertyValue("--k")), ["0", "-1", "1", "-2", "2"]);
-
-  const value = (key) => text(`#welcome-ledger [data-key="${key}"] .welcome-ledger-value`);
-  await app.until(() => value("value") === "$1,234.50" && value("cards") === "1,002" && value("rares") === "202", 4000);
+  assert.equal(text("#welcome-reveal-title"), "Import done.");
+  assert.equal(text("#welcome-reveal-sub"), "Imported 1,002 cards.");
+  // No count-up: the numbers are final when the step shows.
+  assert.deepEqual(ledger, ["$1,234.50", "1,002", "202"]);
   assert.deepEqual($$("#welcome-ledger .welcome-ledger-label").map((el) => el.textContent),
     ["Estimated value", "Cards", "Rares & mythics"]);
+  assert.equal(text("#welcome-open"), "Open the collection");
 
   window.localStorage.setItem("viewerSource", "archive");
   $("#welcome-open").click();
@@ -561,53 +529,12 @@ test("the reveal shows the fan, counts the ledger up, and opens the Vault", asyn
   assert.ok(app.fetchLog.some((r) => r.path === "/api/collection/job9/search"));
 });
 
-test("without shelves, the reveal shows at once and still opens the Vault", async () => {
-  const { addCollection } = await setup({ insights: null, shelves: null });
+test("without insights, the summary still opens the collection", async () => {
+  const { addCollection } = await setup({ insights: null });
   addCollection(NEW_BOX);
-  let slots = -1;
-  const observer = new window.MutationObserver(() => {
-    if ($("#welcome-view").dataset.step === "3" && slots < 0) slots = $$("#welcome-slots .welcome-slot-card").length;
-  });
-  observer.observe($("#welcome-view"), { attributes: true, attributeFilter: ["data-step"] });
   await importSample(openStream());
-  // No flip to wait for: step 3 follows the failed shelves request at once.
-  await app.until(() => $("#welcome-view").dataset.step === "3", 200);
-  observer.disconnect();
-  assert.equal(slots, 0, "no card flips in without shelves");
-  assert.equal(text("#welcome-reveal-sub"), "Your cards are in the Vault.");
-  assert.equal($$("#welcome-fan .welcome-fan-card").length, 0);
+  await app.until(() => $("#welcome-view").dataset.step === "3", 300);
+  assert.equal(text("#welcome-reveal-sub"), "The cards are in your collection.");
   assert.ok($("#welcome-ledger").hidden);
   assert.ok(shown("#welcome-open"));
-});
-
-test("reduced motion shows each final state at once", async () => {
-  const media = window.matchMedia;
-  const still = (query) => ({
-    matches: /prefers-reduced-motion/.test(query), media: query,
-    addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {},
-  });
-  window.matchMedia = still;
-  try {
-    const { addCollection } = await setup();
-    assert.ok($("#welcome-view").classList.contains("is-still"));
-    addCollection(NEW_BOX);
-    let ledger = null;
-    let slots = 0;
-    const observer = new window.MutationObserver(() => {
-      if ($("#welcome-view").dataset.step === "3" && !ledger) {
-        ledger = $$("#welcome-ledger .welcome-ledger-value").map((el) => el.textContent);
-        slots = $$("#welcome-slots .welcome-slot-card").length;
-      }
-    });
-    observer.observe($("#welcome-view"), { attributes: true, attributeFilter: ["data-step"] });
-    await importSample(openStream());
-    // No flip pause: step 3 follows at once.
-    await app.until(() => $("#welcome-view").dataset.step === "3", 200);
-    observer.disconnect();
-    // The counters show their final values when the step shows, and the cards are in the slots.
-    assert.deepEqual(ledger, ["$1,234.50", "1,002", "202"]);
-    assert.equal(slots, 10);
-  } finally {
-    window.matchMedia = media;
-  }
 });
