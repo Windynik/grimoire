@@ -131,6 +131,16 @@ def saved(store, events):
 
 
 @pytest.mark.asyncio
+async def test_a_forged_deck_keeps_every_collection_of_its_pool(tmp_path):
+    session, store = await start(tmp_path, ask_mode="never", job_id="job-1",
+                                 job_ids=["job-1", "job-2"])
+    events = await collect(session)
+    deck = saved(store, events)
+    assert deck["collection_job_id"] == "job-1"
+    assert deck["collection_job_ids"] == ["job-1", "job-2"]
+
+
+@pytest.mark.asyncio
 async def test_engine_only_session_completes_with_saved_deck(tmp_path):
     session, store = await start(tmp_path, ask_mode="never")
     events = await collect(session)

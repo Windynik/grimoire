@@ -14,6 +14,8 @@ from backend.core.prices import best_price
 
 EDITABLE = ("name", "format", "commander", "collection_job_id", "deck_size", "max_copies",
             "sections")
+# The most collections one deck reads its owned copies from.
+MAX_DECK_COLLECTIONS = 20
 DISPLAY_FIELDS = ("image_url", "back_image_url", "mana_cost", "type_line", "cmc", "price",
                   "set", "collector_number", "layout", "game_changer")
 SECTIONS = ("main", "sideboard", "maybeboard")
@@ -57,6 +59,9 @@ class DeckIn(BaseModel):
     format: str = Field(max_length=40)
     commander: Optional[CommanderIn] = None
     collection_job_id: Optional[str] = Field(None, max_length=64)
+    # Every collection the deck reads its owned copies from. When it is left
+    # out (an older client), collection_job_id alone is the list.
+    collection_job_ids: Optional[List[str]] = Field(None, max_length=MAX_DECK_COLLECTIONS)
     deck_size: Optional[int] = Field(None, ge=40, le=250)
     max_copies: Optional[int] = Field(None, ge=1, le=4)
     sections: SectionsIn
@@ -83,6 +88,23 @@ class CreateDeck(BaseModel):
     name: str = Field("New deck", min_length=1, max_length=120)
     format: str = Field(max_length=40)
     collection_job_id: Optional[str] = Field(None, max_length=64)
+    collection_job_ids: Optional[List[str]] = Field(None, max_length=MAX_DECK_COLLECTIONS)
+
+
+def job_list(job_id: Optional[str], job_ids: Optional[List[str]]) -> List[str]:
+    """The collections of a request: job_ids when given, else job_id. Each once, in order."""
+    found = []  # type: List[str]
+    for one in (job_ids if job_ids is not None else [job_id]):
+        one = (one or "").strip()
+        if one and one not in found:
+            found.append(one)
+    return found[:MAX_DECK_COLLECTIONS]
+
+
+def deck_collections(record: dict) -> List[str]:
+    """The collections a deck reads its owned copies from. An older deck has one."""
+    listed = record.get("collection_job_ids")
+    return job_list(record.get("collection_job_id"), listed if isinstance(listed, list) else None)
 
 
 def entry_key(entry: dict) -> str:
@@ -90,21 +112,25 @@ def entry_key(entry: dict) -> str:
     return entry.get("scryfall_id") or "basic:" + entry["name"]
 
 
-def new_record(name: str, fmt_key: str, job_id: Optional[str]) -> dict:
+def new_record(name: str, fmt_key: str, job_id: Optional[str],
+               job_ids: Optional[List[str]] = None) -> dict:
     """Return an empty deck record (the shape of backend.forge.export.deck_to_record).
 
     Args:
         name: Deck name
         fmt_key: Playbook format key
         job_id: Id of the collection the deck uses, or None
+        job_ids: Every collection the deck uses (job_id is then the first), or None
 
     Returns:
         Deck record with empty sections and no id (the store sets it)
     """
+    jobs = job_list(job_id, job_ids)
     return {
         "name": name,
         "format": fmt_key,
-        "collection_job_id": job_id,
+        "collection_job_id": jobs[0] if jobs else None,
+        "collection_job_ids": jobs,
         "deck_size": None,
         "max_copies": None,
         "commander": None,
@@ -149,6 +175,9 @@ def apply_update(stored: dict, incoming: DeckIn) -> dict:
     record = dict(stored)
     for key in EDITABLE:
         record[key] = data[key]
+    jobs = job_list(data.get("collection_job_id"), data.get("collection_job_ids"))
+    record["collection_job_ids"] = jobs
+    record["collection_job_id"] = jobs[0] if jobs else None
     record["sections"] = sections
     record["revision"] = int(stored.get("revision", 0)) + 1
     if incoming.edit is not None:

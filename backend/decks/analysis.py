@@ -220,17 +220,23 @@ def _copies_text(number: int) -> str:
 def _issue_reasons(issues: List[str], info: Optional[dict], copies: int, owned: int,
                    fmt: FormatRules, commander_colors: Optional[FrozenSet[str]],
                    commander_name: str, collection_name: str) -> Dict[str, str]:
-    """One plain sentence for each issue code of a card: why the editor flags it."""
+    """One plain sentence for each issue code of a card: why the editor flags it.
+
+    collection_name is one name ("Binder"), two joined ("Binder and Trade Box"),
+    or "these 3 collections"; more than one takes the verb "hold".
+    """
     shelf = collection_name or "Your collection"
+    many = " and " in shelf or shelf.startswith("these ")
+    holds = "hold" if many else "holds"
     reasons = {}  # type: Dict[str, str]
     for code in issues:
         if code == "not_a_card":
             text = ("No card in the card data has this name. Check the spelling, "
                     "or update the card data on the Home screen.")
         elif code == "not_owned":
-            text = "%s holds no copy of this card." % shelf
+            text = "%s %s no copy of this card." % (shelf[:1].upper() + shelf[1:], holds)
         elif code == "short":
-            text = "This deck has %s; %s holds %d." % (_copies_text(copies), shelf, owned)
+            text = "This deck has %s; %s %s %d." % (_copies_text(copies), shelf, holds, owned)
         elif code == "banned":
             text = "Banned in %s." % fmt.name
         elif code == "not_legal":
@@ -393,7 +399,11 @@ def analyze(record: dict, index: Dict[str, dict], collection: Optional[List[dict
     price, changers = _totals(record, index)
     meta = collection_meta or {}
     return {
-        "collection": {"job_id": meta.get("job_id"), "name": meta.get("name") or ""},
+        "collection": {"job_id": meta.get("job_id"), "name": meta.get("name") or "",
+                       "job_ids": list(meta.get("job_ids") or
+                                       ([meta["job_id"]] if meta.get("job_id") else [])),
+                       "names": list(meta.get("names") or
+                                     ([meta["name"]] if meta.get("name") else []))},
         "format": {"key": fmt.key, "name": fmt.name, "deck_size": fmt.deck_size,
                    "commander": fmt.commander, "singleton": fmt.singleton,
                    "max_copies": fmt.max_copies},

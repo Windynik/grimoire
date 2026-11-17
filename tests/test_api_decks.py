@@ -471,3 +471,55 @@ def test_rule_zero_and_the_printable_pages(overrides):
         assert '<span>Player name</span><b>Ann</b>' in sheet.text
         assert "Main deck: 3 cards" in sheet.text
         assert client.get("/api/decks/nope-1/print/decklist").status_code == 404
+
+
+def test_a_deck_counts_the_copies_of_every_chosen_collection(overrides):
+    store, bulk, decks = overrides
+    sac = _sac()
+    store.store_collection("bbb2", [{"Scryfall ID": sac["id"], "Quantity": 3, "Name": sac["name"]}],
+                           bulk.cards, source_name="Trade Box.csv")
+    names = {m["job_id"]: m["name"] for m in store.list_collections()}
+    nine = {"main": [{"scryfall_id": sac["id"], "name": "Sac Outlet 0", "count": 9}]}
+    with TestClient(app) as client:
+        # A repeat in the list counts once; the first collection is the deck's own.
+        made = client.post("/api/decks", json={"format": "modern",
+                                               "collection_job_ids": ["aaa1", "bbb2", "aaa1"]}).json()
+        assert made["collection_job_ids"] == ["aaa1", "bbb2"]
+        assert made["collection_job_id"] == "aaa1"
+        url = "/api/decks/%s" % made["id"]
+        body = client.put(url, json=_body(collection_job_ids=["aaa1", "bbb2"], sections=nine)).json()
+        card = body["analysis"]["cards"][sac["id"]]
+        assert card["owned"] == 7  # 4 in aaa1 and 3 in bbb2
+        assert card["reasons"]["short"] == "This deck has 9 copies; %s and %s hold 7." % (
+            names["aaa1"], names["bbb2"])
+        assert body["analysis"]["collection"]["job_ids"] == ["aaa1", "bbb2"]
+        saved = decks.get(made["id"])
+        assert saved["collection_job_ids"] == ["aaa1", "bbb2"] and saved["collection_job_id"] == "aaa1"
+        # A deleted collection is skipped.
+        body = client.put(url, json=_body(collection_job_ids=["dead1", "bbb2"], sections=nine)).json()
+        assert body["analysis"]["cards"][sac["id"]]["owned"] == 3
+        assert body["analysis"]["collection"]["job_ids"] == ["bbb2"]
+        assert body["analysis"]["cards"][sac["id"]]["reasons"]["short"] == (
+            "This deck has 9 copies; %s holds 3." % names["bbb2"])
+        # No collection at all: the newest one, as before.
+        body = client.put(url, json=_body(collection_job_ids=[], sections=nine)).json()
+        newest = store.list_collections()[0]["job_id"]
+        assert body["analysis"]["collection"]["job_ids"] == [newest]
+        # An older client that sends one collection still works.
+        old = client.post("/api/decks", json={"format": "modern", "collection_job_id": "bbb2"}).json()
+        assert old["collection_job_ids"] == ["bbb2"]
+        body = client.put("/api/decks/%s" % old["id"],
+                          json=_body(collection_job_id="aaa1", sections=nine)).json()
+        assert body["collection_job_ids"] == ["aaa1"]
+
+
+def test_an_import_reads_the_printings_of_every_chosen_collection(overrides):
+    store, bulk, _ = overrides
+    sac = _sac()
+    store.store_collection("bbb2", [{"Scryfall ID": sac["id"], "Quantity": 3, "Name": sac["name"]}],
+                           bulk.cards)
+    with TestClient(app) as client:
+        body = client.post("/api/decks/import", json={
+            "text": "9 Sac Outlet 0", "format": "modern", "collection_job_ids": ["aaa1", "bbb2"]}).json()
+        assert body["collection_job_ids"] == ["aaa1", "bbb2"]
+        assert body["analysis"]["cards"][sac["id"]]["owned"] == 7

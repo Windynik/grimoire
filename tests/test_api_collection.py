@@ -565,3 +565,12 @@ def test_card_flags_mark_printings_and_the_search_reads_them(env):
     # An empty list removes the flags.
     client.put("/api/flags/id-bolt", json={"flags": []})
     assert get("/api/flags")["cards"] == {"id-elf|foil": ["keep"]}
+
+
+def test_the_search_can_read_several_collections(env):
+    combined = {c["name"]: c["quantity"] for c in get("/api/collection/cur/search?also=old")["cards"]}
+    # cur: Bolt 2, Elf 1, Gold Wurm 1; old: Bolt 1, Elf 1. The same printing adds up.
+    assert combined == {"Bolt": 3, "Elf": 2, "Gold Wurm": 1}
+    assert {c["name"]: c["quantity"] for c in get("/api/collection/cur/search?also=cur,")["cards"]} == {
+        "Bolt": 2, "Elf": 1, "Gold Wurm": 1}
+    assert client.get("/api/collection/cur/search?also=gone").status_code == 404

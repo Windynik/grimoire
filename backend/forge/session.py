@@ -614,6 +614,8 @@ class ForgeSession:
                 "playstyle": playstyle, "key_interactions": interactions}
         record = deck_to_record(deck, name, p.job_id, info, explanation, reasons, metrics)
         record["forge"] = {"run_id": self.id, "wish": p.wish}
+        # The deck reads its owned copies from the same pool the forge used.
+        record["collection_job_ids"] = list(p.job_ids or [p.job_id])
         record_event(record, "forged", "Built by the forge.", with_cards=True)
         deck_id = self.deck_store.save(record)
         self._deck_id = deck_id

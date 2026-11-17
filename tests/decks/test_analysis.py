@@ -51,7 +51,8 @@ def test_analysis_counts_curve_price_and_game_changers(playbook):
     assert result["price"] == 26.0
     assert result["game_changers"] == 2
     assert result["colors"] == ["G"]
-    assert result["collection"] == {"job_id": "c1", "name": "Mine"}
+    assert result["collection"] == {"job_id": "c1", "name": "Mine", "job_ids": ["c1"],
+                                    "names": ["Mine"]}
     assert result["format"]["key"] == "modern" and result["format"]["max_copies"] == 4
     assert result["metrics"]["combined"] >= 0
 
@@ -181,7 +182,7 @@ def test_analysis_without_collection(playbook):
     index = _pool(bear)
     record = _deck([_line(bear, 4), _forest(10)])
     result = analyze(record, index, None, None, playbook)
-    assert result["collection"] == {"job_id": None, "name": ""}
+    assert result["collection"] == {"job_id": None, "name": "", "job_ids": [], "names": []}
     assert result["cards"][bear["id"]]["issues"] == ["not_owned"]
     assert result["cards"]["basic:Forest"]["issues"] == []
 

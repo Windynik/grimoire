@@ -72,3 +72,14 @@ def test_a_deck_with_nothing_owned_lists_every_card_as_missing():
     result = pull_list(deck([line(BOLT, 4)]), INDEX, [])
     assert result == {"groups": [], "basics": [],
                       "missing": [{"name": "Lightning Bolt", "count": 4}]}
+
+
+def test_every_collection_of_the_deck_comes_before_the_others():
+    collections = [
+        ({"job_id": "aaa", "name": "Another box"}, [owned(BOLT, 4, "A")]),
+        ({"job_id": "main-box", "name": "Main box"}, [owned(BOLT, 1, "Red")]),
+        ({"job_id": "trade", "name": "Trade box"}, [owned(BOLT, 1, "Trades")]),
+    ]
+    record = dict(deck([line(BOLT, 2)]), collection_job_ids=["main-box", "trade"])
+    groups = [g["collection"] for g in pull_list(record, INDEX, collections)["groups"]]
+    assert groups == ["Main box", "Trade box"]

@@ -128,6 +128,27 @@ def get_merged(store, job_id: str, index: dict) -> Merged:
     return merged
 
 
+def get_pool(store, job_ids: List[str], index: dict) -> Merged:
+    """The merged cards of several collections as one: the same printing and finish add up.
+
+    The first collection gives the name and the "new" flags.
+    """
+    first = get_merged(store, job_ids[0], index)
+    if len(job_ids) == 1:
+        return first
+    stacks = {}  # type: dict
+    for job_id in job_ids:
+        for card in get_merged(store, job_id, index).cards:
+            key = (card.get("scryfall_id"), bool(card.get("foil")), card.get("name"))
+            if key in stacks:
+                stack = stacks[key]
+                stack["quantity"] = (stack.get("quantity") or 0) + (card.get("quantity") or 0)
+                stack["value"] = (stack.get("value") or 0) + (card.get("value") or 0)
+            else:
+                stacks[key] = dict(card)
+    return Merged(list(stacks.values()), first.new_keys, first.meta, first.has_previous, index)
+
+
 def _csv(value: str) -> List[str]:
     return [part.strip() for part in (value or "").split(",") if part.strip()]
 
@@ -164,16 +185,22 @@ async def search_collection(
     dupes: str = "",
     card_type: str = "",
     color: str = "",
+    also: str = "",
     store: CollectionStore = Depends(get_collection_store),
     bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager),
     deck_store: DeckStore = Depends(get_deck_store),
 ):
-    """Search a collection: keywords, multi-value filters, live facets, value."""
+    """Search a collection: keywords, multi-value filters, live facets, value.
+
+    also names more collections (comma separated) to search with this one, as
+    one pool: the deck editor reads every collection of its deck.
+    """
     formats = _csv(format)
     for key in formats:
         check_format(key)
     index = await bulk_data_manager.load_bulk_data()
-    merged = get_merged(store, job_id, index)
+    pool = [job_id] + [j for j in _csv(also) if j != job_id]
+    merged = get_pool(store, list(dict.fromkeys(pool)), index)
     filters = Filters(
         colors=[c.upper() for c in _csv(colors)],
         rarity=[r.lower() for r in _csv(rarity)],

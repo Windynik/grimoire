@@ -20,9 +20,11 @@ from backend.core.ollama_client import ModelError, OllamaClient
 from backend.decks.agent import run_agent
 from backend.decks.analysis import analyze, owned_counts
 from backend.decks.records import (
+    MAX_DECK_COLLECTIONS,
     CreateDeck,
     DeckIn,
     apply_update,
+    deck_collections,
     edit_check,
     hydrate_record,
     new_record,
@@ -61,15 +63,38 @@ _FORMATS = _PLAYBOOK.formats
 MAX_SECTION_ENTRIES = 400  # the same cap as SectionsIn
 
 
+def collections_label(names: List[str]) -> str:
+    """"Binder", "Binder and Trade Box", or "these 3 collections"."""
+    if len(names) <= 1:
+        return names[0] if names else ""
+    if len(names) == 2:
+        return "%s and %s" % (names[0], names[1])
+    return "these %d collections" % len(names)
+
+
 def _collection_for(record: dict, collections: CollectionStore) -> Tuple[Optional[List[dict]],
                                                                          Optional[dict]]:
-    """Return (rows, metadata) of the deck's collection, else of the newest one, else (None, None)."""
+    """Return (rows, metadata) of the deck's collections, else of the newest one, else (None, None).
+
+    The rows of every chosen collection come one after the other: the copies
+    of a card in two collections add up. A chosen collection that is gone is
+    skipped. The metadata has job_id (the first), job_ids, names and name
+    (see collections_label).
+    """
     listed = collections.list_collections()
-    chosen = next((m for m in listed if m["job_id"] == record.get("collection_job_id")), None)
-    chosen = chosen or (listed[0] if listed else None)
-    if chosen is None:
+    known = {m["job_id"]: m for m in listed}
+    chosen = [known[j] for j in deck_collections(record) if j in known]
+    if not chosen and listed:
+        chosen = [listed[0]]
+    if not chosen:
         return None, None
-    return collections.get_collection(chosen["job_id"]), chosen
+    rows = []  # type: List[dict]
+    for meta in chosen:
+        rows.extend(collections.get_collection(meta["job_id"]) or [])
+    names = [m.get("name") or "Collection " + m["job_id"][:8] for m in chosen]
+    meta = dict(chosen[0], job_ids=[m["job_id"] for m in chosen], names=names,
+                name=collections_label(names))
+    return rows, meta
 
 
 def deck_response(record: dict, index: Dict[str, dict], collections: CollectionStore,
@@ -112,6 +137,7 @@ class ImportDeck(BaseModel):
     name: str = Field("Imported deck", min_length=1, max_length=120)
     format: str = Field(max_length=40)
     collection_job_id: Optional[str] = Field(None, max_length=64)
+    collection_job_ids: Optional[List[str]] = Field(None, max_length=MAX_DECK_COLLECTIONS)
 
 
 def _check_format(key: str) -> None:
@@ -164,7 +190,8 @@ async def create_deck(
 ):
     """Create an empty deck."""
     _check_format(request.format)
-    record = new_record(request.name, request.format, request.collection_job_id)
+    record = new_record(request.name, request.format, request.collection_job_id,
+                        request.collection_job_ids)
     record_event(record, "created")
     store.save(record)
     index = await bulk_data_manager.load_bulk_data()
@@ -181,7 +208,8 @@ async def import_deck(
     """Create a deck from a pasted decklist. Lists the names that match no card."""
     _check_format(request.format)
     index = await bulk_data_manager.load_bulk_data()
-    record = new_record(request.name, request.format, request.collection_job_id)
+    record = new_record(request.name, request.format, request.collection_job_id,
+                        request.collection_job_ids)
     rows, _ = _collection_for(record, collections)
     owned = owned_counts(rows, index) if rows else {}
     sections, commander, unknown = resolve(parse_decklist(request.text), index, owned)

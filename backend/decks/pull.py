@@ -8,7 +8,7 @@ a time. Pure functions. Makes no network calls.
 
 from typing import Dict, List, Optional, Tuple
 
-from backend.decks.records import entry_key
+from backend.decks.records import deck_collections, entry_key
 from backend.decks.usage import card_key
 
 BASICS_GROUP = "Basic lands"
@@ -60,10 +60,10 @@ def pull_list(record: dict, index: Dict[str, dict],
          "basics": [{"name", "count"}], "missing": [{"name", "count"}]}.
         A group card is {"name", "count", "set", "number", "foil",
         "scryfall_id", "printing"}, where printing is True when it is the
-        printing that the deck names. The deck's own collection comes first,
+        printing that the deck names. The deck's own collections come first,
         then the others by name; the cards of a group sort by name.
     """
-    own_job = record.get("collection_job_id")
+    own_jobs = set(deck_collections(record))
     # Every owned stack, keyed by card: [job_id, name, binder, scryfall_id, foil, left].
     stacks = {}  # type: Dict[str, List[list]]
     names = {}  # type: Dict[str, str]
@@ -91,7 +91,7 @@ def pull_list(record: dict, index: Dict[str, dict],
         options = stacks.get(card_key(wanted, line["name"], index), [])
         # Same printing first, then the deck's own collection, then the largest
         # stack, then the newest collection.
-        options.sort(key=lambda s: (s[3] != wanted, s[0] != own_job, -s[5], s[1]))
+        options.sort(key=lambda s: (s[3] != wanted, s[0] not in own_jobs, -s[5], s[1]))
         for stack in options:
             if need <= 0:
                 break
@@ -117,7 +117,7 @@ def pull_list(record: dict, index: Dict[str, dict],
         if need > 0:
             missing[line["name"]] = missing.get(line["name"], 0) + need
 
-    ordered = sorted(groups.items(), key=lambda g: (g[0][0] != own_job,
+    ordered = sorted(groups.items(), key=lambda g: (g[0][0] not in own_jobs,
                                                     names.get(g[0][0], "").lower(),
                                                     g[0][1].lower()))
     return {
