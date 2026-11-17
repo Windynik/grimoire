@@ -1,5 +1,5 @@
 // Command palette: Cmd-K (Ctrl-K) opens a box that jumps to a screen, runs an
-// action, opens a saved deck, or searches the Vault for the typed text.
+// action, opens a saved deck, or searches the collection for the typed text.
 //
 // The palette is a modal dialog with a combobox and a listbox: the arrow keys
 // move the active option, Enter runs it, Escape closes the palette, and the
@@ -14,7 +14,7 @@ const MAX_SHOWN = 12;
 // The fixed commands: [label, group, words to match, run].
 const COMMANDS = [
   ["Home", "Go to", "home start", () => navigate("#home")],
-  ["Collection (the Vault)", "Go to", "collection vault cards binder", () => navigate("#collection")],
+  ["Collection", "Go to", "collection cards binder vault", () => navigate("#collection")],
   ["Deck Forge", "Go to", "forge build ai", () => navigate("#forge")],
   ["Decks", "Go to", "decks list", () => navigate("#decks")],
   ["Settings", "Go to", "settings prices images phone model", () => navigate("#settings")],
@@ -77,7 +77,7 @@ function render() {
   const query = ui.input.value.trim();
   items = rank(query, entries()).slice(0, MAX_SHOWN);
   if (query) {
-    items.unshift({ label: `Search the Vault for “${query}”`, group: "Search",
+    items.unshift({ label: `Search the collection for “${query}”`, group: "Search",
       run: () => navigate("#collection", { q: query }) });
   }
   active = Math.max(0, Math.min(active, items.length - 1));

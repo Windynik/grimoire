@@ -52,7 +52,7 @@ test("typing ranks the commands, the arrows move, and Enter goes there", async (
   $("#palette-button").click();
   await app.until(() => !$("#palette").hidden);
   await type("sett");
-  assert.equal(labels()[0], "Search the Vault for “sett”");
+  assert.equal(labels()[0], "Search the collection for “sett”");
   assert.equal(labels()[1], "Settings");
   press("ArrowDown");
   const input = $("#palette-input");
@@ -67,7 +67,7 @@ test("a deck opens by its name or its commander", async () => {
   press("k", { metaKey: true });
   await app.until(() => !$("#palette").hidden && labels().includes("Goblin Tribal"));
   await type("krenko");
-  assert.deepEqual(labels(), ["Search the Vault for “krenko”", "Goblin Tribal"]);
+  assert.deepEqual(labels(), ["Search the collection for “krenko”", "Goblin Tribal"]);
   [...document.querySelectorAll(".palette-option")][1].click();
   await app.until(() => window.location.hash === "#deck/d1");
 });
@@ -76,9 +76,11 @@ test("nothing that matches says so, and the search line stays", async () => {
   press("k", { ctrlKey: true });
   await app.until(() => !$("#palette").hidden);
   await type("zzqx");
-  assert.deepEqual(labels(), ["Search the Vault for “zzqx”"]);
+  assert.deepEqual(labels(), ["Search the collection for “zzqx”"]);
   await type("");
   assert.ok(labels().length > 5);
+  assert.ok(labels().includes("Collection"), "the screen has the name of the nav link");
+  assert.ok(!labels().some((label) => /vault/i.test(label)));
   press("Escape");
 });
 
