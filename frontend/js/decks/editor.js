@@ -261,7 +261,8 @@ function createSession(host, deckId, options) {
       name: deck.name,
       format: deck.format,
       commander,
-      collection_job_id: deck.collection_job_id,
+      collection_job_id: deck.collection_job_ids[0] || null,
+      collection_job_ids: deck.collection_job_ids,
       deck_size: deck.deck_size,
       max_copies: deck.max_copies,
       sections,
@@ -449,12 +450,9 @@ function createSession(host, deckId, options) {
     const fmt = state.analysis.format || {};
     view.format.textContent = fmt.name || deck.format || "";
     // With no collection chosen, the server uses the newest one.
-    const newest = view.collection.options[0];
     const used = (state.analysis.collection || {}).name;
-    if (newest) {
-      if (!deck.collection_job_id && used) newest.textContent = `Newest (${used})`;
-      else newest.textContent = view.collection.options.length > 1 ? "Newest collection" : "No collection";
-    }
+    view.collection.dataset.placeholder = !view.collection.options.length ? "No collection"
+      : used ? `Newest (${used})` : "Newest collection";
     renderPane(view.pane, state, handlers);
     renderStats(view.stats, state.analysis, cardNames(),
       { combos: state.combos, busy: combosBusy, onFindCombos: findCombos });
@@ -467,14 +465,12 @@ function createSession(host, deckId, options) {
     const select = view.collection;
     const list = (collections || []).slice()
       .sort((a, b) => String(b.created || "").localeCompare(String(a.created || "")));
-    select.replaceChildren(option("", "No collection"));
-    list.forEach((c) => select.append(option(c.job_id, c.name || c.job_id)));
-    const current = deck.collection_job_id;
-    if (current && !list.some((c) => c.job_id === current)) {
-      const named = (state.analysis.collection || {}).name;
-      select.append(option(current, named || "Unknown collection"));
-    }
-    select.value = current || "";
+    select.replaceChildren(...list.map((c) => option(c.job_id, c.name || c.job_id)));
+    // A collection the deck names but the list lacks (deleted) stays, so the owner can drop it.
+    deck.collection_job_ids.forEach((id) => {
+      if (!list.some((c) => c.job_id === id)) select.append(option(id, "Unknown collection"));
+    });
+    [...select.options].forEach((o) => { o.selected = deck.collection_job_ids.includes(o.value); });
   }
 
   // ---- Header controls ----
@@ -504,7 +500,7 @@ function createSession(host, deckId, options) {
   });
   view.collection.addEventListener("change", () => {
     if (!deck) return;
-    deck.collection_job_id = view.collection.value || null;
+    deck.collection_job_ids = [...view.collection.options].filter((o) => o.selected).map((o) => o.value);
     state.save();
   });
   // The Built switch saves at once, apart from the edit saves.
@@ -588,7 +584,8 @@ function createSession(host, deckId, options) {
       deck = {
         name: record.name || "Untitled deck",
         format: record.format,
-        collection_job_id: record.collection_job_id || null,
+        collection_job_ids: (record.collection_job_ids && record.collection_job_ids.length
+          ? record.collection_job_ids : [record.collection_job_id]).filter(Boolean),
         deck_size: record.deck_size ?? null,
         max_copies: record.max_copies ?? null,
       };

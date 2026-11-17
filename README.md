@@ -187,7 +187,8 @@ Check *Only free copies* to leave out the copies that your built decks use, so t
 
 The *Decks* screen lists your saved decks. Each deck belongs to one format.
 
-- **Create:** press *New deck*, then pick a name, a format, and a collection. The forge also saves each deck it builds.
+- **Create:** press *New deck*, then pick a name, a format, and one or more collections. The forge also saves each deck it builds, with every collection of its pool.
+- **Collections of a deck:** the *Collection* dropdown in the editor takes several collections. The deck counts the copies you own in all of them (two binders with 2 copies each give 4), and *Add cards* searches them together. With none checked, the deck uses your newest collection.
 - **Import:** press *Import decklist*, then paste a decklist. Plain text, Arena, MTGO and Archidekt lists all work: section lines such as *Sideboard (15)*, lines such as *SB: 2 Duress* or *Commander: Krenko, Mob Boss*, Arena's *About* block, and Archidekt category tags. A companion goes to the sideboard once. The editor flags cards you do not own.
 - **Edit:** search your cards, add or remove copies, and move cards between sections. Undo and redo work. The stats panel shows the curve, the colors, and the legality checks.
 - **Why a card is flagged:** each badge on a card has a plain reason as its tooltip, for example "Banned in Modern.", "Commander allows 1 copy of a card. This deck has 2." or "Its color identity has black. Krenko, Mob Boss allows only red." In the stats panel, each issue opens to the cards and their reasons.

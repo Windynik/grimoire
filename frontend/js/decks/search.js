@@ -111,8 +111,11 @@ export function renderSearch(root, state) {
     build(root, ctx);
   }
   ctx.state = state;
-  const jobId = (state.analysis && state.analysis.collection && state.analysis.collection.job_id)
-    || null;
+  // Every collection of the deck: the search reads them as one pool.
+  const collection = (state.analysis && state.analysis.collection) || {};
+  ctx.jobIds = (collection.job_ids && collection.job_ids.length ? collection.job_ids
+    : [collection.job_id]).filter(Boolean);
+  const jobId = ctx.jobIds.join(",") || null;
   const locked = !jobId;
   ctx.archive.disabled = locked;
   ctx.lockNote.hidden = !locked;
@@ -141,7 +144,7 @@ async function run(ctx, append) {
   ctx.status.textContent = "Searching…";
   ctx.more.disabled = true;
   try {
-    const data = await (archive ? api.searchArchive(params) : api.searchOwned(ctx.jobId, params));
+    const data = await (archive ? api.searchArchive(params) : api.searchOwned(ctx.jobIds, params));
     if (serial !== ctx.serial) return;
     const cards = data.cards || [];
     ctx.cards = append ? ctx.cards.concat(cards) : cards;

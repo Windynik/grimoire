@@ -21,8 +21,8 @@ export function getDeck(id) {
   return getJSON(`/decks/${enc(id)}`);
 }
 
-export function createDeck({ name, format, collection_job_id }) {
-  return postJSON("/decks", { name, format, collection_job_id });
+export function createDeck({ name, format, collection_job_id, collection_job_ids }) {
+  return postJSON("/decks", { name, format, collection_job_id, collection_job_ids });
 }
 
 /** Save a deck. The body must hold every editable field; the server nulls any field left out. */
@@ -68,8 +68,8 @@ export function duplicateDeck(id) {
   return postJSON(`/decks/${enc(id)}/duplicate`, {});
 }
 
-export function importDeck({ text, name, format, collection_job_id }) {
-  return postJSON("/decks/import", { text, name, format, collection_job_id });
+export function importDeck({ text, name, format, collection_job_id, collection_job_ids }) {
+  return postJSON("/decks/import", { text, name, format, collection_job_id, collection_job_ids });
 }
 
 export function exportUrl(id, kind) {
@@ -90,8 +90,10 @@ export function askAgent(id, message, model) {
   return postJSON(`/decks/${enc(id)}/agent`, { message, model });
 }
 
-export function searchOwned(jobId, params) {
-  return getJSON(`/collection/${enc(jobId)}/search${query(params)}`);
+/** Search the owned cards of one or more collections, as one pool. */
+export function searchOwned(jobIds, params) {
+  const [first, ...more] = Array.isArray(jobIds) ? jobIds : [jobIds];
+  return getJSON(`/collection/${enc(first)}/search${query({ ...params, also: more.join(",") })}`);
 }
 
 export function searchArchive(params) {

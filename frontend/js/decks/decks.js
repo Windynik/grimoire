@@ -124,10 +124,14 @@ function deckDialog({ title, submitLabel, defaultName, withText, onSubmit }) {
     : (state.formats[0] || {}).key;
   const format = selectOf("decks-dialog-format", state.formats.map((f) => [f.key, f.name]));
   if (formatKey) format.value = formatKey;
-  const collection = selectOf("decks-dialog-collection", [["", "No collection"]].concat(
-    state.collections.map((c) => [c.job_id, `${c.name} (${Number(c.card_count).toLocaleString()})`]),
-  ));
-  if (state.collections.length) collection.value = state.collections[0].job_id;
+  // A deck can read several collections; the newest one starts checked.
+  const collection = selectOf("decks-dialog-collection",
+    state.collections.map((c) => [c.job_id, `${c.name} (${Number(c.card_count).toLocaleString()})`]));
+  collection.multiple = true;
+  collection.dataset.placeholder = "Newest collection";
+  collection.dataset.countLabel = "collections";
+  if (collection.options.length) collection.options[0].selected = true;
+  const chosenJobs = () => [...collection.options].filter((o) => o.selected).map((o) => o.value);
   const text = withText
     ? h("textarea", {
       id: "decks-dialog-text", rows: "10", maxlength: "50000", required: true,
@@ -144,7 +148,8 @@ function deckDialog({ title, submitLabel, defaultName, withText, onSubmit }) {
     onSubmit: () => onSubmit({
       name: name.value.trim() || defaultName,
       format: format.value,
-      collection_job_id: collection.value || null,
+      collection_job_id: chosenJobs()[0] || null,
+      collection_job_ids: chosenJobs(),
       text: text ? text.value : undefined,
     }),
   });
@@ -153,8 +158,8 @@ function deckDialog({ title, submitLabel, defaultName, withText, onSubmit }) {
 function newDeckDialog() {
   deckDialog({
     title: "New deck", submitLabel: "Create deck", defaultName: "New deck",
-    onSubmit: async ({ name, format, collection_job_id }) => {
-      const deck = await api.createDeck({ name, format, collection_job_id });
+    onSubmit: async ({ name, format, collection_job_id, collection_job_ids }) => {
+      const deck = await api.createDeck({ name, format, collection_job_id, collection_job_ids });
       openEditor(deck.id, { isNew: true });
     },
   });
@@ -164,8 +169,8 @@ function importDialog() {
   deckDialog({
     title: "Import decklist", submitLabel: "Import",
     defaultName: "Imported deck", withText: true,
-    onSubmit: async ({ text, name, format, collection_job_id }) => {
-      const deck = await api.importDeck({ text, name, format, collection_job_id });
+    onSubmit: async ({ text, name, format, collection_job_id, collection_job_ids }) => {
+      const deck = await api.importDeck({ text, name, format, collection_job_id, collection_job_ids });
       const unknown = deck.unknown || [];
       if (unknown.length) {
         const shown = unknown.slice(0, 8).join(", ");

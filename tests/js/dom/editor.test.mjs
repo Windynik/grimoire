@@ -392,3 +392,32 @@ test("the export menu links the event decklist to print", async () => {
   assert.equal(link.getAttribute("href"), "/api/decks/d1/print/decklist");
   assert.equal(link.getAttribute("target"), "_blank");
 });
+
+test("the deck reads several collections: the editor saves them and searches them all", async () => {
+  const collections = [
+    { job_id: "job1", name: "Binder", card_count: 300, created: "2026-01-02T00:00:00Z" },
+    { job_id: "job2", name: "Trade Box", card_count: 120, created: "2026-01-01T00:00:00Z" },
+  ];
+  const record = { ...deckRecord(), collection_job_id: "job1", collection_job_ids: ["job1"],
+    analysis: { collection: { job_id: "job1", name: "Binder", job_ids: ["job1"], names: ["Binder"] } } };
+  await openEditor({
+    "GET /api/collections": () => ({ json: { collections } }),
+    "GET /api/decks/d1": () => ({ json: record }),
+    "GET /api/collection/job1/search": () => ({ json: { cards: [], total: 0, facets: {} } }),
+  });
+  const select = document.querySelector('[data-editor="collection"]');
+  assert.equal(select.multiple, true);
+  assert.deepEqual([...select.selectedOptions].map((o) => o.value), ["job1"]);
+  saveReply = (req) => ({ json: { analysis: { collection: { job_id: "job1", name: "Binder and Trade Box",
+    job_ids: req.body.collection_job_ids, names: ["Binder", "Trade Box"] } } } });
+  [...select.options].find((o) => o.value === "job2").selected = true;
+  select.dispatchEvent(new window.Event("change", { bubbles: true }));
+  await app.until(() => puts.some((body) => (body.collection_job_ids || []).length === 2), SAVE_WAIT);
+  const sent = puts.at(-1);
+  assert.deepEqual(sent.collection_job_ids, ["job1", "job2"]);
+  assert.equal(sent.collection_job_id, "job1");
+  // Add cards searches both collections of the deck.
+  click(document.querySelector('[data-editor="tab"][data-tab="search"]'));
+  await app.until(() => app.fetchLog.some((r) => r.path === "/api/collection/job1/search"
+    && r.query.get("also") === "job2"));
+});
