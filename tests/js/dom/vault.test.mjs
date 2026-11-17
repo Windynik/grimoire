@@ -128,9 +128,9 @@ async function openVault({
 
 test("the hero shows the numbers of the insights response", async () => {
   await openVault();
-  assert.equal(text("#vault-over"), "The Vault");
+  assert.equal(text("#vault-over"), "Collection");
   assert.equal(text("#vault-title-text"), "ManaBox Collection");
-  assert.equal(text("#vault-lede"), "1,002 cards, 851 of them unique — gathered on 19 July 2026.");
+  assert.equal(text("#vault-lede"), "1,002 cards, 851 unique. Imported 19 Jul 2026.");
   const value = (k) => text(`.vault-ledger-item[data-key="${k}"] .vault-ledger-value`);
   assert.equal(value("value"), "$1,234.50");
   assert.equal(value("rares"), "202");
@@ -139,19 +139,15 @@ test("the hero shows the numbers of the insights response", async () => {
   assert.match(text('.vault-ledger-item[data-key="value"] .vault-ledger-note'),
     /^Estimate · Scryfall prices from 4 Jun 2026$/);
   assert.equal(text('.vault-ledger-item[data-key="rares"] .vault-ledger-note'), "42 mythic");
+  // A count needs no note.
+  assert.equal($('.vault-ledger-item[data-key="foils"] .vault-ledger-note'), null);
+  assert.equal($('.vault-ledger-item[data-key="sets"] .vault-ledger-note'), null);
   assert.equal($("#vault-hero").hidden, false);
 });
 
-test("the counters count up once per session", async () => {
+test("the counters show their final values at once", async () => {
   await openVault({ counted: false });
-  const value = () => text('.vault-ledger-item[data-key="foils"] .vault-ledger-value');
-  assert.notEqual(value(), "37", "the counter starts below the final value");
-  await app.until(() => value() === "37", 3000);
-  assert.equal(window.sessionStorage.getItem(COUNTED), "1");
-  // A second open in the same session shows the final values at once.
-  window.localStorage.setItem("viewerSource", "job1");
-  await open();
-  assert.equal(value(), "37");
+  assert.equal(text('.vault-ledger-item[data-key="foils"] .vault-ledger-value'), "37");
 });
 
 test("the color orbs show share bars and toggle the color filter", async () => {
@@ -179,50 +175,10 @@ test("the color orbs show share bars and toggle the color filter", async () => {
   }
 });
 
-test("the fan holds the spotlight in the middle and four valuable cards around it", async () => {
+test("the hero has no card fan", async () => {
   await openVault();
-  const fan = $$("#vault-fan .vault-fan-card");
-  assert.equal(fan.length, 5);
-  assert.ok(fan[2].classList.contains("is-spot"));
-  assert.match(fan[2].getAttribute("aria-label"), /^Spotlight Dragon/);
-  assert.equal(fan[2].querySelector(".vault-fan-tag").textContent, "✦ Today's spotlight");
-  const names = fan.map((f) => f.getAttribute("aria-label").split(",")[0]);
-  assert.deepEqual(names.slice().sort(),
-    ["Pricey Four", "Pricey One", "Pricey Three", "Pricey Two", "Spotlight Dragon"]);
-  fan[0].click();
-  await app.until(() => $(".vault-drawer.is-open .vault-dname"));
-  assert.equal(text(".vault-drawer.is-open .vault-dname"), names[0]);
-  $(".vault-dclose").click();
-});
-
-test("the fan hovers the card of the resting layout, also through a lifted card", async () => {
-  await openVault();
-  const root = $("#vault-fan");
-  const fan = $$("#vault-fan .vault-fan-card");
-  // The fan is 600 px wide: the resting centres are 172, 236, 300, 364 and 428.
-  root.getBoundingClientRect = () => ({ left: 0, top: 0, width: 600, height: 420, right: 600, bottom: 420 });
-  const move = (target, x) => target.dispatchEvent(new window.MouseEvent("pointermove", {
-    bubbles: true, clientX: x, clientY: 300,
-  }));
-  const hovered = () => fan.filter((el) => el.classList.contains("is-hover"));
-
-  move(fan[2], 300);
-  assert.deepEqual(hovered(), [fan[2]]);
-  // The lifted middle card covers x = 190, but at rest the card at k = -1 is on
-  // top there. The nearest centre (172) is the card at k = -2: not that one.
-  move(fan[2], 190);
-  assert.deepEqual(hovered(), [fan[1]]);
-  move(fan[1], 100);
-  assert.deepEqual(hovered(), [fan[0]]);
-  move(fan[4], 500);
-  assert.deepEqual(hovered(), [fan[4]]);
-  // The empty fan area clears the hover, and so does leaving the fan.
-  move(root, 300);
-  assert.deepEqual(hovered(), []);
-  move(fan[3], 420);
-  assert.deepEqual(hovered(), [fan[3]]);
-  root.dispatchEvent(new window.MouseEvent("pointerleave"));
-  assert.deepEqual(hovered(), []);
+  assert.equal($("#vault-fan"), null);
+  assert.equal($$(".vault-fan-card").length, 0);
 });
 
 test("the switcher lists the collections and the archive, and switches", async () => {
@@ -280,7 +236,7 @@ test("job ids are encoded in the vault URLs", async () => {
   const paths = app.fetchLog.filter((r) => r.path.startsWith("/api/collection/")).map((r) => r.path);
   assert.ok(paths.length >= 3);
   for (const path of paths) assert.ok(path.startsWith("/api/collection/job%2F1%20x/"), path);
-  assert.equal(text("#vault-lede"), "1,002 cards, 851 of them unique.");
+  assert.equal(text("#vault-lede"), "1,002 cards, 851 unique.");
 });
 
 // ---- shelves -------------------------------------------------------------
@@ -585,7 +541,6 @@ test("the archive hides the hero, the shelves, the counts, and the value", async
   assert.ok(searches("/api/cards/search").length > 0);
   assert.equal(text("#vault-title-text"), "All cards");
   assert.equal($("#vault-hero").hidden, true);
-  assert.equal($("#vault-fan").hidden, true);
   assert.equal($("#vault-shelves").hidden, true);
   assert.equal($$("#vault-facets .vault-opt-count").length, 0, "no facet counts");
   assert.equal($('.vault-facet[data-facet="finish"]'), null);
@@ -638,7 +593,7 @@ test("an empty result names the one chip that blocks it", async () => {
     }),
   });
   assert.equal($("#vault-empty").hidden, false);
-  assert.match(text("#vault-empty"), /Nothing in the vault matches that\./);
+  assert.match(text("#vault-empty"), /No cards match these filters\./);
   assert.match(text("#vault-empty"), /Remove Mythic to see 8 cards/);
   assert.equal(tiles().length, 0);
   $("#vault-empty .vault-empty-clear").click();
@@ -673,7 +628,7 @@ test("an empty result with no single blocking chip shows no hint", async () => {
   assert.equal($("#vault-empty").hidden, false);
   assert.equal($("#vault-empty .vault-empty-hint"), null);
   assert.doesNotMatch(text("#vault-empty"), /null/);
-  assert.match(text("#vault-empty"), /^Nothing in the vault matches that\.Clear all filters$/);
+  assert.match(text("#vault-empty"), /^No cards match these filters\.Clear all filters$/);
 });
 
 test("only the first page of a new result rises in", async () => {
@@ -819,7 +774,6 @@ test("under reduced motion the counters show the final values at once", async ()
     await openVault({ counted: false });
     assert.equal(text('.vault-ledger-item[data-key="foils"] .vault-ledger-value'), "37");
     assert.equal(text('.vault-ledger-item[data-key="value"] .vault-ledger-value'), "$1,234.50");
-    assert.ok($("#vault-fan").classList.contains("is-still"));
   } finally {
     window.matchMedia = original;
   }
@@ -894,8 +848,6 @@ test("the hero stays while the same source loads again", async () => {
   const opening = open();
   await app.until(() => app.fetchLog.some((r) => r.path === "/api/collection/job1/insights"));
   assert.equal($("#vault-hero").hidden, false);
-  assert.equal($("#vault-fan").hidden, false);
-  assert.equal($$("#vault-fan .vault-fan-card").length, 5);
   slow.resolve({ json: INSIGHTS });
   await opening;
   // Another source hides the hero of the old one.
@@ -908,11 +860,8 @@ test("prices on the screen use thousands separators", async () => {
   await openVault({
     storage: { viewerSource: "job1", [STATE("job1")]: JSON.stringify({ view: "list" }) },
     search: () => page([card(1, { price: 1234.5 })], 1),
-    shelves: { ...SHELVES, valuable: [card(101, { name: "Big", price: 2500 }), ...SHELVES.valuable.slice(1)] },
   });
   assert.equal(text("#vault-list .vault-row .vault-row-price"), "$1,234.50");
-  const big = $$("#vault-fan .vault-fan-card").find((el) => /^Big/.test(el.getAttribute("aria-label")));
-  assert.equal(big.querySelector(".vault-fan-tag").textContent, "$2,500.00");
   $('#vault-view [data-view="grid"]').click();
   assert.equal(text("#vault-grid .vault-price"), "$1,234.50");
 });

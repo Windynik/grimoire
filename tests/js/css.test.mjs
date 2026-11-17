@@ -303,17 +303,9 @@ test("only motion.js animates", () => {
   }
 });
 
-test("the tracking tilt transitions only transform, with a token duration", () => {
+test("the vault tiles do not tilt, shine or glare", () => {
   const vault = cssFiles().find((f) => f.name === join("css", "vault.css")).text;
-  const rule = vault.match(/\.vault-tile\.is-tilting\s+\.vault-face\s*\{([^}]*)\}/);
-  assert.ok(rule, "vault.css has the tracking rule");
-  const transitions = declarations(rule[1]).filter((d) => d.prop.startsWith("transition"));
-  assert.equal(transitions.length, 1);
-  const items = splitTop(transitions[0].value);
-  assert.equal(items.length, 1);
-  assert.equal(items[0].split(/\s+/)[0], "transform");
-  assert.match(items[0], /var\(--dur-[a-z]+\)/);
-  assert.doesNotMatch(stripTokenGroups(items[0]), RAW_TIME);
+  assert.doesNotMatch(vault, /is-tilting|\.vault-glare|\.vault-holo|\.vault-fan/);
 });
 
 // The body of each "@media (pointer: coarse)" block of a stylesheet.

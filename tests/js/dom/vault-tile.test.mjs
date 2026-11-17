@@ -1,4 +1,4 @@
-// The vault card tile, its tilt, and the shared collection client.
+// The vault card tile and the shared collection client.
 import { test, before } from "node:test";
 import assert from "node:assert/strict";
 import { join, dirname } from "node:path";
@@ -53,9 +53,7 @@ test("a single copy has no badge and no stacked backs", () => {
   assert.equal(el.querySelectorAll(".vault-stack").length, 0);
   assert.ok(el.querySelector(".vault-face .card-img"), "the face holds a cardImg");
   assert.ok(el.querySelector(".vault-frame > .vault-face"), "a still frame holds the face");
-  const glare = el.querySelector(".vault-face .vault-glare");
-  assert.ok(glare, "the face holds a glare layer");
-  assert.equal(glare.getAttribute("aria-hidden"), "true");
+  assert.equal(el.querySelector(".vault-glare"), null, "the face has no glare layer");
 });
 
 test("two copies show one stacked back and a x2 badge", () => {
@@ -72,15 +70,14 @@ test("three or more copies show two stacked backs", () => {
   }
 });
 
-test("only a foil gets the holo layer and the FOIL tag", () => {
+test("only a foil gets the FOIL tag, and no foil gets a shine layer", () => {
   const plain = tile.vaultTile(card());
-  assert.equal(plain.querySelector(".vault-holo"), null);
   assert.equal(plain.querySelector(".vault-foil-tag"), null);
   assert.ok(!plain.classList.contains("is-foil"));
 
   const foil = tile.vaultTile(card({ foil: true }));
   assert.ok(foil.classList.contains("is-foil"));
-  assert.equal(foil.querySelector(".vault-face .vault-holo").getAttribute("aria-hidden"), "true");
+  assert.equal(foil.querySelector(".vault-holo"), null, "no shine layer");
   assert.equal(foil.querySelector(".vault-foil-tag").textContent, "FOIL");
 });
 
@@ -132,193 +129,11 @@ test("an index sets the stagger; no index means no rise", () => {
   assert.ok(!later.classList.contains("is-rising"));
 });
 
-// ---- the tilt ------------------------------------------------------------
+// ---- no tilt -------------------------------------------------------------
 
-function grid(...tiles) {
-  const root = document.createElement("div");
-  root.append(...tiles);
-  document.body.append(root);
-  for (const el of tiles) {
-    // The frame does not turn: its box is the true box of the face.
-    el.querySelector(".vault-frame").getBoundingClientRect = () => ({
-      left: 100, top: 200, width: 200, height: 280, right: 300, bottom: 480,
-    });
-    // The box of a tilted face is skewed. The tilt must not read it.
-    el.querySelector(".vault-face").getBoundingClientRect = () => ({
-      left: 120, top: 230, width: 160, height: 220, right: 280, bottom: 450,
-    });
-  }
-  return root;
-}
-
-const move = (target, x, y) => target.dispatchEvent(new window.MouseEvent("pointermove", {
-  bubbles: true, clientX: x, clientY: y,
-}));
-
-test("pointermove tilts the face and leaving the tile resets it", async () => {
-  const el = tile.vaultTile(card({ foil: true }));
-  const root = grid(el);
-  tile.attachTilt(root);
-  const face = el.querySelector(".vault-face");
-
-  // The top-left corner of the face: the most tilt.
-  move(el.querySelector(".vault-glare"), 100, 200);
-  await app.until(() => face.style.transform);
-  assert.match(face.style.transform, /rotateX\(9deg\)/);
-  assert.match(face.style.transform, /rotateY\(-9deg\)/);
-  assert.match(face.style.transform, /translateZ\(14px\)/);
-  assert.equal(face.style.getPropertyValue("--mx"), "0%");
-  assert.equal(face.style.getPropertyValue("--my"), "0%");
-  assert.ok(el.classList.contains("is-tilting"), "the tracking class stops the transition");
-
-  el.dispatchEvent(new window.MouseEvent("pointerout", { bubbles: true, relatedTarget: root }));
-  assert.equal(face.style.transform, "");
-  assert.ok(!el.classList.contains("is-tilting"));
-  root.remove();
+test("the tiles do not tilt", () => {
+  assert.equal(tile.attachTilt, undefined);
 });
-
-test("the tilt follows the pointer across tiles and resets when it leaves the root", async () => {
-  const a = tile.vaultTile(card());
-  const b = tile.vaultTile(card());
-  const root = grid(a, b);
-  tile.attachTilt(root);
-  tile.attachTilt(root); // a second call adds no second listener
-  const faceA = a.querySelector(".vault-face");
-  const faceB = b.querySelector(".vault-face");
-
-  move(a, 200, 340); // the center: no rotation
-  await app.until(() => faceA.style.transform);
-  assert.match(faceA.style.transform, /rotateX\(0deg\) rotateY\(0deg\)/);
-
-  move(b, 300, 480); // the bottom-right corner of b
-  await app.until(() => faceB.style.transform);
-  assert.equal(faceA.style.transform, "", "the old tile resets when the pointer moves on");
-  assert.match(faceB.style.transform, /rotateX\(-9deg\) rotateY\(9deg\)/);
-  assert.equal(faceB.style.getPropertyValue("--hx"), "100%");
-
-  root.dispatchEvent(new window.MouseEvent("pointerleave", { relatedTarget: null }));
-  assert.equal(faceB.style.transform, "");
-  root.remove();
-});
-
-test("the angles come from the frame, not from the tilted face", async () => {
-  const el = tile.vaultTile(card());
-  const root = grid(el);
-  tile.attachTilt(root);
-  const face = el.querySelector(".vault-face");
-  // The point (120, 230) is the corner of the skewed face box but inside the frame.
-  move(el, 120, 230);
-  await app.until(() => face.style.transform);
-  assert.match(face.style.transform, /rotateX\(7\.07deg\) rotateY\(-7\.2deg\)/);
-  assert.equal(face.style.getPropertyValue("--mx"), "10%");
-  root.remove();
-});
-
-test("over the caption the tilt fades to flat instead of the bottom edge", async () => {
-  const el = tile.vaultTile(card());
-  const root = grid(el);
-  tile.attachTilt(root);
-  const face = el.querySelector(".vault-face");
-  // 14 px below the face (0.05 of its height): the tilt is 5/6 of the edge tilt.
-  move(el, 200, 494);
-  await app.until(() => face.style.transform);
-  assert.match(face.style.transform, /rotateX\(-7\.5deg\) rotateY\(0deg\)/);
-  assert.equal(face.style.getPropertyValue("--my"), "100%");
-  // 0.3 of the height below the face, or more: flat.
-  move(el, 200, 580);
-  await app.until(() => /rotateX\(0deg\)/.test(face.style.transform));
-  root.remove();
-});
-
-test("leaving tile A for tile B resets A; moving inside one tile does not", async () => {
-  const a = tile.vaultTile(card());
-  const b = tile.vaultTile(card());
-  const root = grid(a, b);
-  tile.attachTilt(root);
-  const faceA = a.querySelector(".vault-face");
-
-  move(a, 150, 250);
-  await app.until(() => faceA.style.transform);
-  // Between two children of the same tile: no reset.
-  a.querySelector(".vault-glare").dispatchEvent(new window.MouseEvent("pointerout", {
-    bubbles: true, relatedTarget: a.querySelector(".vault-name"),
-  }));
-  assert.notEqual(faceA.style.transform, "");
-  assert.ok(a.classList.contains("is-tilting"));
-
-  // From A into a child of B: A resets.
-  a.querySelector(".vault-glare").dispatchEvent(new window.MouseEvent("pointerout", {
-    bubbles: true, relatedTarget: b.querySelector(".vault-glare"),
-  }));
-  assert.equal(faceA.style.transform, "");
-  assert.ok(!a.classList.contains("is-tilting"));
-  root.remove();
-});
-
-test("many moves in one frame apply once, with the newest position", async () => {
-  const el = tile.vaultTile(card());
-  const root = grid(el);
-  tile.attachTilt(root);
-  const face = el.querySelector(".vault-face");
-  let writes = 0;
-  const style = face.style;
-  const set = style.setProperty.bind(style);
-  style.setProperty = (name, ...rest) => {
-    if (name === "--mx") writes += 1;
-    return set(name, ...rest);
-  };
-  move(el, 100, 200);
-  move(el, 150, 270);
-  move(el, 300, 480);
-  await app.until(() => face.style.transform);
-  await app.settle();
-  assert.equal(writes, 1);
-  assert.equal(face.style.getPropertyValue("--mx"), "100%");
-  root.remove();
-});
-
-test("a touch pointer does not tilt", async () => {
-  const el = tile.vaultTile(card());
-  const root = grid(el);
-  tile.attachTilt(root);
-  const event = new window.MouseEvent("pointermove", { bubbles: true, clientX: 100, clientY: 200 });
-  Object.defineProperty(event, "pointerType", { value: "touch" });
-  el.dispatchEvent(event);
-  await new Promise((resolve) => setTimeout(resolve, 60));
-  assert.equal(el.querySelector(".vault-face").style.transform, "");
-  root.remove();
-});
-
-async function withMedia(match, fn) {
-  const real = window.matchMedia;
-  const stub = (query) => ({ ...real(query), matches: match(query) });
-  window.matchMedia = stub;
-  globalThis.matchMedia = stub;
-  try {
-    await fn();
-  } finally {
-    window.matchMedia = real;
-    globalThis.matchMedia = real;
-  }
-}
-
-for (const [label, match] of [
-  ["reduced motion", (q) => /prefers-reduced-motion/.test(q)],
-  ["a coarse pointer", (q) => /pointer:\s*coarse/.test(q)],
-]) {
-  test(`no tilt under ${label}`, async () => {
-    await withMedia(match, async () => {
-      const el = tile.vaultTile(card());
-      const root = grid(el);
-      tile.attachTilt(root);
-      move(el, 100, 200);
-      await new Promise((resolve) => setTimeout(resolve, 60));
-      assert.equal(el.querySelector(".vault-face").style.transform, "");
-      assert.ok(!el.classList.contains("is-tilting"));
-      root.remove();
-    });
-  });
-}
 
 // ---- the collection client -----------------------------------------------
 

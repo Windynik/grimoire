@@ -1,7 +1,6 @@
-// The Vault: the collection screen. A hero with the collection switcher, the
-// ledger, the color orbs and the fanned hand; shelves; an index sidebar with
-// live facet counts; a sticky results header; and the grid or list of cards
-// with infinite scroll.
+// The collection screen. A head with the collection switcher, the ledger and
+// the color orbs; shelves; an index sidebar with live facet counts; a sticky
+// results header; and the grid or list of cards with infinite scroll.
 //
 // The archive ("All cards") keeps search, filters, sort, view and size. It
 // hides the hero, the shelves, the facet counts and the value.
@@ -17,12 +16,12 @@ import {
 } from "../shared/session.js";
 import * as api from "./api.js";
 import { closeDrawer, openDrawer } from "./drawer.js";
-import { attachTilt, syncTileFlags, vaultTile } from "./tile.js";
+import { syncTileFlags, vaultTile } from "./tile.js";
 import {
   ARCHIVE_SORTS, SETS_SORTS, SIZES, SORTS, defaultState, loadState, normalizeState, saveState,
 } from "./state.js";
 import {
-  COLOR_NAMES, renderFan, renderHero, renderMovers, renderShelves, renderSwitcher, syncOrbs,
+  COLOR_NAMES, renderHero, renderMovers, renderShelves, renderSwitcher, syncOrbs,
 } from "./hero.js";
 import { formatCount, formatMoney } from "./numbers.js";
 import { formatName, renderFacets, setName } from "./sidebar.js";
@@ -295,7 +294,7 @@ async function loadMore() {
   } catch (error) {
     if (token !== screen.token) return;
     // Keep the scroll going: the owner can ask again.
-    console.error("The next page of the vault did not load:", error);
+    console.error("The next page of the collection did not load:", error);
     screen.moreFailed = true;
     ui.moreError.hidden = false;
   } finally {
@@ -447,7 +446,7 @@ function renderEmpty() {
   }
   const hint = blockingChip();
   fill(ui.empty,
-    h("p", { class: "vault-empty-title", text: "Nothing in the vault matches that." }),
+    h("p", { class: "vault-empty-title", text: "No cards match these filters." }),
     hint ? hintNode(hint) : null,
     h("button", { type: "button", class: "btn btn-secondary vault-empty-clear", text: "Clear all filters", onclick: clearAll }));
   if (!hint && !screen.archive) probeHint(screen.token);
@@ -512,7 +511,7 @@ function showError(error) {
     return;
   }
   ui.empty.replaceChildren(
-    h("p", { class: "vault-empty-title", text: "The vault did not open." }),
+    h("p", { class: "vault-empty-title", text: "The collection did not open." }),
     h("p", { class: "vault-empty-hint", text: (error && error.message) || "The server did not answer." }),
     h("button", { type: "button", class: "btn btn-secondary vault-retry", text: "Try again", onclick: () => reload() }));
 }
@@ -594,7 +593,6 @@ async function openChecklist(set, tile) {
       onBack: backToSets,
       onOpenCard: openCard,
       onGrid: (grid) => {
-        attachTilt(grid);
         grid.addEventListener("keydown", onGridKey);
       },
     });
@@ -735,17 +733,16 @@ function collectionOf(id) {
 function renderChrome() {
   const archive = screen.archive;
   ui.view.classList.toggle("is-archive", archive);
-  ui.over.textContent = archive ? "The Archive" : "The Vault";
+  ui.over.textContent = archive ? "Card data" : "Collection";
   const current = collectionOf(screen.source);
   ui.titleText.textContent = archive ? "All cards" : String((current && current.name) || "Collection");
-  ui.search.placeholder = archive ? "Search every card…" : "Search your vault…";
+  ui.search.placeholder = archive ? "Search every card…" : "Search your collection…";
   renderSwitcher(ui.menu, screen.collections, screen.source, pick);
   ui.exportLink.hidden = archive;
   // The hero of the same source stays while it loads again.
   if (screen.heroSource !== screen.source) {
     screen.heroSource = undefined;
     ui.hero.hidden = true;
-    ui.fan.hidden = true;
     ui.shelves.hidden = true;
     ui.shelves.replaceChildren();
   }
@@ -771,7 +768,6 @@ async function loadHero(gen) {
     learnSetNames([...spotlight, ...(screen.shelves.valuable || []),
       ...(screen.shelves.foils || []), ...(screen.shelves.new || []),
       ...(screen.shelves.gems || [])]);
-    ui.fan.hidden = renderFan(ui.fan, screen.shelves, openCard) === 0;
     renderShelves(ui.shelves, screen.shelves, { onOpen: openCard, onSeeAll: seeAll });
     renderShelvesVisibility();
     renderSidebar();
@@ -934,7 +930,6 @@ function init() {
     ledger: byId("vault-ledger"),
     orbs: byId("vault-orbs"),
     movers: byId("vault-movers"),
-    fan: byId("vault-fan"),
     shelves: byId("vault-shelves"),
     main: byId("collection-view").querySelector(".vault-main"),
     side: byId("vault-side"),
@@ -1022,7 +1017,6 @@ function init() {
   ui.grid.addEventListener("keydown", onGridKey);
   ui.list.addEventListener("keydown", onListKey);
   ui.shelves.addEventListener("keydown", onShelfKey);
-  attachTilt(ui.grid);
 
   // Infinite scroll: the next page loads when the sentinel comes near.
   new IntersectionObserver((entries) => {

@@ -1,23 +1,11 @@
-// The vault card tile: a card face with a glare, a foil shine, stacked backs
-// for copies, a gold quantity badge, and a caption. attachTilt makes the tiles
-// of a root tilt toward the pointer.
+// The collection card tile: a card face with stacked backs for copies, a
+// quantity badge, a FOIL tag, and a caption.
 //
 // Server text goes in with textContent only. The mana cost goes through manaNode.
 
 import { h, manaNode } from "../shared/dom.js";
 import { cardImg } from "../shared/images.js";
 import { formatCardPrice } from "./numbers.js";
-import { reducedMotion } from "../shared/motion.js";
-
-const MAX_TILT = 9; // degrees at the edge of the face
-const LIFT = 14; // px toward the viewer while the face tilts
-// A missing card of a checklist (is-missing) does not tilt.
-const TILE = ".vault-tile:not(.is-missing)";
-const FACE = ".vault-face";
-const FRAME = ".vault-frame";
-// Below the face (over the caption), the tilt fades to flat over this part of the face height.
-const FALLOFF = 0.3;
-const POINTER_PROPS = ["--mx", "--my", "--hx", "--hy"];
 
 // The US dollar price keys of each finish, best first (backend/core/prices.py).
 // EUR and MTGO ticket prices are other units, so they never count.
@@ -103,13 +91,8 @@ export function vaultTile(card, { index, onOpen } = {}) {
   const face = h("div", { class: "vault-face" });
   if (copies > 1) face.append(h("span", { class: "vault-stack s1", "aria-hidden": "true" }));
   if (copies > 2) face.append(h("span", { class: "vault-stack s2", "aria-hidden": "true" }));
-  face.append(cardImg(card, { className: "vault-img" }), h("span", { class: "vault-glare", "aria-hidden": "true" }));
-  if (foil) {
-    face.append(
-      h("span", { class: "vault-holo", "aria-hidden": "true" }),
-      h("span", { class: "vault-foil-tag", "aria-hidden": "true", text: "FOIL" }),
-    );
-  }
+  face.append(cardImg(card, { className: "vault-img" }));
+  if (foil) face.append(h("span", { class: "vault-foil-tag", "aria-hidden": "true", text: "FOIL" }));
 
   const caption = h("div", { class: "vault-cap" },
     h("span", { class: "vault-name", text: String(card.name || "") }),
@@ -143,111 +126,4 @@ export function vaultTile(card, { index, onOpen } = {}) {
     }
   });
   return tile;
-}
-
-const coarsePointer = () => Boolean(typeof window !== "undefined" && window.matchMedia
-  && window.matchMedia("(pointer: coarse)").matches);
-
-const clamp = (value) => Math.min(1, Math.max(0, value));
-// Two decimals, and never "-0".
-const round = (value) => Math.round(value * 100) / 100 + 0;
-const percent = (value) => `${round(value * 100)}%`;
-
-// The roots that already tilt.
-const tilting = new WeakSet();
-
-/**
- * Make the vault tiles inside root tilt toward the pointer: up to 9 degrees on
- * each axis and a lift of 14 px. The glare and the foil shine follow the
- * pointer through the --mx, --my, --hx and --hy properties of the face.
- * One set of listeners on root serves every tile, and one animation frame
- * applies the newest pointer position. The face returns flat when the pointer
- * leaves the tile.
- *
- * Under reduced motion, or with a coarse (touch) primary pointer, no listener
- * goes on. A second call for the same root does nothing.
- */
-export function attachTilt(root) {
-  if (!root || tilting.has(root) || reducedMotion() || coarsePointer()) return;
-  tilting.add(root);
-
-  let active = null; // the tile that tilts now
-  let point = null; // the newest pointer position: {tile, x, y}
-  let frame = 0;
-
-  const flatten = (tile) => {
-    const face = tile.querySelector(FACE);
-    tile.classList.remove("is-tilting");
-    if (!face) return;
-    face.style.transform = "";
-    POINTER_PROPS.forEach((name) => face.style.removeProperty(name));
-  };
-
-  const reset = () => {
-    if (frame) cancelAnimationFrame(frame);
-    frame = 0;
-    point = null;
-    if (active) flatten(active);
-    active = null;
-  };
-
-  const apply = () => {
-    frame = 0;
-    const next = point;
-    point = null;
-    if (!next || !next.tile.isConnected) return;
-    const { tile, x, y } = next;
-    const face = tile.querySelector(FACE);
-    if (!face) return;
-    if (tile !== active) {
-      if (active) flatten(active);
-      active = null;
-      // The preference can change after attach.
-      if (reducedMotion()) return;
-      active = tile;
-      // The class swaps the slow return for a short linear transition that
-      // smooths the first pose and the steps between frames.
-      tile.classList.add("is-tilting");
-    }
-    // The frame does not turn, so its box stays true while the face tilts.
-    const frameEl = tile.querySelector(FRAME);
-    const box = (frameEl || tile).getBoundingClientRect();
-    if (!box.width || !box.height) return;
-    const rawX = (x - box.left) / box.width;
-    const rawY = (y - box.top) / box.height;
-    const px = clamp(rawX);
-    const py = clamp(rawY);
-    // Outside the face (the caption, the badge), the tilt fades out with the distance.
-    const outside = Math.max(Math.abs(rawX - px), Math.abs(rawY - py));
-    const fade = Math.max(0, 1 - outside / FALLOFF);
-    const rx = round((0.5 - py) * 2 * MAX_TILT * fade);
-    const ry = round((px - 0.5) * 2 * MAX_TILT * fade);
-    face.style.transform = `rotateX(${rx}deg) rotateY(${ry}deg) translateZ(${LIFT}px)`;
-    face.style.setProperty("--mx", percent(px));
-    face.style.setProperty("--my", percent(py));
-    face.style.setProperty("--hx", percent(px));
-    face.style.setProperty("--hy", percent(py));
-  };
-
-  const tileOf = (target) => (target && typeof target.closest === "function"
-    ? target.closest(TILE) : null);
-
-  root.addEventListener("pointermove", (event) => {
-    if (event.pointerType === "touch") return;
-    const tile = tileOf(event.target);
-    if (!tile || !root.contains(tile)) {
-      if (active) reset();
-      return;
-    }
-    point = { tile, x: event.clientX, y: event.clientY };
-    if (!frame) frame = requestAnimationFrame(apply);
-  });
-
-  root.addEventListener("pointerout", (event) => {
-    const tile = tileOf(event.target);
-    if (!tile || tile.contains(event.relatedTarget)) return;
-    if (tile === active || (point && point.tile === tile)) reset();
-  });
-
-  root.addEventListener("pointerleave", reset);
 }

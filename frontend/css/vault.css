@@ -1,10 +1,7 @@
 /* ==========================================================================
-   The Vault: the collection screen.
-   The card tile (js/collection/tile.js): a face that tilts toward the pointer,
-   a glare and a foil shine that follow it, stacked backs for copies, a gold
-   quantity badge, and a caption.
-   The tilt writes an inline transform and the --mx, --my, --hx and --hy
-   properties of the face. Only transform and opacity move.
+   The collection screen.
+   The card tile (js/collection/tile.js): a card face, stacked backs for
+   copies, a quantity badge, a FOIL tag, and a caption.
    ========================================================================== */
 
 .vault-tile {
@@ -15,26 +12,14 @@
     cursor: pointer;
 }
 
-/* The frame does not turn. The tilt measures it, and it holds the perspective. */
 .vault-frame {
     position: relative;
-    perspective: 1000px;
 }
 
 .vault-face {
     position: relative;
     aspect-ratio: 488 / 680;
     border-radius: var(--tile-radius);
-    transform-style: preserve-3d;
-    transition: transform var(--dur-slow) var(--ease-out);
-}
-
-/* While the face tracks the pointer, a short linear transition smooths the
-   first pose and the steps between frames. The slow ease-out above brings the
-   face back flat when the pointer leaves. */
-.vault-tile.is-tilting .vault-face {
-    transition: transform calc(var(--dur-fast) / 2) linear;
-    will-change: transform;
 }
 
 /* The resting shadow, and the deeper hover shadow with a gold edge on a
@@ -94,47 +79,6 @@
     opacity: 0.7;
 }
 
-/* The glare: a soft light at the pointer. Keyboard focus shows it at rest. */
-.vault-glare {
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    pointer-events: none;
-    background: radial-gradient(
-        farthest-corner circle at var(--mx, 35%) var(--my, 25%),
-        var(--glare), var(--glare-faint) 35%, transparent 60%);
-    mix-blend-mode: soft-light;
-    opacity: 0;
-    transition: opacity var(--dur-base) var(--ease-out);
-}
-
-.vault-tile:hover .vault-glare,
-.vault-tile:focus-visible .vault-glare {
-    opacity: 1;
-}
-
-/* The foil shine: a rainbow band. The pointer moves it through --hx and --hy. */
-.vault-holo {
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    pointer-events: none;
-    background: repeating-linear-gradient(115deg,
-        var(--holo-1) 0%, var(--holo-2) 7%, var(--holo-3) 14%, var(--holo-4) 21%, var(--holo-1) 28%);
-    background-size: 300% 300%;
-    background-position: var(--hx, 50%) var(--hy, 50%);
-    mix-blend-mode: color-dodge;
-    opacity: 0.32;
-    -webkit-mask: linear-gradient(115deg, transparent 20%, #000 45%, #000 55%, transparent 80%);
-    mask: linear-gradient(115deg, transparent 20%, #000 45%, #000 55%, transparent 80%);
-    transition: opacity var(--dur-base) var(--ease-out);
-}
-
-.vault-tile:hover .vault-holo,
-.vault-tile:focus-visible .vault-holo {
-    opacity: 0.45;
-}
-
 .vault-foil-tag {
     position: absolute;
     left: 10px;
@@ -150,7 +94,7 @@
     pointer-events: none;
 }
 
-/* The quantity badge sits over the top-right corner and does not tilt. */
+/* The quantity badge sits over the top-right corner. */
 .vault-qty {
     position: absolute;
     right: -8px;
@@ -324,14 +268,13 @@
 
 .vault-hero-wrap {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 600px);
-    gap: 40px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
     align-items: center;
-    padding: 8px 0 30px;
+    padding: 8px 0 24px;
 }
 
 .vault.is-archive .vault-hero-wrap {
-    grid-template-columns: minmax(0, 1fr);
     padding-bottom: 18px;
 }
 
@@ -824,136 +767,6 @@
     height: 100%;
     background: var(--orb);
     transform-origin: left;
-}
-
-/* ---- the fan ------------------------------------------------------------- */
-
-.vault-fan {
-    --fan-card: 206px;
-    --fan-spread: 64px;
-    position: relative;
-    height: 420px;
-    margin: 0 20px 0 40px;
-}
-
-.vault-fan-ring,
-.vault-fan-glow {
-    position: absolute;
-    left: 50%;
-    pointer-events: none;
-}
-
-.vault-fan-ring {
-    top: 4%;
-    width: 420px;
-    height: 420px;
-    margin-left: -210px;
-    border-radius: 50%;
-    border: 1px dashed var(--gold-dim);
-    opacity: 0.5;
-    animation: vault-spin calc(var(--dur-slow) * 150) linear infinite;
-}
-
-.vault-fan-ring::before {
-    content: "";
-    position: absolute;
-    inset: 26px;
-    border-radius: 50%;
-    border: 1px solid var(--violet-faint);
-}
-
-.vault-fan-glow {
-    bottom: 30px;
-    width: 520px;
-    height: 220px;
-    margin-left: -260px;
-    background: radial-gradient(closest-side, var(--gold-dim), transparent);
-    opacity: 0.7;
-    filter: blur(10px);
-}
-
-@keyframes vault-spin {
-    to {
-        transform: rotate(360deg);
-    }
-}
-
-.vault-fan-card {
-    --fan-pose: translateX(calc(-50% + var(--k) * var(--fan-spread)))
-        translateY(calc(var(--ak) * 10px)) rotate(calc(var(--k) * 9deg));
-    position: absolute;
-    left: 50%;
-    bottom: 10px;
-    z-index: calc(5 - var(--ak));
-    width: var(--fan-card);
-    padding: 0;
-    border: 0;
-    border-radius: 12px;
-    background: none;
-    cursor: pointer;
-    transform-origin: 50% 120%;
-    transform: var(--fan-pose);
-    transition: transform var(--dur-base) var(--ease-out);
-}
-
-.vault-fan-img {
-    border-radius: 12px;
-    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05);
-}
-
-/* The fan script sets is-hover from the resting layout, not :hover: the lifted
-   card covers its neighbors, and :hover would stick to it. */
-.vault-fan-card.is-hover,
-.vault-fan-card:focus-visible {
-    z-index: 9;
-    transform: translateX(calc(-50% + var(--k) * var(--fan-spread)))
-        translateY(-26px) rotate(calc(var(--k) * 3.6deg)) scale(1.06);
-}
-
-.vault-fan.is-still .vault-fan-card.is-hover,
-.vault-fan.is-still .vault-fan-card:focus-visible {
-    transform: var(--fan-pose);
-}
-
-/* The lift opens a gap under the card. The bridge fills it, so the pointer
-   stays on the card and the card does not drop back and forth. */
-.vault-fan-card.is-hover::after {
-    content: "";
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: 100%;
-    height: 40px;
-}
-
-.vault-fan-card:focus-visible {
-    outline: none;
-}
-
-.vault-fan-card:focus-visible .vault-fan-img {
-    outline: 2px solid var(--violet);
-    outline-offset: 4px;
-}
-
-.vault-fan-tag {
-    position: absolute;
-    left: 50%;
-    top: -34px;
-    transform: translateX(-50%);
-    white-space: nowrap;
-    font: 700 10.5px/1 var(--font-ui);
-    letter-spacing: 0.24em;
-    text-transform: uppercase;
-    color: var(--gold);
-    opacity: 0;
-    transition: opacity var(--dur-base) var(--ease-out);
-    pointer-events: none;
-}
-
-.vault-fan-card.is-spot .vault-fan-tag,
-.vault-fan-card.is-hover .vault-fan-tag,
-.vault-fan-card:focus-visible .vault-fan-tag {
-    opacity: 1;
 }
 
 /* ---- shelves ------------------------------------------------------------- */
@@ -1699,16 +1512,6 @@
 /* ---- medium windows ------------------------------------------------------ */
 
 @media (max-width: 1099px) {
-    .vault-hero-wrap {
-        grid-template-columns: minmax(0, 1fr);
-    }
-
-    .vault-fan {
-        width: 100%;
-        max-width: 560px;
-        margin: 10px auto 0;
-    }
-
     .vault-main {
         grid-template-columns: 228px minmax(0, 1fr);
         gap: 24px;
@@ -1728,7 +1531,7 @@
 /* ---- phones: the sidebar becomes a bottom sheet ------------------------- */
 
 @media (max-width: 759px) {
-    /* The outer cards of the fan turn past the edge: no sideways scroll. */
+    /* No sideways scroll on a phone. */
     .vault {
         overflow-x: clip;
     }
@@ -1773,30 +1576,6 @@
 
     .vault-orb-bar {
         width: 38px;
-    }
-
-    .vault-fan {
-        --fan-card: 132px;
-        --fan-spread: 44px;
-        height: 262px;
-        margin-top: 0;
-    }
-
-    .vault-fan-ring {
-        width: 270px;
-        height: 270px;
-        margin-left: -135px;
-    }
-
-    .vault-fan-glow {
-        width: 320px;
-        height: 150px;
-        margin-left: -160px;
-    }
-
-    .vault-fan-tag {
-        top: -26px;
-        font-size: 9.5px;
     }
 
     .vault-shelf-row {
@@ -2107,15 +1886,10 @@
     text-align: center;
 }
 
-/* A missing card: no color, no tilt, a price below. */
+/* A missing card: no color, a price below. */
 .vault-tile.is-missing .vault-frame {
     opacity: 0.45;
     filter: grayscale(1);
-}
-
-.vault-tile.is-missing .vault-glare,
-.vault-tile.is-missing .vault-holo {
-    display: none;
 }
 
 .vault-tile.is-missing .vault-name {
@@ -2233,11 +2007,6 @@ body.vault-sheet-lock {
     border-radius: 16px;
     transform-style: preserve-3d;
     transition: transform var(--dur-slow) var(--ease-out);
-}
-
-.vault-dface.is-tilting {
-    transition: transform calc(var(--dur-fast) / 2) linear;
-    will-change: transform;
 }
 
 .vault-dface > .card-img,

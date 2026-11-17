@@ -9,14 +9,13 @@ import { h, manaNode } from "../shared/dom.js";
 import { showToast } from "../shared/toast.js";
 import { cardImage, cardImg } from "../shared/images.js";
 import { renderOracleText } from "../shared/mana.js";
-import { animate, reducedMotion } from "../shared/motion.js";
+import { animate } from "../shared/motion.js";
 import * as api from "./api.js";
 import { editable, trapTab } from "./keys.js";
 import { formatCardPrice, formatMoney } from "./numbers.js";
 import { FLAG_LABELS, unitPrice } from "./tile.js";
 
 const FORMATS = ["commander", "standard", "pioneer", "modern", "legacy", "vintage", "pauper", "brawl"];
-const MAX_TILT = 8; // degrees at the edge of the image
 const LEGAL = new Set(["legal", "restricted"]);
 
 const state = {
@@ -31,7 +30,6 @@ const state = {
   usage: new Map(), // card id -> promise of its deck usage
 };
 
-const coarsePointer = () => Boolean(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
 const isOpen = () => Boolean(state.els && state.els.root.classList.contains("is-open"));
 const current = () => state.cards[state.index];
 const capital = (s) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -65,27 +63,7 @@ function build() {
   root.addEventListener("click", (event) => {
     if (event.target.closest(".vault-decks a")) closeDrawer(false);
   });
-  attachTilt(head, face);
   state.els = { scrim, root, close, face, head, flip, body, prev, next, pos };
-}
-
-function attachTilt(head, face) {
-  head.addEventListener("pointermove", (event) => {
-    if (event.pointerType === "touch" || reducedMotion() || coarsePointer()) return;
-    const box = face.getBoundingClientRect();
-    if (!box.width || !box.height) return;
-    const px = Math.min(1, Math.max(0, (event.clientX - box.left) / box.width));
-    const py = Math.min(1, Math.max(0, (event.clientY - box.top) / box.height));
-    face.classList.add("is-tilting");
-    face.style.transform = `rotateX(${Math.round((0.5 - py) * 2 * MAX_TILT * 100) / 100}deg) `
-      + `rotateY(${Math.round((px - 0.5) * 2 * MAX_TILT * 100) / 100}deg)`;
-  });
-  const flat = () => {
-    face.classList.remove("is-tilting");
-    face.style.transform = "";
-  };
-  head.addEventListener("pointerleave", flat);
-  head.addEventListener("pointercancel", flat);
 }
 
 // ---- content ---------------------------------------------------------------
