@@ -4,7 +4,7 @@ Forge and edit Magic: The Gathering decks from the cards you own. Grimoire runs 
 
 ![Home screen](docs/images/home.png)
 
-![The Vault](docs/images/collection.png)
+![The collection screen](docs/images/collection.png)
 
 ![Sets completion](docs/images/sets.png)
 
@@ -17,12 +17,12 @@ The screenshots use a synthetic sample collection.
 ## Features
 
 - **Import from many apps.** Import the CSV export of ManaBox, Moxfield, Archidekt, Deckbox, Dragon Shield, TCGplayer, MTGGoldfish, TopDecked, or Magic Online, or paste a plain card list. Grimoire finds each card in the [Scryfall](https://scryfall.com) bulk data and adds the mana cost, oracle text, and type line. It shows a summary of the rows it could not match. It exports the enhanced CSV (see *Importing*).
-- **The Vault.** Browse your collection with an insights ledger, today's spotlight, color orbs, a sidebar of live counts, keyword search, tactile card tiles, a card drawer, and a Sets completion view. You can also browse all cards in the Scryfall archive.
+- **Collection.** Browse your collection with an insights ledger, color orbs, a sidebar of live counts, keyword search, card tiles, a card drawer, and a Sets completion view. You can also browse all cards in the Scryfall archive.
 - **First-run welcome.** A new owner gets a guided start. It downloads the card data, imports a ManaBox CSV or a sample collection, and shows the most valuable cards.
 - **Deck Forge.** An agent builds a deck from only the cards you own. It supports Commander, Brawl, Standard Brawl, Standard, Pioneer, Modern, Legacy, Vintage, Pauper, and Casual.
 - **Deck editor.** Edit saved decks with undo and redo, autosave, a stats panel, a sample hand, and legality checks. Import a decklist, or export plain text, Arena text, or CSV.
 - **Optional local AI.** If [Ollama](https://ollama.com) runs on your machine, a local model ranks the plans and writes the explanation. There are no cloud calls and no API keys. Choose the model "Engine only" to work without Ollama.
-- **Offline.** After the first card data download, nothing needs the internet. The page fonts (Cinzel Decorative, Spectral, and Geist) come from Google Fonts. Without a connection the app uses Georgia and the system fonts.
+- **Offline.** After the first card data download, nothing needs the internet. The app uses the fonts of your system, so it loads no web fonts.
 - **Accessible motion.** The interface respects the reduced-motion setting.
 
 ## Quick start
@@ -52,7 +52,7 @@ python main.py
 
 1. **Download card data.** On a first run, the welcome screen does this for you (see *First run*). Otherwise, on *Home*, press *Download card data*. The download is about 100 MB and happens once.
 2. **Import your collection.** Drop in the collection export of your app on the welcome screen, or press *Import cards* on the *Collection* screen. You can also paste a card list. The `examples/` folder has a synthetic sample file.
-3. **Browse.** Use the *Collection* screen (the Vault) to explore your cards.
+3. **Browse.** Use the *Collection* screen to explore your cards.
 4. **Forge a deck.** Open *Forge*, check one or more collections, pick a format (and optionally a commander), and start the forge.
 
 For the optional local model, install Ollama and pull a model:
@@ -66,9 +66,9 @@ ollama pull qwen3.5:9b       # recommended; about 6.6 GB
 
 When Grimoire has no collection, *Home* and *Collection* open the welcome screen. It has three steps.
 
-1. **Card data.** The screen downloads the Scryfall card data. A sigil shows the progress. If the data is already on disk, this step is done at once.
-2. **Import.** Drop a collection export or a card list (`.txt`) on the binder page, or press *Choose a file*. You can also press *Try a sample collection*. The sample imports the small file in `examples/` (19 rows of synthetic data), so you can try the app with no export. The ten slots on the binder light up as the rows go by. At the end, real cards of the new collection flip into the slots.
-3. **Reveal.** The most valuable cards fan out, and the ledger counts up: the estimated value, the cards, and the rares and mythics. The *Open the Vault* button takes you to the new collection.
+1. **Card data.** The screen downloads the Scryfall card data. A progress bar and a line of text show the percent. If the data is already on disk, this step is done at once.
+2. **Import.** Drop a collection export or a card list (`.txt`) in the drop box, or press *Choose a file*. You can also press *Try a sample collection*. The sample imports the small file in `examples/` (19 rows of synthetic data), so you can try the app with no export. A progress bar shows the rows as they go by.
+3. **Summary.** The screen shows the estimated value, the number of cards, and the number of rares and mythics. The *Open the collection* button takes you to the new collection.
 
 *Skip — just browse all cards* leaves the welcome screen and opens the archive. The browser remembers the choice, so *Home* and *Collection* do not send you back. The welcome screen returns after you import a collection and the collection list later becomes empty.
 
@@ -91,7 +91,7 @@ The forge is a pipeline. The engine does the work. A model, when you turn one on
 The top bar has five screens. Each screen has its own address, such as `#home` or `#collection`.
 
 - **Home** shows the card data status, your collections, and your recent decks. You can download the card data here. Each collection row has an *Export CSV* button. It downloads the enhanced CSV. A collection stored by an older version may need a re-import. In that case the app shows a message.
-- **Collection** is the Vault, the viewer for your cards or for all cards in the archive (see below). The *Import cards* button opens the importer. The importer shows live progress and a summary of the rows it could not match (see *Importing*).
+- **Collection** is the viewer for your cards or for all cards in the archive (see below). The *Import cards* button opens the importer. The importer shows live progress and a summary of the rows it could not match (see *Importing*).
 - **Forge** builds a deck from the cards you own (see below).
 - **Decks** lists your saved decks and opens the editor (see below).
 - **Settings** shows the Ollama status, picks the model (Automatic, Engine only, or one installed model), sets how often the forge asks you a question, clears the card data, chooses the price provider (see *Prices* below), and shows the card images on this Mac. The app downloads the images of your cards in the background when it starts. A switch turns this off, and a button starts a download at any time. *Clear card data* keeps the images. *Remove images* deletes them. *Phone access* lets a phone open Grimoire (see below).
@@ -121,20 +121,19 @@ An import from another app keeps every column of the source file. Grimoire adds 
 
 **One collection per binder.** ManaBox names the binder of each card, Dragon Shield the folder, and Sorted the list. Grimoire keeps that name on each card. Turn on *One collection per binder* before you import, and each binder of the file becomes its own collection, named after the binder. The option is off by default, so a file becomes one collection. Grimoire has no limit on the number of collections.
 
-### The Vault
+### The collection screen
 
-The Vault is the *Collection* screen. A switcher at the top picks a collection or the archive.
+A switcher at the top of the *Collection* screen picks a collection or the archive.
 
-- **Insights ledger.** Four counters count up: the estimated value, the rares and mythics, the foils, and the number of sets. A line above them gives the card count and the import date. The value note names the date of the Scryfall prices. Each card counts at its price in US dollars: the etched price for an etched foil, the foil price for a foil, and the regular price for other cards. A card with only a EUR or MTGO ticket price has no price. The value is the price times the quantity.
-- **Prices.** Settings › *Prices* chooses whose prices Grimoire shows, in US dollars, everywhere in the app (the Vault, the drawer, the decks and the forge):
+- **Insights ledger.** Four counters show the estimated value, the rares and mythics, the foils, and the number of sets. A line above them gives the card count and the import date. The value note names the date of the Scryfall prices. Each card counts at its price in US dollars: the etched price for an etched foil, the foil price for a foil, and the regular price for other cards. A card with only a EUR or MTGO ticket price has no price. The value is the price times the quantity.
+- **Prices.** Settings › *Prices* chooses whose prices Grimoire shows, in US dollars, everywhere in the app (the collection screen, the drawer, the decks and the forge):
   - *TCGplayer* (the default): the market prices in Scryfall's card data. No extra download.
   - *Card Kingdom*: what Card Kingdom sells each card for.
   - *Card Kingdom buylist*: what Card Kingdom pays you for each card. Use it to see what a trade-in would bring.
   - *Mana Pool*: what Mana Pool sells each card for.
 
   The store prices come from [MTGJSON](https://mtgjson.com)'s daily price file and its card id table (a download of about 20 MB; about 15 MB on disk). *Download store prices* gets them, and *Update store prices* gets the newest day. A card or a finish that the store does not price keeps its TCGplayer price. Until you download the store prices, Grimoire shows TCGplayer prices. Cardmarket (EUR) and MTGO prices need a currency setting, so they are not here yet.
-- **Price snapshots.** Grimoire works offline, so prices change only when you update the card data or the store prices. The first time the Vault opens a collection after an update, it saves a snapshot: the collection's value and the price of each card. After two updates or more, a small line under the estimated value shows the value over time ("+$52.76 since 29 Oct 2026"). A *Price movers* panel lists the 5 cards that rose most and the 5 that fell most between the last two updates. A change counts all the copies you own, and a change under 5 cents per copy does not count. Press a card name to open it in the drawer. Each price provider has its own snapshots, so a switch of provider never shows as a price move. Each collection keeps its newest 120 snapshots, and deleting a collection deletes its snapshots.
-- **Today's spotlight.** A fan of cards shows one rare or mythic of your collection in the middle. The spotlight changes each day. The cards beside it are your most valuable cards. When you have no rare or mythic, the fan shows your most valuable card in the middle.
+- **Price snapshots.** Grimoire works offline, so prices change only when you update the card data or the store prices. The first time the collection screen opens a collection after an update, it saves a snapshot: the collection's value and the price of each card. After two updates or more, a small line under the estimated value shows the value over time ("+$52.76 since 29 Oct 2026"). A *Price movers* panel lists the 5 cards that rose most and the 5 that fell most between the last two updates. A change counts all the copies you own, and a change under 5 cents per copy does not count. Press a card name to open it in the drawer. Each price provider has its own snapshots, so a switch of provider never shows as a price move. Each collection keeps its newest 120 snapshots, and deleting a collection deletes its snapshots.
 - **Color orbs.** One orb for each color, for colorless, and for multicolor shows the share of your cards. Press an orb to filter by that color.
 - **Index sidebar.** The sidebar lists Colors, Rarity, Type, Mana value, Price, Finish, Legal in, and Set. Each value shows a live count for the current result. The counts change as you search and filter. On a narrow screen the sidebar opens as a sheet.
 - **Shelves.** *New since your last import* and *Your foils* show a row of cards each, when there are any. *See all* applies the matching filter. Shelves hide while a search or filter is active.
@@ -160,13 +159,13 @@ The Vault is the *Collection* screen. A switcher at the top picks a collection o
 
   An unknown keyword stays plain text and matches the name. A bare `foil`, `dupes` or `new` that finds nothing counts as name text, so `new perspectives` finds New Perspectives. A price comparison never matches a card with no price. The archive search takes the same keywords, but not `foil`, `dupes`, `new`, `is:free`, `is:used` or `is:gem`.
 - **Forgotten gems.** A shelf under the hero shows up to 12 cards that you own, that are in the EDHREC top 2,000, and that no saved deck holds (built or not). Basic lands do not count. The most played cards come first. *See all* searches `is:gem`, sorted by EDHREC rank.
-- **Tactile tiles.** Each tile tilts toward the pointer, and a foil card has a sheen. The tile shows the quantity, the mana cost, and the price. Tilt is off with a touch screen and with the reduced-motion setting. The view control switches between a grid and a list. The size control sets the card width.
+- **Card tiles.** Each tile shows the card image, the quantity, the mana cost, and the price. A foil card has a FOIL tag. The view control switches between a grid and a list. The size control sets the card width.
 - **Card drawer.** Press a tile to open a drawer at the right, so the results stay in view. The drawer shows a large image, the facts, the prices, the legality of each format, and the saved decks that use the card, with the copies in built decks and the free copies ("3 of 4 copies in built decks · 1 free"). A *built* deck (see the editor) uses the copies of its main deck, its sideboard and its commander, in any printing. The maybeboard does not count, and a deck that is not built holds no copies. A card with two faces has a flip button.
 - **Card flags.** In the drawer, mark an owned card *For trade*, *To sell*, *Keep* or *Lent out*. A flag is on one printing and finish (a foil can be for trade while the non-foil copy stays), and it holds in every collection. A flagged tile shows its first flag. `flag:trade` finds the flagged cards, and the Moxfield and Deckbox exports fill their trade list count from *For trade*.
 - **Keys.** `/` focuses the search, and `Esc` clears it. The arrow keys move between tiles, and `Enter` opens the drawer. In the drawer, the left and right arrows show the previous and next card, `F` flips the card, and `Esc` closes the drawer.
 - **Sets.** The *Sets* view lists each set with the cards you own, a completion bar, and the value you own in it. Each card name counts once in a set. Press a set to open its checklist. The checklist shows missing cards dimmed. *Missing only* hides the cards you own.
-- **Remembered view.** The Vault remembers the search, the filters, the sort, the view, and the card size for each collection in your browser. It restores them when you come back.
-- **Export.** The *Export* menu at the top of the Vault downloads the collection as:
+- **Remembered view.** The collection screen remembers the search, the filters, the sort, the view, and the card size for each collection in your browser. It restores them when you come back.
+- **Export.** The *Export* menu at the top of the collection screen downloads the collection as:
   - *CSV with card data*: your imported CSV with the card data added (the same file as *Export CSV* on Home).
   - *ManaBox*, *Moxfield*, *Archidekt* or *Deckbox CSV*: the file that each app's collection import reads, with the set, the collector number and the finish of each card. ManaBox keeps the binder of each card, and Archidekt gets it as a tag. Deckbox has no etched finish, so an etched card goes out as a foil.
   - *Card list (text)*: one line per stack, such as `4 Lightning Bolt (2X2) 117 *F*`. Most apps take it as pasted text.
@@ -238,7 +237,7 @@ Evaluation status:
 
 ### Command palette
 
-Press **Cmd-K** (or **Ctrl-K**), or the *Search* button in the top bar, to open the command palette. Type to find a screen, an action (*New deck*, *Import cards*, *Import a decklist*, *Forgotten gems*, *Cards for trade*), or a saved deck by its name or its commander. The first line searches the Vault for the typed text. The arrow keys move, `Enter` opens, and `Esc` closes.
+Press **Cmd-K** (or **Ctrl-K**), or the *Search* button in the top bar, to open the command palette. Type to find a screen, an action (*New deck*, *Import cards*, *Import a decklist*, *Forgotten gems*, *Cards for trade*), or a saved deck by its name or its commander. The first line searches the collection for the typed text. The arrow keys move, `Enter` opens, and `Esc` closes.
 
 ### Dropdowns
 
@@ -249,7 +248,7 @@ On a computer, every dropdown opens a list in the app's own style: the current c
 - Every button, link and field has a name for a screen reader, every image has alt text, and the nav marks the current screen. A test checks every screen for this (`tests/js/dom/a11y.test.mjs`).
 - *Skip to main content* is the first stop of the Tab key.
 - The text colors keep a contrast of at least 4.5:1 on every background (WCAG AA).
-- The reduced-motion setting of your system turns off the animations and the tilt.
+- The reduced-motion setting of your system turns off the animations.
 
 ## For AI assistants (MCP)
 
@@ -325,7 +324,7 @@ frontend/           Vanilla JS single-page app (ES modules, no build step)
   js/app/           Entry point, hash router, shell (top bar and nav), and
                     the command palette
   js/home/          Home screen
-  js/collection/    The Vault (hero, sidebar, list, drawer, sets) and the importer
+  js/collection/    The collection screen (hero, sidebar, list, drawer, sets) and the importer
   js/welcome/       First-run welcome screen and its gate
   js/forge/         Deck Forge screens (setup, stage, feed, timeline)
   js/decks/         Saved decks: list, editor, agent panel, export menu
