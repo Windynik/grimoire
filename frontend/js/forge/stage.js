@@ -106,6 +106,7 @@ export class ForgeStage {
     this.tipFor = null;
     this.destroyed = false;
     this.reduced = reducedMotion();
+    this.halted = false; // true after a failed or cancelled run: nothing moves
 
     this.build();
     this.frame = this.frame.bind(this);
@@ -518,6 +519,17 @@ export class ForgeStage {
     this.kick();
   }
 
+  /**
+   * Stop the stage after a failed or cancelled run. The cards stop in a still
+   * layout, and the ring label shows `label` in place of the percentage.
+   */
+  halt(label) {
+    this.halted = true;
+    this.pctEl.textContent = label;
+    this.pulse([]);
+    this.kick();
+  }
+
   /** Set the reason the tooltip shows for a card. */
   setReason(cardId, text) {
     if (!cardId || !text) return;
@@ -655,7 +667,7 @@ export class ForgeStage {
   /** Start the loop when it is not running and the stage is on screen. */
   kick() {
     if (this.destroyed || !this.isShown()) return;
-    if (this.reduced) {
+    if (this.reduced || this.halted) {
       // Nothing moves: draw the new state now, once.
       if (this.raf) cancelAnimationFrame(this.raf);
       this.frame(performance.now());
@@ -679,7 +691,7 @@ export class ForgeStage {
   frame(now) {
     this.raf = null;
     if (this.destroyed || !this.isShown()) return;
-    const still = this.reduced;
+    const still = this.reduced || this.halted;
     const dt = this.last ? Math.min(0.05, (now - this.last) / 1000) : 1 / 60;
     this.last = now;
     if (!still) this.phase += dt * this.speed;

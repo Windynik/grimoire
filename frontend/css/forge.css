@@ -662,6 +662,13 @@
     50% { opacity: 0.3; }
 }
 
+/* A failed or cancelled run: the glow, the halos and the live dot stop. */
+#forge-view .forge-run.is-halted *,
+#forge-view .forge-run.is-halted *::before,
+#forge-view .forge-run.is-halted *::after {
+    animation: none !important;
+}
+
 #forge-view .forge-feed-list {
     flex: 1;
     min-height: 0;

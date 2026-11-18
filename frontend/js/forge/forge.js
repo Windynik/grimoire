@@ -656,6 +656,8 @@ class ForgeRun {
 
   onEnd(text, kind) {
     this.timeline.clear();
+    this.stage.halt(kind === "error" ? "Failed" : "Stopped");
+    $("forge-run").classList.add("is-halted");
     setStatus(text);
     this.feed.note(text, kind);
     endButtons(true);
@@ -776,6 +778,7 @@ function attach(forgeId, opts = {}) {
   $("forge-setup").hidden = true;
   $("forge-stage").hidden = false;
   $("forge-run").hidden = false;
+  $("forge-run").classList.remove("is-halted");
   $("forge-cancel").hidden = false;
   $("forge-cancel").disabled = false;
   $("forge-new").hidden = true;
