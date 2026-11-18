@@ -34,6 +34,28 @@ PILOT_TEXT = {
              "and spend each turn on mana-efficient answers.",
 }
 
+# The words the owner reads for each role of the playbook: (one, more than one).
+ROLE_LABELS = {
+    "ramp": ("ramp card", "ramp cards"),
+    "draw": ("card draw source", "card draw sources"),
+    "selection": ("card selection source", "card selection sources"),
+    "removal": ("removal card", "removal cards"),
+    "boardwipe": ("board wipe", "board wipes"),
+    "counterspell": ("counterspell", "counterspells"),
+    "protection": ("protection card", "protection cards"),
+    "recursion": ("recursion card", "recursion cards"),
+    "tutor": ("tutor", "tutors"),
+    "finisher": ("finisher", "finishers"),
+}
+
+
+def _role_shortfall(role: str, have: int, quota: int) -> str:
+    """One weakness line: "Only 1 board wipe; the plan wants 2." """
+    one, many = ROLE_LABELS.get(role, ("%s card" % role, "%s cards" % role))
+    if have == 0:
+        return "- No %s; the plan wants %d." % (many, quota)
+    return "- Only %d %s; the plan wants %d." % (have, one if have == 1 else many, quota)
+
 
 def card_payload(card: OwnedCard) -> dict:
     """Return the card fields the UI shows on the stage."""
@@ -209,8 +231,7 @@ def _weaknesses(deck: BuiltDeck, playbook: Playbook) -> List[str]:
             have[role] = have.get(role, 0) + entry.count
     for role, quota in sorted(playbook.quotas(deck.fmt, deck.plan.playstyle).items()):
         if role != "creatures" and have.get(role, 0) < quota:
-            lines.append("- Only %d %s cards; the plan wants %d."
-                         % (have.get(role, 0), role, quota))
+            lines.append(_role_shortfall(role, have.get(role, 0), quota))
     return lines or ["- The engine's checks found no clear weakness. Test the deck against "
                      "fast decks."]
 
