@@ -4,8 +4,13 @@
 // The palette is a modal dialog with a combobox and a listbox: the arrow keys
 // move the active option, Enter runs it, Escape closes the palette, and the
 // focus goes back to where it was. Deck names go in with textContent only.
+//
+// A deck row has a detail line (commander, format, last change), because
+// forged decks can share a name.
 
+import { fold } from "../decks/filter.js";
 import { h } from "../shared/dom.js";
+import { formatDay } from "../shared/format.js";
 import { getJSON } from "../shared/http.js";
 import { navigate } from "./router.js";
 
@@ -31,15 +36,18 @@ let items = [];
 let active = 0;
 let opener = null;
 
-/** Rank the commands for a query: every word must appear; a label that starts with the query comes first. */
+/**
+ * Rank the commands for a query: every word must appear; a label that starts
+ * with the query comes first. Case and accents do not count ("eowyn" finds "Éowyn").
+ */
 export function rank(query, entries) {
-  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const words = fold(query).split(/\s+/).filter(Boolean);
   if (!words.length) return entries.slice();
   const scored = [];
   entries.forEach((entry, order) => {
-    const hay = `${entry.label} ${entry.group} ${entry.words || ""}`.toLowerCase();
+    const hay = fold(`${entry.label} ${entry.group} ${entry.words || ""}`);
     if (!words.every((w) => hay.includes(w))) return;
-    const label = entry.label.toLowerCase();
+    const label = fold(entry.label);
     const score = label.startsWith(words.join(" ")) ? 0 : label.includes(words[0]) ? 1 : 2;
     scored.push([score, order, entry]);
   });
@@ -48,10 +56,16 @@ export function rank(query, entries) {
 
 function entries() {
   const fixed = COMMANDS.map(([label, group, words, run]) => ({ label, group, words, run }));
-  const saved = decks.map((d) => ({
-    label: String(d.name || "Untitled deck"), group: "Deck", words: `deck ${d.format || ""} ${d.commander || ""}`,
-    run: () => navigate(`#deck/${encodeURIComponent(d.id)}`),
-  }));
+  const saved = decks.map((d) => {
+    const commander = String(d.commander || "");
+    const format = String(d.format_name || d.format || "");
+    return {
+      label: String(d.name || "Untitled deck"), group: "Deck",
+      words: `deck ${d.format || ""} ${format} ${commander}`,
+      detail: [commander, format, formatDay(d.updated)].filter(Boolean).join(" · "),
+      run: () => navigate(`#deck/${encodeURIComponent(d.id)}`),
+    };
+  });
   return [...fixed, ...saved];
 }
 
@@ -84,7 +98,9 @@ function render() {
   ui.list.replaceChildren(...items.map((item, i) => {
     const option = h("li", { id: `palette-option-${i}`, class: "palette-option", role: "option",
       "aria-selected": String(i === active) },
-    h("span", { class: "palette-label", text: item.label }),
+    h("span", { class: "palette-text" },
+      h("span", { class: "palette-label", text: item.label }),
+      item.detail ? h("span", { class: "palette-detail", text: item.detail }) : null),
     h("span", { class: "palette-group", text: item.group }));
     option.addEventListener("mousemove", () => { if (active !== i) { active = i; paint(); } });
     option.addEventListener("click", () => runAt(i));

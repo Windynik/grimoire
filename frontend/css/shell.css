@@ -371,6 +371,20 @@
     font-size: 0.8rem;
 }
 
+/* A deck row: the name, and under it the commander, the format and the date. */
+.palette-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.palette-detail {
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    overflow-wrap: anywhere;
+}
+
 .palette-empty,
 .palette-hint {
     margin: 0;

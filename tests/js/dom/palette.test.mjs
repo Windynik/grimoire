@@ -16,7 +16,15 @@ before(async () => {
       "GET /api/collections": () => ({ json: { collections: [] } }),
       "GET /api/decks": () => ({ json: { decks: [
         { id: "d1", name: "Goblin Tribal", format: "commander", commander: "Krenko, Mob Boss" },
-        { id: "d2", name: "Mono Blue Tempo", format: "modern", commander: null }] } }),
+        { id: "d2", name: "Mono Blue Tempo", format: "modern", commander: null },
+        { id: "d3", name: "Koma: Artifacts", format: "commander", format_name: "Commander",
+          commander: "Koma, Cosmos Serpent", updated: "2026-11-14T10:00:00" },
+        { id: "d4", name: "Koma: Artifacts", format: "commander", format_name: "Commander",
+          commander: "Koma, Cosmos Serpent", updated: "2026-10-02T10:00:00" },
+        { id: "d5", name: "Lady of Light", format: "brawl", format_name: "Brawl",
+          commander: "Éowyn, Fearless Knight", updated: "2026-11-01T10:00:00" },
+        { id: "d6", name: "Artifacts (Standard)", format: "standard", format_name: "Standard",
+          commander: null, updated: "2026-11-02T10:00:00" }] } }),
     },
   });
   document = app.document;
@@ -94,4 +102,33 @@ test("the ranking needs every word and puts a label that starts with the query f
   assert.deepEqual(rank("deck", entries).map((e) => e.label), ["Decks", "Import a decklist"]);
   assert.deepEqual(rank("import deck", entries).map((e) => e.label), ["Import a decklist"]);
   assert.deepEqual(rank("", entries).map((e) => e.label), ["Import cards", "Decks", "Import a decklist"]);
+});
+
+const details = () => [...document.querySelectorAll(".palette-option")]
+  .filter((o) => o.querySelector(".palette-detail"))
+  .map((o) => o.querySelector(".palette-detail").textContent);
+
+test("each deck row has a detail line: commander, format and the last change", async () => {
+  press("k", { ctrlKey: true });
+  await app.until(async () => { await type("koma"); return labels().length === 3; });
+  assert.deepEqual(labels(), ["Search the collection for “koma”", "Koma: Artifacts", "Koma: Artifacts"]);
+  assert.deepEqual(details(), ["Koma, Cosmos Serpent · Commander · 14 Nov 2026",
+    "Koma, Cosmos Serpent · Commander · 2 Oct 2026"]);
+  // A deck with no commander shows its format and the date.
+  await type("artifacts standard");
+  assert.deepEqual(details(), ["Standard · 2 Nov 2026"]);
+  // The fixed commands have no detail line.
+  await type("settings");
+  assert.deepEqual(details(), []);
+  press("Escape");
+});
+
+test("a commander name typed without accents finds its decks", async () => {
+  press("k", { ctrlKey: true });
+  await app.until(async () => { await type("lady"); return labels().length === 2; });
+  await type("eowyn");
+  assert.deepEqual(labels(), ["Search the collection for “eowyn”", "Lady of Light"]);
+  await type("fearless knight");
+  assert.deepEqual(labels(), ["Search the collection for “fearless knight”", "Lady of Light"]);
+  press("Escape");
 });
