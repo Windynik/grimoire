@@ -130,6 +130,8 @@ async function download() {
     screen.downloading = false;
     showToast(message || DOWNLOAD_STOPPED, "error");
     resetDownload();
+    // The toast goes away. The reason stays until the next try.
+    ui.status.textContent = message || DOWNLOAD_STOPPED;
     syncSkip();
   };
 

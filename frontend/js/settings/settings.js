@@ -140,7 +140,7 @@ function renderImages(sync) {
   if (wasRunning && !sync.running) {
     if (sync.error === "busy") endText = "";
     else if (sync.error) endText = "The image download stopped. Try again later.";
-    else if (sync.failed > 0) endText = `${sync.failed} ${sync.failed === 1 ? "image" : "images"} could not be downloaded. Try again later.`;
+    else if (sync.failed > 0) endText = `${sync.failed} ${sync.failed === 1 ? "image" : "images"} could not be downloaded. ${sync.reason || "Try again later."}`;
     else endText = "All images for your cards are on this Mac.";
     refreshImages();
   }

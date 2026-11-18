@@ -77,7 +77,7 @@ test("the start-up sync starts a quiet run when images are missing", async () =>
   await sync.autoStartImageSync();
   assert.equal(posts(), 1);
   assert.deepEqual(sync.imageSyncState(), {
-    running: false, phase: "normal", done: 4, total: 4, failed: 0, skipped: 0, error: null,
+    running: false, phase: "normal", done: 4, total: 4, failed: 0, skipped: 0, error: null, reason: null,
   });
   assert.equal(app.document.querySelectorAll("#toast-container .toast").length, 0);
 });

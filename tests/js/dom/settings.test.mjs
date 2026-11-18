@@ -395,6 +395,18 @@ test("failed images show the failure text", async () => {
   assert.equal($("settings-images-now").disabled, false);
 });
 
+// Audit bug 4: a certificate filter blocked every image, and the text said only "Try again later".
+test("failed images show the reason the server gives", async () => {
+  const reason = "Grimoire could not verify the certificate of Scryfall.";
+  await setup();
+  $("settings-images-now").click();
+  await app.until(() => imageSyncState().running);
+  held.send({ type: "done", phase: "normal", done: 0, total: 10, failed: 10, skipped: 0, reason });
+  held.end();
+  held = null;
+  await app.until(() => $("settings-images-text").textContent === `10 images could not be downloaded. ${reason}`);
+});
+
 test("Download now starts a run", async () => {
   await setup();
   const before = app.fetchLog.filter((r) => r.method === "POST").length;

@@ -7,7 +7,7 @@ import { getJSON } from "./http.js";
 import { readSettings } from "./settings.js";
 import { readSSE } from "./sse.js";
 
-const IDLE = { running: false, phase: "small", done: 0, total: 0, failed: 0, skipped: 0, error: null };
+const IDLE = { running: false, phase: "small", done: 0, total: 0, failed: 0, skipped: 0, error: null, reason: null };
 
 let state = { ...IDLE };
 let current = null;
@@ -45,6 +45,7 @@ function onEvent(event) {
     update({
       phase: event.phase, done: event.done, total: event.total, failed: event.failed,
       skipped: event.skipped || 0, error: event.busy ? "busy" : null,
+      reason: typeof event.reason === "string" ? event.reason : null,
     });
   }
 }

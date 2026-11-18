@@ -304,6 +304,21 @@ test("a failed download stays on step 1 with a toast", async () => {
   assert.ok(shown("#welcome-skip"), "Skip comes back when the stream ends");
 });
 
+// Audit bug 4: the reason showed only in a toast, and the toast went away.
+test("a failed download keeps its reason on the screen", async () => {
+  const reason = "Download failed. Grimoire could not verify the certificate of Scryfall.";
+  await setup({ status: MISSING });
+  const stream = openStream();
+  app.route("POST /api/cache/download", () => stream.reply());
+  $("#welcome-download-btn").click();
+  stream.send({ percentage: 12 });
+  stream.send({ error: reason });
+  stream.end();
+  await app.until(() => !$("#welcome-download-btn").disabled);
+  await app.settle();
+  assert.equal(text("#welcome-status"), reason);
+});
+
 // ---- step 2: the import ----------------------------------------------------
 
 test("the drop box opens the file chooser with a click, Enter and Space", async () => {
