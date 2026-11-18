@@ -616,3 +616,22 @@ def test_clear_removes_every_image_and_temp_file(tmp_path):
 
 def test_clear_of_an_empty_store(tmp_path):
     assert ImageStore(root=tmp_path / "images").clear() == 0
+
+
+# Audit bug 4: the image download said only "Try again later" when a certificate
+# filter blocked every image. The done event now carries the reason.
+@pytest.mark.asyncio
+async def test_prefetch_done_names_the_network_reason(tmp_path):
+    import ssl
+    cert = "“NextDNS Blockpage CA” certificate is not trusted"
+
+    def handler(request):
+        raise httpx.ConnectError(cert) from ssl.SSLCertVerificationError(cert)
+
+    store = make_store(tmp_path, handler)
+    targets = [(A, "front", URL % "a"), (B, "front", URL % "b")]
+    events = await collect(prefetch_events(store, targets))
+    done = events[-1]
+    assert done["failed"] == 2
+    assert "certificate" in done["reason"]
+    assert cert in done["reason"]

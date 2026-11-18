@@ -270,3 +270,50 @@ def test_a_failed_index_build_leaves_no_part_file_and_clear_removes_one(tmp_path
     part.write_text("partial")
     assert manager.clear_cache() is True
     assert not part.exists()
+
+
+# Audit bug 4: a certificate filter blocked Scryfall, but the reason said
+# "Check the internet connection". The error below is the one this machine got
+# from a real request to api.scryfall.com.
+FILTER_CERT = "“NextDNS Blockpage CA” certificate is not trusted"
+
+
+def failing_scryfall(tmp_path, error):
+    """A manager whose every request fails with `error`."""
+    def handler(request):
+        raise error
+    return BulkDataManager(cache_dir=str(tmp_path), transport=httpx.MockTransport(handler))
+
+
+def cert_error():
+    import ssl
+    try:
+        raise ssl.SSLCertVerificationError(FILTER_CERT)
+    except ssl.SSLCertVerificationError as cause:
+        try:
+            raise httpx.ConnectError(str(cause)) from cause
+        except httpx.ConnectError as error:
+            return error
+
+
+@pytest.mark.asyncio
+async def test_a_certificate_failure_says_the_certificate_failed(tmp_path):
+    manager = failing_scryfall(tmp_path, cert_error())
+    assert await manager.download_bulk_data() is False
+    assert "certificate" in manager.last_error
+    assert FILTER_CERT in manager.last_error
+    assert "internet connection" not in manager.last_error
+
+
+@pytest.mark.asyncio
+async def test_a_timeout_says_scryfall_did_not_answer(tmp_path):
+    manager = failing_scryfall(tmp_path, httpx.ConnectTimeout("timed out"))
+    assert await manager.download_bulk_data() is False
+    assert manager.last_error == "Scryfall did not answer in time. Try again."
+
+
+@pytest.mark.asyncio
+async def test_no_connection_still_says_check_the_connection(tmp_path):
+    manager = failing_scryfall(tmp_path, httpx.ConnectError("[Errno 8] nodename nor servname provided"))
+    assert await manager.download_bulk_data() is False
+    assert manager.last_error == "Grimoire could not reach Scryfall. Check the internet connection."

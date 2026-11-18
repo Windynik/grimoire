@@ -9,6 +9,7 @@ from typing import Callable, Dict, Iterator, Optional
 
 import httpx
 
+from backend.core.net_errors import download_reason
 from backend.core.tls import tls_context
 from backend.core.paths import cache_root
 from backend.models.schemas import CacheStatus
@@ -77,10 +78,9 @@ def compact_card(card: dict) -> dict:
 
 def _reason(error: Exception) -> str:
     """A short reason for a failed download that the owner can act on."""
-    if isinstance(error, httpx.HTTPStatusError):
-        return f"Scryfall answered {error.response.status_code}. Try again later."
-    if isinstance(error, httpx.TransportError):
-        return "Grimoire could not reach Scryfall. Check the internet connection."
+    network = download_reason(error)
+    if network:
+        return network
     if isinstance(error, OSError):
         return f"Grimoire could not write the card data: {error.strerror or error}."
     return str(error) or error.__class__.__name__

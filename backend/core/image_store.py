@@ -15,6 +15,7 @@ from typing import AsyncIterator, Dict, List, Optional, Tuple
 
 import httpx
 
+from backend.core.net_errors import download_reason
 from backend.core.paths import cache_path
 from backend.core.tls import tls_context
 
@@ -413,13 +414,17 @@ async def prefetch_events(store: ImageStore,
     done = 0
     failed = 0
     phase_left = {phase: sum(1 for p, _ in pending if p == phase) for phase in SIZES}
+    reasons = []  # the network reason of the first failure that has one
 
     async def one(item) -> Tuple[str, bool]:
         phase, target = item
         try:
             await store.fetch(target[0], target[1], target[2], phase, background=True)
             return phase, True
-        except Exception:  # one bad image must not stop the run
+        except Exception as exc:  # one bad image must not stop the run
+            reason = download_reason(exc)
+            if reason and not reasons:
+                reasons.append(reason)
             return phase, False
 
     running = set()
@@ -448,8 +453,11 @@ async def prefetch_events(store: ImageStore,
                 if finished % PROGRESS_EVERY == 0 or finished == total or phase_left[phase] == 0:
                     yield {"type": "progress", "phase": phase, "done": done, "total": total,
                            "failed": failed}
-        yield {"type": "done", "phase": "normal", "done": done, "total": total,
-               "failed": failed, "skipped": skipped}
+        event = {"type": "done", "phase": "normal", "done": done, "total": total,
+                 "failed": failed, "skipped": skipped}
+        if failed and reasons:
+            event["reason"] = reasons[0]
+        yield event
     finally:
         # In-flight downloads may finish. Do not leave a task unobserved.
         for task in running:
