@@ -109,6 +109,37 @@ def _text(value, limit: int = TEXT_LIMIT) -> str:
     return value.strip()[:limit] if isinstance(value, str) else ""
 
 
+def _cut(text: str, limit: int) -> str:
+    """Return text cut to at most limit characters, at the last whole word when it has one."""
+    if len(text) <= limit:
+        return text
+    cut = text[:max(0, limit)]
+    if text[len(cut)] != " " and " " in cut.strip():
+        cut = cut[:cut.rstrip().rfind(" ")]
+    return cut.rstrip()
+
+
+def forged_name(theme: str, commander: Optional[str], format_name: str) -> str:
+    """Return the name of a forged deck, at most NAME_LIMIT characters.
+
+    A deck with a commander gets "<short name>: <theme>", such as "Koma: Artifacts".
+    The short name is the front face of the commander up to the first comma. A deck
+    without a commander gets "<theme> (<format name>)". The theme gets cut to fit.
+    """
+    theme = (theme or "").strip()
+    if commander:
+        front = commander.split(" // ")[0]
+        short = front.split(",")[0].strip() or front.strip()
+        head = "%s: " % short
+        if not theme or len(head) >= NAME_LIMIT:
+            return short[:NAME_LIMIT]
+        return head + _cut(theme, NAME_LIMIT - len(head))
+    if not theme:
+        return format_name[:NAME_LIMIT]
+    tail = " (%s)" % format_name
+    return _cut(theme, max(1, NAME_LIMIT - len(tail))) + tail
+
+
 def _list(value) -> list:
     """Return value when it is a list, else []. Model replies can have any shape."""
     return value if isinstance(value, list) else []
@@ -578,8 +609,10 @@ class ForgeSession:
         thesis = theses[bone.id]
         playstyle = plan_info.get("playstyle") or engine_playstyle(bone, graph)
         interactions = plan_info.get("key_interactions", [])
-        name = plan_info.get("deck_name") or bone.name
         commander = self._commander(bone)
+        # The theme alone repeats across decks, so the name adds the commander or the format.
+        name = forged_name(plan_info.get("deck_name") or bone.name,
+                           commander.name if commander is not None else None, fmt.name)
         self._thought("Building %s. %s" % (name, thesis),
                       (commander.id,) if commander is not None else ())
 

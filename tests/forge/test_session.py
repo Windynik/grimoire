@@ -151,7 +151,7 @@ async def test_engine_only_session_completes_with_saved_deck(tmp_path):
     assert sum(line["count"] for line in record["sections"]["main"]) == 60
     assert record["backbone"]["thesis"].startswith("Built around ")
     assert record["backbone"]["playstyle"] == "aggro"  # members cost 2 on average
-    assert record["name"] == record["backbone"]["name"]
+    assert record["name"] == record["backbone"]["name"] + " (Modern)"
     headings = ["## Game plan", "## How to pilot", "## Key interactions", "## Weaknesses"]
     explanation = "".join(e["text"] for e in of_type(events, "explanation"))
     assert all(h in explanation for h in headings)
@@ -298,7 +298,7 @@ async def test_model_plan_ranking_and_reasons(tmp_path):
     events = await collect(session)
     assert events[-1]["type"] == "done"
     record = saved(store, events)
-    assert record["name"] == "Sunrise Choir"
+    assert record["name"] == "Sunrise Choir (Modern)"
     assert record["backbone"]["thesis"] == "Gain life and grow."
     assert record["backbone"]["playstyle"] == "midrange"
     assert record["backbone"]["key_interactions"] == [
@@ -702,7 +702,7 @@ async def test_bad_typed_model_fields_are_ignored(tmp_path):
     assert not [e for e in session.graph.edges if e.source == "model"]
     record = saved(store, events)
     assert record["backbone"]["thesis"] == "Built around Blink and Lifegain."
-    assert record["name"] == "Blink & Lifegain"
+    assert record["name"] == "Blink & Lifegain (Modern)"
 
 
 @pytest.mark.asyncio
