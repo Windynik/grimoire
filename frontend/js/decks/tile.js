@@ -19,14 +19,77 @@ function artOf(deck, compact) {
   return art;
 }
 
+// One listener for every More menu: a press outside an open menu closes it.
+// (A click on a button does not move the focus in every browser, so a
+// focusout alone cannot tell that the press was outside.)
+let watchingPresses = false;
+function closeMenusOnOutsidePress() {
+  if (watchingPresses) return;
+  watchingPresses = true;
+  document.addEventListener("pointerdown", (event) => {
+    document.querySelectorAll("details.deck-more[open]").forEach((menu) => {
+      if (!menu.contains(event.target)) menu.open = false;
+    });
+  });
+}
+
+/**
+ * The More menu of a deck: Duplicate, and Delete as a quiet danger action.
+ * It closes on a choice, on Escape, on a press outside it, and when the
+ * keyboard focus moves out of it.
+ *
+ * @param {Object} deck A summary from GET /api/decks.
+ * @param {Object} options
+ * @param {function(): void} options.onDuplicate
+ * @param {function(): void} options.onDelete
+ * @param {boolean} [options.up] Open the menu above the button (the tile clips below).
+ * @returns {HTMLDetailsElement}
+ */
+export function deckMenu(deck, { onDuplicate, onDelete, up = false } = {}) {
+  const details = h("details", { class: `deck-more${up ? " deck-more-up" : ""}` });
+  const summary = h("summary", {
+    class: "btn btn-secondary btn-compact", "aria-label": `More actions for ${deck.name}`, text: "More",
+  });
+  const item = (label, run, danger) => h("button", {
+    type: "button", class: `deck-more-item${danger ? " is-danger" : ""}`, text: label,
+    onclick: () => {
+      details.open = false;
+      // The focus goes back to More, so a dialog can give it back there.
+      summary.focus();
+      if (run) run();
+    },
+  });
+  details.append(summary, h("div", { class: "deck-more-menu" },
+    item("Duplicate", onDuplicate, false), item("Delete", onDelete, true)));
+  details.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || !details.open) return;
+    event.preventDefault();
+    event.stopPropagation();
+    details.open = false;
+    summary.focus();
+  });
+  details.addEventListener("focusout", (event) => {
+    if (event.relatedTarget && !details.contains(event.relatedTarget)) details.open = false;
+  });
+  closeMenusOnOutsidePress();
+  // One menu at a time.
+  details.addEventListener("toggle", () => {
+    if (!details.open) return;
+    document.querySelectorAll("details.deck-more[open]").forEach((other) => {
+      if (other !== details) other.open = false;
+    });
+  });
+  return details;
+}
+
 /**
  * Build a deck tile.
  *
  * @param {Object} deck A summary from GET /api/decks.
  * @param {Object} options
  * @param {function(): void} options.onOpen
- * @param {function(): void} [options.onDuplicate] Full tile only.
- * @param {function(): void} [options.onDelete] Full tile only.
+ * @param {function(): void} [options.onDuplicate] Full tile only: in the More menu.
+ * @param {function(): void} [options.onDelete] Full tile only: in the More menu.
  * @param {boolean} [options.compact] Art, name, format and count. The tile is one button.
  * @param {function(string): string} [options.formatName] Maps a format key to its name.
  * @returns {HTMLElement}
@@ -51,12 +114,6 @@ export function deckTile(deck, {
   const open = h("button", {
     type: "button", class: "btn btn-primary btn-compact", onclick: onOpen,
   }, "Open");
-  const duplicate = h("button", {
-    type: "button", class: "btn btn-secondary btn-compact", onclick: onDuplicate,
-  }, "Duplicate");
-  const remove = h("button", {
-    type: "button", class: "btn btn-danger btn-compact", onclick: onDelete,
-  }, "Delete");
 
   const title = h("button", { type: "button", class: "deck-name", onclick: onOpen });
   title.textContent = deck.name;
@@ -65,6 +122,6 @@ export function deckTile(deck, {
     deck.commander
       ? h("p", { class: "deck-commander", text: deck.commander.name || deck.commander }) : null,
     h("p", { class: "deck-meta", text: meta.join(" · ") }),
-    h("div", { class: "deck-actions" }, open, duplicate, remove));
+    h("div", { class: "deck-actions" }, open, deckMenu(deck, { onDuplicate, onDelete, up: true })));
   return h("article", { class: "deck-tile" }, artOf(deck, false), body);
 }

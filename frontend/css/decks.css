@@ -1892,3 +1892,255 @@
         min-height: 2.5rem;
     }
 }
+
+/* ---- Deck list: tools, List view and the More menu ------------------------ */
+
+#decks-view .decks-tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem 1rem;
+    margin-bottom: 1.1rem;
+}
+
+#decks-view .decks-search {
+    flex: 1 1 16rem;
+    min-width: 0;
+    min-height: 2.25rem;
+    padding: 0.45rem 0.8rem;
+    color: var(--text);
+    font: inherit;
+    font-size: 0.92rem;
+    background: var(--surface-2);
+    border: 1px solid var(--border-bright);
+    border-radius: var(--radius-sm);
+}
+
+#decks-view .decks-search:focus-visible {
+    outline: 2px solid var(--violet);
+    outline-offset: 2px;
+}
+
+#decks-view .decks-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    color: var(--text-dim);
+    font-size: 0.85rem;
+}
+
+#decks-view .decks-select {
+    min-height: 2.25rem;
+    padding: 0.45rem 0.8rem;
+    color: var(--text);
+    font: inherit;
+    font-size: 0.92rem;
+    background-color: var(--surface-2);
+    border: 1px solid var(--border-bright);
+    border-radius: var(--radius-sm);
+}
+
+#decks-view .decks-seg {
+    display: flex;
+    overflow: hidden;
+    border: 1px solid var(--border-bright);
+    border-radius: var(--radius-sm);
+}
+
+#decks-view .decks-seg button {
+    padding: 0.5rem 0.8rem;
+    border: 0;
+    background: none;
+    color: var(--text-dim);
+    font: 600 0.8rem/1 var(--font-ui);
+    cursor: pointer;
+}
+
+#decks-view .decks-seg button + button {
+    border-left: 1px solid var(--border);
+}
+
+#decks-view .decks-seg button:hover {
+    color: var(--text);
+}
+
+#decks-view .decks-seg button[aria-pressed="true"] {
+    background: var(--gold);
+    color: var(--ink-on-accent);
+}
+
+#decks-view .decks-seg button:focus-visible {
+    outline: 2px solid var(--violet);
+    outline-offset: -2px;
+}
+
+#decks-view .decks-none {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+#decks-view .decks-none .btn {
+    width: auto;
+}
+
+/* Text for screen readers only. */
+#decks-view .decks-sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+#decks-view .decks-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+}
+
+#decks-view .decks-table th,
+#decks-view .decks-table td {
+    padding: 0.45rem 0.6rem;
+    text-align: left;
+    vertical-align: middle;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+}
+
+#decks-view .decks-table thead th {
+    color: var(--text-dim);
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+#decks-view .decks-table .num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+#decks-view .decks-table .col-name {
+    width: 32%;
+    white-space: normal;
+    font-weight: 600;
+}
+
+#decks-view .decks-table .col-commander {
+    white-space: normal;
+    color: var(--text-dim);
+}
+
+#decks-view .decks-table .col-actions {
+    width: 1%;
+    text-align: right;
+}
+
+#decks-view .decks-table tbody tr {
+    cursor: pointer;
+}
+
+#decks-view .decks-table tbody tr:hover {
+    background: var(--surface);
+}
+
+#decks-view .deck-colors {
+    display: inline-flex;
+    gap: 2px;
+}
+
+/* The More menu: Duplicate, then Delete as a quiet danger action. */
+#decks-view .deck-more {
+    position: relative;
+    flex: none;
+}
+
+#decks-view .deck-more > summary {
+    list-style: none;
+    cursor: pointer;
+}
+
+#decks-view .deck-more > summary::-webkit-details-marker {
+    display: none;
+}
+
+#decks-view .deck-more-menu {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 4px);
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    min-width: 9rem;
+    padding: 0.3rem;
+    background: var(--surface);
+    border: 1px solid var(--border-bright);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+}
+
+#decks-view .deck-more-up .deck-more-menu {
+    top: auto;
+    bottom: calc(100% + 4px);
+}
+
+#decks-view .deck-more-item {
+    padding: 0.45rem 0.6rem;
+    color: var(--text);
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 400;
+    text-align: left;
+    background: none;
+    border: 0;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+#decks-view .deck-more-item:hover {
+    background-color: var(--surface-2);
+}
+
+#decks-view .deck-more-item:focus-visible {
+    outline: 2px solid var(--violet);
+    outline-offset: -2px;
+}
+
+#decks-view .deck-more-item.is-danger {
+    color: var(--error);
+}
+
+@media (max-width: 768px) {
+    #decks-view .decks-table .col-commander,
+    #decks-view .decks-table .col-colors,
+    #decks-view .decks-table .col-updated {
+        display: none;
+    }
+
+    #decks-view .decks-table .col-name {
+        width: auto;
+    }
+}
+
+@media (max-width: 480px) {
+    #decks-view .decks-table .col-owned {
+        display: none;
+    }
+}
+
+/* A finger needs a bigger target than a mouse: about 40 px. */
+@media (pointer: coarse) {
+    #decks-view .decks-seg button {
+        min-height: 2.5rem;
+    }
+
+    #decks-view .decks-search {
+        min-height: 2.75rem;
+    }
+
+    #decks-view .deck-more-item {
+        min-height: 2.75rem;
+    }
+}

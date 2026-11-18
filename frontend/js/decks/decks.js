@@ -8,15 +8,26 @@ import { confirmDialog, openDialog } from "../shared/modal.js";
 import { showToast } from "../shared/toast.js";
 import { navigate } from "../app/router.js";
 import * as api from "./api.js";
+import { SORTS, filterDecks, formatsOf, sortDecks } from "./filter.js";
+import { deckTable } from "./table.js";
 import { deckTile } from "./tile.js";
 import { closeEditor as unmountEditor, openEditor as mountEditor } from "./editor.js";
 
 const $ = (id) => document.getElementById(id);
 
+// The view (Tiles or List) stays in localStorage. The search, the sort and the
+// format filter stay in sessionStorage, so they last for this browser session.
+const VIEW_KEY = "decksView";
+const FILTERS_KEY = "decksFilters";
+const VIEWS = ["tiles", "list"];
+const NO_FILTERS = { q: "", sort: SORTS[0], format: "" };
+
 const state = {
   formats: [], collections: [], decks: [], loadRequest: 0,
   editing: null, // the id of the deck in the editor, or null
   ticket: 0, // bumped by every route change, so a stale editor open stops
+  view: VIEWS[0],
+  filters: { ...NO_FILTERS },
 };
 let closing = Promise.resolve(); // the close of the last editor, with its save
 
@@ -26,7 +37,56 @@ let closing = Promise.resolve(); // the close of the last editor, with its save
 
 function formatName(key) {
   const found = state.formats.find((f) => f.key === key);
-  return found ? found.name : key || "";
+  if (found) return found.name;
+  const deck = state.decks.find((d) => d.format === key && d.format_name);
+  return deck ? deck.format_name : key || "";
+}
+
+// ---------------------------------------------------------------------------
+// Remembered choices. A blocked storage throws on each access; then the value
+// stays in memory for this page.
+// ---------------------------------------------------------------------------
+
+const memory = new Map();
+
+function readStored(area, key) {
+  let stored = null;
+  try {
+    stored = globalThis[area].getItem(key);
+  } catch (error) {
+    stored = null;
+  }
+  return memory.has(`${area}:${key}`) ? memory.get(`${area}:${key}`) : stored;
+}
+
+function writeStored(area, key, value) {
+  try {
+    globalThis[area].setItem(key, value);
+    memory.delete(`${area}:${key}`);
+  } catch (error) {
+    memory.set(`${area}:${key}`, value);
+  }
+}
+
+function loadChoices() {
+  const view = readStored("localStorage", VIEW_KEY);
+  state.view = VIEWS.includes(view) ? view : VIEWS[0];
+  let saved = {};
+  try {
+    saved = JSON.parse(readStored("sessionStorage", FILTERS_KEY) || "{}") || {};
+  } catch (error) {
+    saved = {};
+  }
+  state.filters = {
+    q: typeof saved.q === "string" ? saved.q.slice(0, 200) : "",
+    sort: SORTS.includes(saved.sort) ? saved.sort : NO_FILTERS.sort,
+    format: typeof saved.format === "string" ? saved.format : "",
+  };
+}
+
+function saveFilters() {
+  const { q, sort, format } = state.filters;
+  writeStored("sessionStorage", FILTERS_KEY, JSON.stringify({ q, sort, format }));
 }
 
 async function loadLookups() {
@@ -43,16 +103,61 @@ async function loadLookups() {
 // Deck list
 // ---------------------------------------------------------------------------
 
+// Show the chosen view, sort and filters in the tools above the decks.
+function renderTools() {
+  const { q, sort, format } = state.filters;
+  $("decks-tools").hidden = state.decks.length === 0;
+  const search = $("decks-search");
+  if (search.value !== q) search.value = q;
+  $("decks-sort").value = sort;
+  // The format menu lists only the formats that have decks, by name.
+  const select = $("decks-format");
+  const keys = formatsOf(state.decks)
+    .map((key) => [key, formatName(key)])
+    .sort((a, b) => a[1].localeCompare(b[1]));
+  select.replaceChildren(h("option", { value: "", text: "All" }),
+    ...keys.map(([key, name]) => h("option", { value: key, text: name })));
+  if (format && !keys.some(([key]) => key === format)) state.filters.format = "";
+  select.value = state.filters.format;
+  document.querySelectorAll("#decks-view-switch [data-view]").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.view === state.view));
+  });
+}
+
 function renderList() {
-  const grid = $("decks-grid");
-  grid.textContent = "";
-  state.decks.forEach((deck) => grid.append(deckTile(deck, {
+  renderTools();
+  const shown = sortDecks(filterDecks(state.decks, state.filters), state.filters.sort);
+  const actions = (deck) => ({
     onOpen: () => openEditor(deck.id),
     onDuplicate: () => duplicateDeck(deck),
     onDelete: () => deleteDeck(deck),
     formatName,
-  })));
+  });
+  const grid = $("decks-grid");
+  const table = $("decks-table");
+  const list = state.view === "list";
+  grid.textContent = "";
+  table.textContent = "";
+  grid.hidden = list || !shown.length;
+  table.hidden = !list || !shown.length;
+  if (list && shown.length) {
+    table.append(deckTable(shown, {
+      onOpen: (deck) => openEditor(deck.id),
+      onDuplicate: duplicateDeck,
+      onDelete: deleteDeck,
+      formatName,
+    }));
+  } else {
+    shown.forEach((deck) => grid.append(deckTile(deck, actions(deck))));
+  }
   $("decks-empty").hidden = state.decks.length > 0;
+  $("decks-none").hidden = !(state.decks.length && !shown.length);
+}
+
+function setFilters(change) {
+  Object.assign(state.filters, change);
+  saveFilters();
+  renderList();
 }
 
 async function loadList() {
@@ -222,6 +327,7 @@ async function showDeckList() {
   const ticket = ++state.ticket;
   await closeCurrent();
   if (ticket !== state.ticket) return; // a newer route came meanwhile
+  loadChoices();
   showList();
   await loadList();
 }
@@ -257,6 +363,21 @@ export async function leave() {
 function init() {
   $("decks-new").addEventListener("click", newDeckDialog);
   $("decks-import").addEventListener("click", importDialog);
+  $("decks-search").addEventListener("input", (event) => setFilters({ q: event.target.value }));
+  $("decks-sort").addEventListener("change", (event) => setFilters({ sort: event.target.value }));
+  $("decks-format").addEventListener("change", (event) => setFilters({ format: event.target.value }));
+  $("decks-clear").addEventListener("click", () => {
+    // Clear filters keeps the sort: the sort hides no deck.
+    setFilters({ q: "", format: "" });
+    $("decks-search").focus();
+  });
+  $("decks-view-switch").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-view]");
+    if (!button || !VIEWS.includes(button.dataset.view)) return;
+    state.view = button.dataset.view;
+    writeStored("localStorage", VIEW_KEY, state.view);
+    renderList();
+  });
 }
 
 init();

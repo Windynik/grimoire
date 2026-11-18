@@ -71,7 +71,7 @@
     overflow-wrap: anywhere;
 }
 
-/* Three buttons share one row. The width rule beats the phone rule in base.css. */
+/* Open and the More menu share one row. The width rule beats the phone rule in base.css. */
 .deck-actions {
     display: flex;
     gap: 0.4rem;

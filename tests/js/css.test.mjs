@@ -430,3 +430,29 @@ test("the deck editor views are a plain tab bar that never wraps", () => {
   // On a narrow screen the bar scrolls sideways instead of hiding the last tabs.
   assert.match(rule("#decks-view .deck-views"), /overflow-x:\s*auto/);
 });
+
+// The Decks screen tools, the More menu and the List view.
+test("the deck list tools grow to finger size, and the list fits a phone", () => {
+  const decks = cssFiles().find((f) => f.name === join("css", "decks.css")).text;
+  const coarse = coarseBlocks(decks);
+  const wants = [
+    ["#decks-view .decks-seg button", /min-height:\s*2\.5rem/],
+    ["#decks-view .decks-search", /min-height:\s*2\.75rem/],
+    ["#decks-view .deck-more-item", /min-height:\s*2\.75rem/],
+  ];
+  for (const [selector, rule] of wants) {
+    assert.match(rulesFor(coarse, selector).join(";"), rule, `touch rule for ${selector}`);
+  }
+  // A tile clips what leaves it, so its More menu opens upward.
+  assert.match(rulesFor(decks, "#decks-view .deck-more-up .deck-more-menu").join(";"),
+    /bottom:\s*calc\(100% \+ 4px\)/);
+  // On a phone the list keeps the name, the format, the cards and the price.
+  const narrow = blocksOf(decks, "@media (max-width: 768px)");
+  for (const column of ["col-commander", "col-colors", "col-updated"]) {
+    assert.match(narrow, new RegExp(`\\.decks-table \\.${column}[^{]*\\{[^}]*display:\\s*none`), column);
+  }
+  // Delete is a quiet danger action: the error color, no filled background.
+  const danger = rulesFor(decks, "#decks-view .deck-more-item.is-danger").join(";");
+  assert.match(danger, /color:\s*var\(--error\)/);
+  assert.doesNotMatch(danger, /background/);
+});

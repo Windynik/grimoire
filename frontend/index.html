@@ -369,9 +369,36 @@
                                 <button type="button" id="decks-new" class="btn btn-primary">New deck</button>
                             </div>
                         </header>
+                        <div id="decks-tools" class="decks-tools" hidden>
+                            <input type="search" id="decks-search" class="decks-search" placeholder="Search name or commander" aria-label="Search decks" autocomplete="off" spellcheck="false" maxlength="200">
+                            <label class="decks-field">
+                                <span>Sort</span>
+                                <select id="decks-sort" class="decks-select">
+                                    <option value="updated">Last change</option>
+                                    <option value="name">Name</option>
+                                    <option value="price">Price</option>
+                                    <option value="cards">Cards</option>
+                                </select>
+                            </label>
+                            <label class="decks-field">
+                                <span>Format</span>
+                                <select id="decks-format" class="decks-select">
+                                    <option value="">All</option>
+                                </select>
+                            </label>
+                            <div class="decks-seg" id="decks-view-switch" role="group" aria-label="View">
+                                <button type="button" data-view="tiles" aria-pressed="true">Tiles</button>
+                                <button type="button" data-view="list" aria-pressed="false">List</button>
+                            </div>
+                        </div>
                         <p id="decks-empty" class="decks-empty" hidden>No decks yet. Create one, import a decklist, or forge one.</p>
                         <p id="decks-error" class="decks-empty" role="alert" hidden></p>
+                        <div id="decks-none" class="decks-empty decks-none" hidden>
+                            <span>No decks match.</span>
+                            <button type="button" id="decks-clear" class="btn btn-secondary btn-compact">Clear filters</button>
+                        </div>
                         <div id="decks-grid" class="decks-grid"></div>
+                        <div id="decks-table" class="decks-table-wrap" hidden></div>
                     </div>
                     <div id="deck-editor" class="deck-editor" hidden></div>
                     <template id="deck-editor-template">

@@ -39,18 +39,19 @@ test("the Decks screen shows a full tile per deck", async () => {
   assert.match(found[0].textContent, /Alpha/);
   assert.match(found[0].textContent, /Commander · 100 cards · built/);
   assert.doesNotMatch(found[1].textContent, /built/);
-  assert.equal(found[0].querySelectorAll(".deck-actions .btn").length, 3);
+  // Open, and the More menu that holds Duplicate and Delete.
+  assert.equal(found[0].querySelectorAll(".deck-actions .btn").length, 2);
 });
 
 test("Duplicate sends POST /api/decks/<id>/duplicate", async () => {
   const [first] = await tiles();
-  first.querySelector(".btn-secondary").click();
+  first.querySelector(".deck-more-item").click();
   await app.until(() => log("POST", "/api/decks/d1/duplicate").length === 1);
 });
 
 test("Delete asks first and sends DELETE on confirm", async () => {
   const found = await tiles();
-  found[1].querySelector(".btn-danger").click();
+  found[1].querySelector(".deck-more-item.is-danger").click();
   const dialog = await app.until(() => document.querySelector("dialog[open]"));
   assert.equal(log("DELETE", "/api/decks/d2").length, 0);
   dialog.querySelector("button[type=submit]").click();
