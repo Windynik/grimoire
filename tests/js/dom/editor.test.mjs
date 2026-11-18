@@ -309,6 +309,19 @@ test("the stats panel lists each card issue with its reason, and the bracket fac
   assert.ok(!stats.querySelector(".stat-bracket").closest("section").hidden);
 });
 
+// Audit bug 6: "18 of 14 sources" read as 18 out of 14.
+test("the mana rows show the sources and the sources needed", async () => {
+  const analysis = { mana: [
+    { color: "U", pips: 12, sources: 18, needed: 14 },
+    { color: "R", pips: 1, sources: 1, needed: 8 },
+  ] };
+  await openEditor({ "GET /api/decks/d1": () => ({ json: { ...deckRecord(), analysis } }) });
+  const stats = document.querySelector('[data-editor="stats"]');
+  await app.until(() => stats.querySelectorAll(".stat-mana-text").length === 2);
+  const rows = [...stats.querySelectorAll(".stat-mana-text")].map((row) => row.textContent);
+  assert.deepEqual(rows, ["12 pips · 18 sources, 14 needed", "1 pip · 1 source, 8 needed"]);
+});
+
 test("a deck with no bracket facts hides the bracket section", async () => {
   await openEditor();
   const stats = document.querySelector('[data-editor="stats"]');

@@ -6,6 +6,7 @@
 // moves them with a transform transition. Server text goes in with textContent only.
 
 import { h } from "../shared/dom.js";
+import { plural } from "../shared/format.js";
 import { issueSummary } from "./model.js";
 import { renderCombos } from "./combos.js";
 
@@ -84,7 +85,7 @@ function manaRow(row) {
   return h("div", { class: "stat-mana-row" },
     h("span", { class: `stat-mana-color mana-${String(row.color).toLowerCase()}`, text: name }),
     h("span", { class: "stat-mana-text",
-      text: `${row.pips} pips · ${row.sources} of ${row.needed} sources` }),
+      text: `${plural(row.pips, "pip")} · ${plural(row.sources, "source")}, ${row.needed} needed` }),
     meter.track);
 }
 
