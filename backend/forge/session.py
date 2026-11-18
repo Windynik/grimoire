@@ -37,6 +37,7 @@ from backend.forge.llm import (
 )
 from backend.forge.metrics import deck_metrics, display_curve
 from backend.forge.playbook import PLAYSTYLES, FormatRules, Playbook
+from backend.forge.pool_check import no_plan_message
 from backend.forge.swaps import apply_swaps
 from backend.forge.tagging import TRIBAL_PREFIX, plural_forms, tag_cards, tribe_plural
 
@@ -588,7 +589,8 @@ class ForgeSession:
             self._thought("No synergy plan fits %s in the cards you own, so the deck takes "
                           "your best cards in its colors." % leader.name, (leader.id,))
         if not backbones:
-            raise ForgeError("No deck plan fits the cards you own in %s." % fmt.name)
+            # The error gives the numbers: what a plan needs and what the pool has.
+            raise ForgeError(await asyncio.to_thread(no_plan_message, cards, fmt, colors))
         shown = shown_cards(backbones, graph)
         self._emit("cards", cards=[card_payload(c) for c in shown])
         self._emit("graph", **graph_payload(backbones, shown, graph, self.playbook))

@@ -436,6 +436,70 @@ async def test_unknown_format_and_commander_end_in_error(tmp_path):
                           "message": "'Nobody Special' is not a commander you own."}
 
 
+CHOOSE_ONE = " Choose a commander, and the forge builds around it with the cards you have."
+
+
+def small_black_pool(legend=True, sacs=4, payoffs=4, copies=1):
+    recs = [make_record("Leader Test", type_line="Legendary Creature — Angel", oracle_text=DEATH,
+                        mana_cost="{1}{B}", color_identity=("B",))] if legend else []
+    recs += [creature(f"Sac Outlet {i}", i, SAC, "B") for i in range(sacs)]
+    recs += [creature(f"Death Payoff {i}", 10 + i, DEATH, "B") for i in range(payoffs)]
+    return make_pool(recs, [copies] * len(recs))
+
+
+async def failure(tmp_path, pool, **kw):
+    session, _ = await start(tmp_path, pool=pool, ask_mode="never", **kw)
+    events = await collect(session)
+    assert events[-1]["type"] == "error", events[-1]
+    return events[-1]["message"]
+
+
+@pytest.mark.asyncio
+async def test_no_plan_says_what_a_plan_needs_and_the_largest_group(tmp_path):
+    # Bug: "No deck plan fits the cards you own in Commander." gave no numbers.
+    message = await failure(tmp_path, small_black_pool(), format="commander")
+    assert message == (
+        "No deck plan fits the cards you own in Commander. A plan needs at least 10 different "
+        "cards that share a theme and fit the colors of one commander. Your largest group "
+        "has 8." + CHOOSE_ONE)
+
+
+@pytest.mark.asyncio
+async def test_no_plan_with_a_big_group_that_does_not_work_together(tmp_path):
+    message = await failure(tmp_path, vanilla_commander_pool(), format="commander")
+    assert message == (
+        "No deck plan fits the cards you own in Commander. Your largest group of cards that "
+        "share a theme has 30, but they do not work together well enough for a plan."
+        + CHOOSE_ONE)
+
+
+@pytest.mark.asyncio
+async def test_no_plan_without_a_commander_says_so(tmp_path):
+    message = await failure(tmp_path, small_black_pool(legend=False, sacs=6, payoffs=6),
+                            format="commander")
+    assert message == ("No deck plan fits the cards you own in Commander. None of your legal "
+                       "cards can be your commander.")
+
+
+@pytest.mark.asyncio
+async def test_no_plan_in_a_format_with_copies_counts_copies(tmp_path):
+    pool = small_black_pool(legend=False, sacs=2, payoffs=3)
+    pool[0][0]["quantity"] = pool[0][1]["quantity"] = 4
+    message = await failure(tmp_path, pool, format="modern")
+    assert message == (
+        "No deck plan fits the cards you own in Modern. A plan needs at least 16 cards that "
+        "share a theme in one or two colors, counting up to 4 copies of each. Your largest "
+        "group has 11.")
+    casual = await failure(tmp_path, small_black_pool(legend=False, sacs=1, payoffs=3),
+                           format="casual", colors="B", max_copies=1)
+    assert casual == (
+        "No deck plan fits the cards you own in Casual. A plan needs at least 8 different "
+        "cards that share a theme in your colors. Your largest group has 4.")
+    empty = await failure(tmp_path, ([], {}), format="modern")
+    assert empty == ("No deck plan fits the cards you own in Modern. None of your cards "
+                     "share a theme.")
+
+
 @pytest.mark.asyncio
 async def test_commander_session_uses_named_commander(tmp_path):
     recs = [make_record("Teysa Karlov", type_line="Legendary Creature — Human Advisor",

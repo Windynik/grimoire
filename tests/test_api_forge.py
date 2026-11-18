@@ -193,6 +193,29 @@ def test_forge_check_counts_the_legal_cards_of_the_pool(overrides):
         assert client.get("/api/forge/check/XYZ?format=commander").status_code == 400
 
 
+def test_forge_check_blocks_the_pool_that_the_run_cannot_use(overrides):
+    store, bulk, _ = overrides
+    records = synthetic_records()
+    # A second collection: the legend and 3 black spells.
+    store.store_collection("bbb2", [{"Scryfall ID": r["id"], "Quantity": 1, "Name": r["name"]}
+                                    for r in records[:4]], bulk.cards)
+    with TestClient(app) as client:
+        small = client.get("/api/forge/check/bbb2?format=commander").json()
+        assert small["room"] == 3 and small["commander_lifts"] is True
+        assert small["problem"].startswith(
+            "A Commander deck needs a commander and at least 10 more different cards")
+        # The run on the same pool fails, and gives the same need.
+        forge_id = client.post("/api/forge", json={"job_id": "bbb2", "format": "commander",
+                                                   "ask_mode": "never"}).json()["forge_id"]
+        frames = read_events(client, forge_id)
+        assert frames[-1][1] == "error"
+        assert frames[-1][2]["message"].startswith(
+            "No deck plan fits the cards you own in Commander. A plan needs at least 10 ")
+        # Both collections together leave room for a plan.
+        both = client.get("/api/forge/check/bbb2?format=commander&also=aaa1").json()
+        assert both["cards"] == 52 and both["problem"] is None
+
+
 def test_forge_check_reads_casual_options_free_copies_and_card_data(overrides):
     store, bulk, decks = overrides
     with TestClient(app) as client:
