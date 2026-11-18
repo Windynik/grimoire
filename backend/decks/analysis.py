@@ -362,7 +362,8 @@ def analyze(record: dict, index: Dict[str, dict], collection: Optional[List[dict
     Returns:
         Mapping with collection, format, count, curve, colors, mana, price,
         game_changers, metrics, cards (issue codes and a plain reason for
-        each code, per entry key), issues (deck level, each with a code and a
+        each code, per entry key), owned_percent (see owned_percent; None
+        without a collection), issues (deck level, each with a code and a
         message) and bracket (Commander bracket facts, or None; see
         backend.decks.brackets.bracket_facts).
 
@@ -415,6 +416,46 @@ def analyze(record: dict, index: Dict[str, dict], collection: Optional[List[dict
         "game_changers": changers,
         "metrics": metrics,
         "cards": _card_report(record, index, owned, fmt, deck, meta.get("name") or ""),
+        # Without a collection, no copy is owned, and a share would mislead.
+        "owned_percent": owned_percent(record, index, owned) if collection is not None else None,
         "issues": issues,
         "bracket": bracket_facts(record, index),
     }
+
+
+def owned_percent(record: dict, index: Dict[str, dict], owned: Dict[str, int]) -> Optional[int]:
+    """Return the share of the main deck and the commander that the collections hold.
+
+    The copies add up per card (every printing), as in the card report. A basic
+    land counts as owned, and a card that is not in the index does not. The share
+    is in whole percent, rounded down, so 100 means that every copy is owned.
+
+    Returns:
+        The percent, or None when the main deck and the commander have no card.
+    """
+    lines = [(line, line.get("count", 1))
+             for line in (record.get("sections") or {}).get("main") or []]
+    if record.get("commander"):
+        lines.append((record["commander"], 1))
+    need = {}  # type: Dict[str, int]
+    have = {}  # type: Dict[str, int]
+    for line, count in lines:
+        info = index.get(line.get("scryfall_id") or "")
+        key = _oracle_key(info) if info is not None else entry_key(line)
+        need[key] = need.get(key, 0) + count
+        if info is None:
+            have[key] = need[key] if line.get("basic") and not line.get("scryfall_id") else 0
+        elif "Basic" in (info.get("type_line") or ""):
+            have[key] = need[key]
+        else:
+            have[key] = owned.get(key, 0)
+    total = sum(need.values())
+    if not total:
+        return None
+    return sum(min(need[key], have[key]) for key in need) * 100 // total
+
+
+def list_facts(analysis: dict) -> dict:
+    """Return the facts of an analysis that the deck list shows: colors, price and owned_percent."""
+    return {"colors": list(analysis.get("colors") or []), "price": analysis.get("price"),
+            "owned_percent": analysis.get("owned_percent")}

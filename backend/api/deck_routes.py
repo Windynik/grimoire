@@ -18,7 +18,7 @@ from backend.core.collection_store import CollectionStore
 from backend.core.tls import tls_context
 from backend.core.ollama_client import ModelError, OllamaClient
 from backend.decks.agent import run_agent
-from backend.decks.analysis import analyze, owned_counts
+from backend.decks.analysis import analyze, list_facts, owned_counts
 from backend.decks.records import (
     MAX_DECK_COLLECTIONS,
     CreateDeck,
@@ -132,6 +132,19 @@ async def full_response(record: dict, index: Dict[str, dict], collections: Colle
     return await asyncio.to_thread(deck_response, record, index, collections, decks)
 
 
+async def keep_facts(store: DeckStore, record: dict, body: dict) -> dict:
+    """Keep the list facts of a deck response in the stored deck, and return the body.
+
+    GET /api/decks reads the facts from the file, so the list needs no analysis.
+    The caller must not hold the lock of the deck's saves.
+    """
+    deck_id = record.get("id")
+    if deck_id:
+        async with _deck_lock(deck_id):
+            store.keep_facts(deck_id, list_facts(body["analysis"]), record.get("updated"))
+    return body
+
+
 class ImportDeck(BaseModel):
     text: str = Field(min_length=1, max_length=50000)
     name: str = Field("Imported deck", min_length=1, max_length=120)
@@ -156,6 +169,9 @@ def _stored(store: DeckStore, deck_id: str) -> dict:
 async def list_decks(store: DeckStore = Depends(get_deck_store)):
     """Summaries of the saved decks, newest first."""
     decks = store.list()
+    for deck in decks:
+        fmt = _FORMATS.get(deck["format"])
+        deck["format_name"] = fmt.name if fmt is not None else deck["format"]
     return {"decks": decks, "total": len(decks)}
 
 
@@ -195,7 +211,7 @@ async def create_deck(
     record_event(record, "created")
     store.save(record)
     index = await bulk_data_manager.load_bulk_data()
-    return deck_response(record, index, collections)
+    return await keep_facts(store, record, deck_response(record, index, collections))
 
 
 @router.post("/decks/import", status_code=201)
@@ -234,7 +250,7 @@ async def import_deck(
     record = strip_display(hydrate_record(record, index))
     record_event(record, "imported", "Imported from a decklist.", with_cards=True)
     store.save(record)
-    body = await full_response(record, index, collections, store)
+    body = await keep_facts(store, record, await full_response(record, index, collections, store))
     body["unknown"] = unknown
     return body
 
@@ -265,10 +281,10 @@ async def get_deck(
     bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager),
     collections: CollectionStore = Depends(get_collection_store),
 ):
-    """One saved deck."""
+    """One saved deck. It also keeps the list facts of the deck (see keep_facts)."""
     record = _stored(store, deck_id)
     index = await bulk_data_manager.load_bulk_data()
-    return await full_response(record, index, collections, store)
+    return await keep_facts(store, record, await full_response(record, index, collections, store))
 
 
 @router.put("/decks/{deck_id}")
@@ -299,7 +315,7 @@ async def update_deck(
         record = strip_display(hydrate_record(apply_update(stored, request), index))
         record_edit(record, stored)
         store.save(record)
-    return await full_response(record, index, collections, store)
+    return await keep_facts(store, record, await full_response(record, index, collections, store))
 
 
 COMBOS_FAILED = ("Could not reach Commander Spellbook. Check the internet connection, "
@@ -341,7 +357,7 @@ async def find_combos(
         record["combos"] = summarize(results or {}, record)
         store.save(record)
     index = await bulk_data_manager.load_bulk_data()
-    return await full_response(record, index, collections, store)
+    return await keep_facts(store, record, await full_response(record, index, collections, store))
 
 
 async def _rule_zero(deck_id: str, store: DeckStore, bulk_data_manager: BulkDataManager,
@@ -441,7 +457,8 @@ async def duplicate_deck(
     if new_id is None:
         raise HTTPException(status_code=404, detail="Deck not found")
     index = await bulk_data_manager.load_bulk_data()
-    return await full_response(store.get(new_id), index, collections, store)
+    record = store.get(new_id)
+    return await keep_facts(store, record, await full_response(record, index, collections, store))
 
 
 def _slug(name: str) -> str:

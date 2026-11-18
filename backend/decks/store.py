@@ -33,6 +33,24 @@ def _summary_art(data: dict) -> dict:
     return {"image_url": "", "image_id": "", "image_name": ""}
 
 
+def _summary_facts(data: dict) -> dict:
+    """Return the colors, price and owned_percent of a deck list row.
+
+    The record keeps them from its last analysis (see DeckStore.keep_facts). A deck
+    with no analysis yet has None for each, so the list shows no wrong number.
+    """
+    facts = data.get("facts")
+    facts = facts if isinstance(facts, dict) else {}
+    colors = facts.get("colors")
+    price = facts.get("price")
+    owned = facts.get("owned_percent")
+    return {
+        "colors": [str(c) for c in colors] if isinstance(colors, list) else None,
+        "price": price if isinstance(price, (int, float)) and not isinstance(price, bool) else None,
+        "owned_percent": owned if isinstance(owned, int) and not isinstance(owned, bool) else None,
+    }
+
+
 class DeckStore:
     """Store and retrieve forged decks as JSON files."""
 
@@ -66,6 +84,11 @@ class DeckStore:
         now = datetime.now(timezone.utc).isoformat()
         record.setdefault("created", now)
         record["updated"] = now
+        self._write(path, record)
+        return record["id"]
+
+    @staticmethod
+    def _write(path: Path, record: dict) -> None:
         # Write beside the target, then swap in one step so readers never see a partial file
         tmp = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
         try:
@@ -75,7 +98,30 @@ class DeckStore:
         finally:
             if tmp.exists():
                 tmp.unlink()
-        return record["id"]
+
+    def keep_facts(self, deck_id: str, facts: dict, updated: str) -> bool:
+        """Keep the list facts of a deck (see backend.decks.analysis.list_facts).
+
+        The facts come from an analysis, not from the owner, so the write keeps
+        "updated" as it is. The caller holds the lock of the deck's saves.
+
+        Args:
+            deck_id: Deck identifier
+            facts: The facts to keep
+            updated: The "updated" value of the record that the analysis read
+
+        Returns:
+            True when the file changed. False when the deck is gone, when a newer
+            save replaced the analyzed record, or when the facts are the same.
+        """
+        record = self.get(deck_id)
+        if record is None or str(record.get("updated") or "") != str(updated or ""):
+            return False
+        if record.get("facts") == facts:
+            return False
+        record["facts"] = facts
+        self._write(self._path(deck_id), record)
+        return True
 
     def get(self, deck_id: str) -> Optional[dict]:
         """Retrieve a deck record.
@@ -162,6 +208,7 @@ class DeckStore:
                     **_summary_art(data),
                     "collection_job_id": data.get("collection_job_id") or "",
                     "built": bool(data.get("built")),
+                    **_summary_facts(data),
                 })
             except (OSError, ValueError, KeyError, TypeError, AttributeError):
                 continue

@@ -522,3 +522,49 @@ def test_an_import_reads_the_printings_of_every_chosen_collection(overrides):
             "text": "9 Sac Outlet 0", "format": "modern", "collection_job_ids": ["aaa1", "bbb2"]}).json()
         assert body["collection_job_ids"] == ["aaa1", "bbb2"]
         assert body["analysis"]["cards"][sac["id"]]["owned"] == 7
+
+
+def _summary(client, deck_id):
+    return next(d for d in client.get("/api/decks").json()["decks"] if d["id"] == deck_id)
+
+
+def test_the_deck_list_has_empty_facts_until_a_deck_is_analyzed(overrides):
+    _, bulk, decks = overrides
+    sac = _sac()
+    bulk.cards[sac["id"]]["prices"]["usd"] = "1.25"
+    # A deck that an older version saved: no facts in the file.
+    deck_id = decks.save({"name": "Old deck", "format": "modern", "collection_job_id": "aaa1",
+                          "commander": None, "sections": {"main": [
+                              {"scryfall_id": sac["id"], "name": "Sac Outlet 0", "count": 3}],
+                              "sideboard": [], "maybeboard": []}})
+    updated = decks.get(deck_id)["updated"]
+    with TestClient(app) as client:
+        summary = _summary(client, deck_id)
+        assert summary["format_name"] == "Modern"
+        assert (summary["colors"], summary["price"], summary["owned_percent"]) == (None, None, None)
+        # Opening the deck analyzes it. The list then has the facts.
+        assert client.get("/api/decks/%s" % deck_id).status_code == 200
+        summary = _summary(client, deck_id)
+        assert (summary["colors"], summary["price"], summary["owned_percent"]) == (["B"], 3.75, 100)
+        # The facts are not a change of the deck: the last change stays.
+        assert summary["updated"] == updated
+        assert client.get("/api/decks/missing-1").status_code == 404
+
+
+def test_an_editor_save_refreshes_the_list_facts(overrides):
+    _, _, decks = overrides
+    sac = _sac()
+    with TestClient(app) as client:
+        deck_id = client.post("/api/decks", json={"format": "modern",
+                                                  "collection_job_id": "aaa1"}).json()["id"]
+        empty = _summary(client, deck_id)
+        assert (empty["colors"], empty["price"], empty["owned_percent"]) == ([], 0.0, None)
+        five = {"main": [{"scryfall_id": sac["id"], "name": "Sac Outlet 0", "count": 5}]}
+        assert client.put("/api/decks/%s" % deck_id, json=_body(sections=five)).status_code == 200
+        summary = _summary(client, deck_id)
+        assert summary["owned_percent"] == 80  # the collection holds 4 of 5
+        assert summary["colors"] == ["B"] and summary["name"] == "Renamed"
+        assert decks.get(deck_id)["facts"]["owned_percent"] == 80
+        # A copy starts with the facts of its source.
+        copy_id = client.post("/api/decks/%s/duplicate" % deck_id).json()["id"]
+        assert _summary(client, copy_id)["owned_percent"] == 80
