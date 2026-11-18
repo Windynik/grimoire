@@ -16,6 +16,7 @@ from backend.api.dependencies import (
 )
 from backend.core.bulk_data import BulkDataManager
 from backend.core.collection_store import CollectionStore
+from backend.core.net_errors import download_reason
 from backend.core.tls import tls_context
 from backend.core.ollama_client import ModelError, OllamaClient
 from backend.decks.agent import run_agent
@@ -359,8 +360,18 @@ async def update_deck(
     return await keep_facts(store, record, await full_response(record, index, collections, store))
 
 
-COMBOS_FAILED = ("Could not reach Commander Spellbook. Check the internet connection, "
-                 "then try again.")
+COMBOS_FAILED = "Could not find the combos."
+SPELLBOOK = "Commander Spellbook"
+
+
+def combos_failure(error: Exception) -> str:
+    """The short text, then why the combo check failed (never the raw error)."""
+    reason = download_reason(error, SPELLBOOK)
+    if reason is None:
+        unreadable = isinstance(error, (ValueError, httpx.DecodingError))
+        reason = ("%s sent an answer that Grimoire cannot read." % SPELLBOOK if unreadable
+                  else "Try again later.")
+    return "%s %s" % (COMBOS_FAILED, reason)
 
 
 async def fetch_combos(body: dict, transport=None) -> dict:
@@ -391,8 +402,8 @@ async def find_combos(
         raise HTTPException(status_code=400, detail="Add cards to the deck first.")
     try:
         results = await fetch_combos(body)
-    except (httpx.HTTPError, ValueError):
-        raise HTTPException(status_code=502, detail=COMBOS_FAILED)
+    except (httpx.HTTPError, ValueError) as exc:
+        raise HTTPException(status_code=502, detail=combos_failure(exc))
     async with _deck_lock(deck_id):
         record = _stored(store, deck_id)
         record["combos"] = summarize(results or {}, record)

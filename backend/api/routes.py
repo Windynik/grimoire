@@ -23,7 +23,9 @@ from backend.core.paths import cache_path
 from backend.core.prices import best_price  # noqa: F401  (re-exported)
 from backend.core.csv_processor import CSVProcessor, enrich_rows, write_enriched_csv
 from backend.core.exporters import KINDS as EXPORT_KINDS, export_collection as export_any
-from backend.core.importers import ImportFormatError, binder_of, decode_upload
+from backend.core.importers import (
+    IMPORT_STOPPED, ImportFormatError, binder_of, decode_upload, import_failure, with_error_event,
+)
 from backend.core.ollama_client import OllamaClient
 from backend.forge.cards import is_game_card
 from backend.forge.playbook import load_playbook
@@ -432,12 +434,12 @@ def import_stream(content: bytes, filename: str, bulk_data: dict,
         try:
             result = worker.result()
         except Exception as exc:
-            yield sse({"type": "error", "detail": str(exc) or "Processing failed"})
+            yield sse({"type": "error", "detail": import_failure(exc)})
             return
 
         if result.status == "error":
             detail = (result.errors[0].get("error") if result.errors else None)
-            yield sse({"type": "error", "detail": detail or "Processing failed"})
+            yield sse({"type": "error", "detail": detail or IMPORT_STOPPED})
             return
 
         if last_current != result.total_processed:
@@ -468,7 +470,7 @@ def import_stream(content: bytes, filename: str, bulk_data: dict,
             "notice": result.notice,
         }})
 
-    return StreamingResponse(generate(), media_type="text/event-stream")
+    return StreamingResponse(with_error_event(generate()), media_type="text/event-stream")
 
 
 @router.post("/process/stream")

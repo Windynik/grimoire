@@ -11,7 +11,7 @@ from backend.api.dependencies import (
 )
 from backend.core.collection_store import CollectionStore
 from backend.core.csv_processor import CSVProcessor
-from backend.core.importers import NOT_TEXT
+from backend.core.importers import IMPORT_STOPPED, NOT_TEXT
 from main import app
 from tests.forge.conftest import make_record
 
@@ -255,6 +255,34 @@ def test_process_stream_bad_encoding_ends_with_error(stream_env):
     events = sse_events(client.post(
         "/api/process/stream", files={"file": ("x.xlsx", b"PK\x03\x04\x00\x00bad")}))
     assert events[-1] == {"type": "error", "detail": NOT_TEXT}
+
+
+def test_an_import_that_raises_gives_a_plain_reason(stream_env, monkeypatch):
+    # Bug: the stream sent str(exc), so a KeyError showed as "'name'", or "Processing failed".
+    def broken(*args, **kwargs):
+        raise KeyError("name")
+
+    monkeypatch.setattr(CSVProcessor, "process_csv_sync", broken)
+    events = sse_events(client.post(
+        "/api/process/stream", files={"file": ("mine.csv", make_csv(2))}))
+    assert events[-1] == {"type": "error", "detail": IMPORT_STOPPED}
+    assert "'name'" not in IMPORT_STOPPED and "KeyError" not in IMPORT_STOPPED
+
+
+def test_an_import_that_cannot_save_says_why(stream_env, monkeypatch):
+    # Bug: an error after the rows (the save) cut the stream, and the owner saw
+    # "The import stopped. Try again." with no reason.
+    store, bulk = stream_env
+    bulk.cards.update({f"id-{i}": index_card(f"Card{i}", "1.00") for i in range(2)})
+
+    def full(*args, **kwargs):
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(store, "store_collection", full)
+    events = sse_events(client.post(
+        "/api/process/stream", files={"file": ("mine.csv", make_csv(2))}))
+    assert events[-1] == {"type": "error", "detail": "The import stopped. Grimoire could not "
+                                                    "write a file: No space left on device."}
 
 
 def test_process_text_imports_a_pasted_list(stream_env):

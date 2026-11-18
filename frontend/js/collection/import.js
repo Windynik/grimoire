@@ -8,7 +8,7 @@
 
 import { navigate } from "../app/router.js";
 import { h } from "../shared/dom.js";
-import { getJSON } from "../shared/http.js";
+import { getJSON, refusalText } from "../shared/http.js";
 import { isImportFile, sourceText, WRONG_FILE } from "../shared/importfile.js";
 import { readSSE } from "../shared/sse.js";
 import { setActiveCollection, setViewerSource } from "../shared/session.js";
@@ -188,14 +188,7 @@ async function runImport(request) {
   try {
     const response = await request();
     if (!response.ok) {
-      let detail = "";
-      try {
-        const body = await response.json();
-        if (body && typeof body.detail === "string") detail = body.detail;
-      } catch (e) {
-        // The body is not JSON: use the default text.
-      }
-      fail(detail);
+      fail(await refusalText(response, "The import stopped."));
       return;
     }
 

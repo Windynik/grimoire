@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from backend.api.dependencies import get_bulk_data_manager, get_provider_prices
 from backend.core.bulk_data import BulkDataManager
+from backend.core.net_errors import download_reason
 from backend.core.provider_prices import (
     IDS_URL, PRICES_URL, PROVIDERS, PriceDownloadError, ProviderPrices, parse_download,
 )
@@ -16,8 +17,7 @@ from backend.core.tls import tls_context
 router = APIRouter(prefix="/api")
 
 USER_AGENT = "Grimoire/1.0 (offline MTG collection app)"
-DOWNLOAD_FAILED = ("Could not download the store prices from MTGJSON. Check the internet "
-                   "connection, then try again.")
+DOWNLOAD_FAILED = "Could not download the store prices from MTGJSON."
 _download_lock = asyncio.Lock()
 
 
@@ -76,8 +76,9 @@ async def download_prices(
     async with _download_lock:
         try:
             prices_gz, ids_gz = await fetch_store_prices()
-        except httpx.HTTPError:
-            raise HTTPException(status_code=502, detail=DOWNLOAD_FAILED)
+        except httpx.HTTPError as exc:
+            reason = download_reason(exc, "MTGJSON") or "Try again later."
+            raise HTTPException(status_code=502, detail="%s %s" % (DOWNLOAD_FAILED, reason))
         try:
             cards, date = await asyncio.to_thread(parse_download, prices_gz, ids_gz)
         except PriceDownloadError as error:

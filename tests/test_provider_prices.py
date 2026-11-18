@@ -12,6 +12,8 @@ from backend.core.provider_prices import (
 )
 from main import app
 
+# The price_env fixture replaces the download; this test file keeps the real one.
+REAL_FETCH = price_routes.fetch_store_prices
 DAY = "2026-11-13"
 IDS_CSV = ("uuid,scryfallId,cardKingdomId\n"
            "u-bolt,s-bolt,1\nu-sol,s-sol,2\nu-ghost,,3\n")
@@ -139,6 +141,39 @@ def test_a_failed_download_says_so(price_env, monkeypatch):
         response = client.post("/api/prices/download")
         assert response.status_code == 502
         assert "Could not download the store prices" in response.json()["detail"]
+
+
+def test_a_failed_download_gives_the_reason(price_env, monkeypatch):
+    # Bug: every failure said "Check the internet connection", also when MTGJSON
+    # answered with an error.
+    import httpx
+
+    answers = []
+
+    def handler(request):
+        answer = answers.pop(0)
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+    # The real download, through a transport that answers for MTGJSON.
+    monkeypatch.setattr(price_routes, "fetch_store_prices",
+                        lambda: REAL_FETCH(transport=httpx.MockTransport(handler)))
+    cases = [
+        (httpx.ConnectError("offline"), "Could not download the store prices from MTGJSON. "
+                                        "Grimoire could not reach MTGJSON. Check the internet "
+                                        "connection."),
+        (httpx.Response(404), "Could not download the store prices from MTGJSON. MTGJSON "
+                              "answered 404. Try again later."),
+        (httpx.ConnectTimeout("slow"), "Could not download the store prices from MTGJSON. "
+                                       "MTGJSON did not answer in time. Try again."),
+    ]
+    with TestClient(app) as client:
+        for answer, expected in cases:
+            answers.append(answer)
+            response = client.post("/api/prices/download")
+            assert response.status_code == 502
+            assert response.json()["detail"] == expected
 
 
 def test_the_card_data_loader_returns_the_chosen_store_prices(tmp_path):

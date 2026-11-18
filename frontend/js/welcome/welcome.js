@@ -15,7 +15,7 @@
 import { navigate, parseHash, redirect } from "../app/router.js";
 import { formatCount, formatMoney } from "../collection/numbers.js";
 import { h } from "../shared/dom.js";
-import { getJSON } from "../shared/http.js";
+import { failureText, getJSON, refusalText } from "../shared/http.js";
 import { isImportFile, WRONG_FILE } from "../shared/importfile.js";
 import { setActiveCollection, setViewerSource, setWelcomeSkipped } from "../shared/session.js";
 import { readSSE } from "../shared/sse.js";
@@ -238,14 +238,7 @@ async function runImport(request) {
   try {
     const response = await request();
     if (!response.ok) {
-      let detail = "";
-      try {
-        const body = await response.json();
-        if (body && typeof body.detail === "string") detail = body.detail;
-      } catch (e) {
-        // The body is not JSON: use the default text.
-      }
-      failImport(detail);
+      failImport(await refusalText(response, "The import stopped."));
       return;
     }
     await readSSE(response, async (event) => {
@@ -431,7 +424,7 @@ async function cardDataReady() {
     const status = await getJSON("/cache/status");
     return Boolean(status && status.status === "ready");
   } catch (error) {
-    showToast("Could not check the card data.", "error");
+    showToast(failureText("Could not check the card data", error), "error");
     return false;
   }
 }

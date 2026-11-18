@@ -12,13 +12,17 @@ column with a ManaBox name (such as "Rarity") gets the app's spelling.
 """
 
 import csv
+import json
+import logging
 import re
 import unicodedata
 from dataclasses import dataclass
 from io import StringIO
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import AsyncIterator, Dict, Iterable, List, Optional, Tuple
 
 from backend.core.bulk_data import NON_GAME_LAYOUTS
+
+logger = logging.getLogger(__name__)
 
 # The column names that the rest of the app reads (the ManaBox names).
 NAME = "Name"
@@ -103,6 +107,8 @@ NO_DATA_ROWS = "The file has a header but no card rows."
 NOT_TEXT = "This file is not text. Export a CSV file or a card list, not a spreadsheet."
 OLD_CARD_DATA = ("Your card data has no collector numbers, so Grimoire matched each card "
                  "by name and set. Update the card data on Home to get the exact printings.")
+IMPORT_STOPPED = ("The import stopped on an error in Grimoire. The terminal that runs "
+                  "Grimoire shows the details.")
 
 
 @dataclass
@@ -117,6 +123,31 @@ class ParsedImport:
 
 class ImportFormatError(ValueError):
     """The text is not a collection that the app can read."""
+
+
+def import_failure(error: BaseException) -> str:
+    """Return why an import failed, in words for the owner. Raw error text never shows."""
+    if isinstance(error, ImportFormatError):
+        return str(error) or NO_ROWS
+    logger.error("The import failed", exc_info=error)
+    if isinstance(error, OSError) and error.strerror:
+        return "The import stopped. Grimoire could not write a file: %s." % error.strerror
+    if isinstance(error, MemoryError):
+        return "The import stopped. The file is too large for the memory of this computer."
+    return IMPORT_STOPPED
+
+
+async def with_error_event(frames: AsyncIterator[str]) -> AsyncIterator[str]:
+    """Pass the event frames of an import. An error ends them with an error event.
+
+    So an error after the rows (the save, for example) still gives its reason,
+    and the stream does not just stop.
+    """
+    try:
+        async for frame in frames:
+            yield frame
+    except Exception as exc:
+        yield "data: %s\n\n" % json.dumps({"type": "error", "detail": import_failure(exc)})
 
 
 def decode_upload(content: bytes) -> str:

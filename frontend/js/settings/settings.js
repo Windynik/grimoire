@@ -6,7 +6,7 @@
 
 import { h } from "../shared/dom.js";
 import { formatDay, plural } from "../shared/format.js";
-import { del, getJSON, postJSON, putJSON } from "../shared/http.js";
+import { del, failureText, getJSON, postJSON, putJSON } from "../shared/http.js";
 import { autoStartImageSync, imageSyncState, onImageSync, startImageSync } from "../shared/imagesync.js";
 import { isRecommended } from "../shared/models.js";
 import { confirmDialog } from "../shared/modal.js";
@@ -60,7 +60,7 @@ async function clearCardData() {
     await del("/cache");
     showToast("Card data cleared", "success");
   } catch (e) {
-    showToast(e && e.status === 409 ? e.message : "Could not clear the card data", "error");
+    showToast(e && e.status === 409 ? e.message : failureText("Could not clear the card data", e), "error");
   }
   refreshCardData();
   // The image counts need the card data, so the images line changes too.
@@ -194,7 +194,7 @@ async function removeImages() {
     await del("/images");
     showToast("Card images removed", "success");
   } catch (e) {
-    showToast(e && e.status === 409 ? "Wait for the image download to end." : "Could not remove the card images", "error");
+    showToast(e && e.status === 409 ? "Wait for the image download to end." : failureText("Could not remove the card images", e), "error");
   }
   refreshImages();
 }
@@ -340,7 +340,7 @@ async function refreshPrices() {
     const data = await getJSON("/prices");
     if (request === priceChecking && prices) renderPrices(data);
   } catch (e) {
-    if (prices) prices.status.textContent = "Could not read the price settings.";
+    if (prices) prices.status.textContent = failureText("Could not read the price settings", e);
   }
 }
 
@@ -380,7 +380,7 @@ async function removePrices() {
     renderPrices(await del("/prices"));
     showToast("Store prices removed", "success");
   } catch (e) {
-    showToast("Could not remove the store prices", "error");
+    showToast(failureText("Could not remove the store prices", e), "error");
   }
 }
 

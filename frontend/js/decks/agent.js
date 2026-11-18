@@ -7,6 +7,7 @@
 
 import * as api from "./api.js";
 import { h } from "../shared/dom.js";
+import { failureText } from "../shared/http.js";
 import { reducedMotion } from "../shared/motion.js";
 import { ENGINE_ONLY, chooseModel, readSettings } from "../shared/settings.js";
 import { agentResultFits, snapshotDeck } from "./model.js";
@@ -107,7 +108,7 @@ export function renderAgent(root, state) {
       await play(result, snapshot);
     } catch (error) {
       thinking.remove();
-      add("agent-error", error && error.message ? error.message : "The request failed.");
+      add("agent-error", failureText("The agent could not answer", error));
     } finally {
       busy = false;
       setEnabled();

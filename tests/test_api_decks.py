@@ -457,6 +457,55 @@ def test_find_combos_saves_the_summary_and_reports_a_failure(overrides, monkeypa
         assert "Commander Spellbook" in failed.json()["detail"]
 
 
+def test_a_failed_combo_check_gives_the_reason(overrides, monkeypatch):
+    # Bug: every failure said "Could not reach Commander Spellbook. Check the internet
+    # connection", also when the site answered with an error or with a page it cannot read.
+    import ssl
+
+    import httpx
+
+    from backend.api import deck_routes
+
+    answers = []
+
+    def handler(request):
+        answer = answers.pop(0)
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+    real = deck_routes.fetch_combos
+    monkeypatch.setattr(deck_routes, "fetch_combos",
+                        lambda body: real(body, transport=httpx.MockTransport(handler)))
+    try:
+        raise ssl.SSLCertVerificationError("self-signed certificate")
+    except ssl.SSLCertVerificationError as cause:
+        blocked = httpx.ConnectError("certificate")
+        blocked.__cause__ = cause
+    cases = [
+        (httpx.ConnectError("offline"),
+         "Could not find the combos. Grimoire could not reach Commander Spellbook. "
+         "Check the internet connection."),
+        (httpx.Response(503), "Could not find the combos. Commander Spellbook answered 503. "
+                              "Try again later."),
+        (httpx.ReadTimeout("slow"), "Could not find the combos. Commander Spellbook did not "
+                                    "answer in time. Try again."),
+        (httpx.Response(200, content=b"<html>"), "Could not find the combos. Commander "
+                                                 "Spellbook sent an answer that Grimoire "
+                                                 "cannot read."),
+        (blocked, "Could not find the combos. Grimoire could not verify the certificate of "
+                  "Commander Spellbook."),
+    ]
+    with TestClient(app) as client:
+        deck_id = client.post("/api/decks", json={"format": "modern"}).json()["id"]
+        client.put("/api/decks/%s" % deck_id, json=_body())
+        for answer, expected in cases:
+            answers.append(answer)
+            failed = client.post("/api/decks/%s/combos" % deck_id)
+            assert failed.status_code == 502
+            assert failed.json()["detail"].startswith(expected), failed.json()["detail"]
+
+
 def test_rule_zero_and_the_printable_pages(overrides):
     with TestClient(app) as client:
         deck_id = client.post("/api/decks", json={"format": "modern"}).json()["id"]
