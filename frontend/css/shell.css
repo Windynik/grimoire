@@ -104,32 +104,37 @@
     outline-offset: 2px;
 }
 
-/* Under 640 px the nav stays one row and scrolls sideways. */
-@media (max-width: 640px) {
+/* Up to 768 px one row cannot hold the brand, the five links and the search
+   button. The bar then has two rows: the brand and the search button on top,
+   and the five links on a row of their own. No link hides behind a scroll. A
+   link that still does not fit goes to the next line. The negative margin
+   lines up the first and last link text with the edges of the bar. */
+@media (max-width: 768px) {
     .shell-inner {
-        gap: var(--space-3);
-        min-height: 52px;
+        flex-wrap: wrap;
+        gap: 0 var(--space-3);
+        min-height: 0;
+        padding-top: var(--space-2);
     }
 
     .brand-name {
         font-size: 1.1rem;
     }
 
-    .nav {
-        flex: 1;
-        min-width: 0;
-        margin-left: 0;
-        overflow-x: auto;
-        overscroll-behavior-x: contain;
-        scrollbar-width: none;
+    .palette-button {
+        margin-left: auto;
     }
 
-    .nav::-webkit-scrollbar {
-        display: none;
+    .nav {
+        order: 3;
+        flex: 1 1 100%;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 0;
+        margin: 0 calc(-1 * var(--space-2));
     }
 
     .nav-item {
-        flex: none;
         padding: var(--space-2);
         font-size: 0.88rem;
     }
@@ -140,16 +145,11 @@
     }
 }
 
-/* On a phone (under 480 px) all five links fit in the row: the brand keeps
-   its sigil only (the link keeps its "Grimoire home" label), and the links
-   pack closer. */
+/* On a phone (under 480 px) the links pack closer, so all five fit on one
+   row down to 320 px. */
 @media (max-width: 480px) {
-    .brand-name {
-        display: none;
-    }
-
     .nav {
-        gap: 0;
+        margin: 0 -5px;
     }
 
     .nav-item {

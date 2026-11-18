@@ -372,6 +372,51 @@ test("the page can be installed on a phone home screen", () => {
   assert.ok(statSync(join(FRONTEND, "apple-touch-icon.png")).size > 0);
 });
 
+// The body of each block that opens with `head` (an at-rule such as "@media (max-width: 768px)").
+function blocksOf(css, head) {
+  const blocks = [];
+  let at = css.indexOf(head);
+  while (at >= 0) {
+    let depth = 0;
+    let i = css.indexOf("{", at);
+    const start = i + 1;
+    for (; i < css.length; i += 1) {
+      if (css[i] === "{") depth += 1;
+      else if (css[i] === "}") {
+        depth -= 1;
+        if (depth === 0) break;
+      }
+    }
+    blocks.push(css.slice(start, i));
+    at = css.indexOf(head, i);
+  }
+  return blocks.join("\n");
+}
+
+// The declarations of every rule whose whole selector is `selector`.
+function rulesFor(css, selector) {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(`(?:^|[}\\s])${escaped}\\s*\\{([^}]*)\\}`, "g");
+  return [...css.matchAll(re)].map((match) => match[1]);
+}
+
+// Audit bug 2: under 640 px the nav scrolled sideways with no scroll bar, so
+// "Settings" was cut off. From 641 px to about 700 px the bar was wider than the page.
+test("the top bar never hides a nav link", () => {
+  const shell = cssFiles().find((f) => f.name === join("css", "shell.css")).text;
+  for (const body of rulesFor(shell, ".nav")) {
+    assert.doesNotMatch(body, /overflow(-x)?:\s*(auto|scroll|hidden)/, "no link hides behind a scroll");
+  }
+  // Up to 768 px the links get a row of their own, under the brand and the search button.
+  const narrow = blocksOf(shell, "@media (max-width: 768px)");
+  assert.match(rulesFor(narrow, ".shell-inner").join(";"), /flex-wrap:\s*wrap/);
+  const nav = rulesFor(narrow, ".nav").join(";");
+  assert.match(nav, /order:\s*3/);
+  assert.match(nav, /flex:\s*1 1 100%/);
+  // A link that still does not fit goes to the next line. It never hides.
+  assert.match(nav, /flex-wrap:\s*wrap/);
+});
+
 test("the deck editor views are a plain tab bar that never wraps", () => {
   const decks = cssFiles().find((f) => f.name === join("css", "decks.css")).text;
   const rule = (selector) => {
