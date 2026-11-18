@@ -225,12 +225,36 @@ def _slug(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
 
 
+def counts_cards(fmt: FormatRules) -> bool:
+    """Return True when the size rule counts cards, False when it counts copies."""
+    return fmt.singleton or fmt.max_copies <= 1
+
+
+def core_size(members: List[OwnedCard], fmt: FormatRules) -> int:
+    """Return the size of a group of cards in the unit of the size rule.
+
+    Singleton formats count cards. Formats with copies count playsets: four
+    copies of a card fill four slots, so they count copies, at most
+    max_copies of each card.
+    """
+    if counts_cards(fmt):
+        return len(members)
+    return sum(min(card.owned, fmt.max_copies) for card in members)
+
+
+def core_need(fmt: FormatRules) -> int:
+    """Return the least core_size that a plan needs.
+
+    Singleton formats need min_core cards. Formats with copies need copies
+    for half of min_core full playsets (16 copies for min_core 8 and 4 copies).
+    """
+    if counts_cards(fmt):
+        return fmt.min_core
+    return -(-fmt.min_core * fmt.max_copies // 2)
+
+
 def _big_enough(members: List[OwnedCard], fmt: FormatRules) -> bool:
-    if fmt.singleton or fmt.max_copies <= 1:
-        return len(members) >= fmt.min_core
-    # Formats with copies count playsets: four copies of a card fill four slots.
-    copies = sum(min(card.owned, fmt.max_copies) for card in members)
-    return copies / fmt.max_copies >= fmt.min_core / 2
+    return core_size(members, fmt) >= core_need(fmt)
 
 
 def card_weight(card: OwnedCard, fmt: FormatRules) -> float:
@@ -504,3 +528,76 @@ def _backbone(hooks: Tuple[str, ...], members: List[str], scope: FrozenSet[str],
         commander_id=commander.id if commander is not None else None,
         score=score,
     )
+
+
+
+def plan_room(cards: List[OwnedCard], fmt: FormatRules,
+              colors: Optional[FrozenSet[str]] = None) -> int:
+    """Return the largest core_size that any plan of the pool can have.
+
+    The members of a plan are nonland cards of one scope, without the
+    commander of the scope (see _scored_groups and wish_backbone). So a pool
+    with less room than core_need has no plan, whatever the hooks and the
+    wish are. The tags of the cards are not read.
+
+    Args:
+        cards: Owned cards, legal in the format.
+        fmt: Format rules.
+        colors: The colors the owner chose (Casual), or None.
+
+    Returns:
+        In commander formats, the room of the best commander (0 when no card
+        can be a commander). In other formats, the room inside the colors, or
+        inside all five colors when colors is None, because a wish can name
+        any colors.
+    """
+    nonland = [card for card in cards if not card.is_land]
+    if not fmt.commander:
+        scope = colors if colors is not None else frozenset(COLORS)
+        return core_size([card for card in nonland if fits_colors(card, scope, fmt)], fmt)
+    best = 0
+    room = {}  # type: Dict[FrozenSet[str], int]
+    for scope, leader in _scopes(cards, fmt, None, colors):
+        if scope not in room:
+            room[scope] = core_size([card for card in nonland if fits_colors(card, scope, fmt)],
+                                    fmt)
+        # The commander is never a member of its own plan.
+        own = core_size([leader], fmt) if not leader.is_land else 0
+        best = max(best, room[scope] - own)
+    return best
+
+
+def largest_group(cards: List[OwnedCard], fmt: FormatRules,
+                  colors: Optional[FrozenSet[str]] = None) -> int:
+    """Return the core_size of the largest one-hook group that find_backbones sees.
+
+    The groups are those of _scored_groups before the size test: the nonland
+    cards of one hook that fit one scope, without the commander of the scope.
+
+    Args:
+        cards: Tagged owned cards, legal in the format.
+        fmt: Format rules.
+        colors: The colors of the search, or None (see find_backbones).
+
+    Returns:
+        The largest size, or 0 when no scope has a card with a hook.
+    """
+    by_hook = {}  # type: Dict[str, List[OwnedCard]]
+    for card in cards:
+        if not card.is_land:
+            for hook in card.gives | card.wants:
+                by_hook.setdefault(hook, []).append(card)
+    best = 0
+    # Commanders of one color identity share the groups of their scope.
+    groups = {}  # type: Dict[FrozenSet[str], List[Tuple[int, Set[str]]]]
+    for scope, commander in _scopes(cards, fmt, None, colors):
+        if scope not in groups:
+            groups[scope] = []
+            for members in by_hook.values():
+                fit = [card for card in members if fits_colors(card, scope, fmt)]
+                groups[scope].append((core_size(fit, fmt), {card.id for card in fit}))
+        for size, ids in groups[scope]:
+            if commander is not None and commander.id in ids:
+                size -= core_size([commander], fmt)
+            best = max(best, size)
+    return best

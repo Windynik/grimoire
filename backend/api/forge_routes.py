@@ -3,7 +3,7 @@ import json
 import re
 from typing import AsyncIterator, List, Literal, Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -20,10 +20,11 @@ from backend.core.ollama_client import OllamaClient
 from backend.decks.store import DeckStore
 from backend.decks.usage import CopiesInUse, free_rows
 from backend.forge.audit import load_run, runs_dir
-from backend.forge.cards import hydrate
+from backend.forge.cards import COLORS, hydrate
 from backend.forge.events import TERMINAL
 from backend.forge.graph import commander_candidates
 from backend.forge.playbook import load_playbook
+from backend.forge.pool_check import check_pool
 from backend.forge.session import ForgeManager, ForgeParams
 
 
@@ -33,6 +34,7 @@ KEEPALIVE_SECONDS = 15.0
 MAX_COLLECTIONS = 20
 FREE_EMPTY = ("Your built decks use every card in this collection. "
               "Clear \"Only free copies\" to build from all the cards.")
+NO_CARD_DATA = "Card data not available. Download it on the Home screen first."
 
 
 class ForgeRequest(BaseModel):
@@ -137,6 +139,46 @@ async def forge_commanders(
     return {"commanders": commanders, "total": len(commanders)}
 
 
+@router.get("/forge/check/{job_id}")
+async def forge_check(
+    job_id: str,
+    format: str = "commander",
+    also: str = "",
+    free_only: bool = False,
+    deck_size: int = Query(default=60, ge=40, le=250),
+    max_copies: int = Query(default=4, ge=1, le=4),
+    colors: str = Query(default="", max_length=10),
+    store: CollectionStore = Depends(get_collection_store),
+    bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager),
+    deck_store: DeckStore = Depends(get_deck_store),
+):
+    """The check before a run: the legal cards of the pool, and whether a plan can fit.
+
+    It builds the pool as start_forge and the forge session do, so the check
+    and the run agree. deck_size, max_copies and colors apply to Casual only.
+    """
+    playbook = load_playbook()
+    fmt = playbook.formats.get(format)
+    if fmt is None:
+        raise HTTPException(status_code=400, detail="Unknown format")
+    collection = await _load_pool(pool_ids(job_id, also.split(",")), store)
+    index = await bulk_data_manager.load_bulk_data()
+    if not index:
+        raise HTTPException(status_code=400, detail=NO_CARD_DATA)
+    scope = None
+    if fmt.key == "casual":
+        # The same rules as ForgeSession._format and the colors of ForgeSession._pipeline.
+        fmt = fmt.scaled(deck_size, max_copies)
+        scope = frozenset(c for c in colors.upper() if c in COLORS) or None
+    if free_only:
+        copies = await asyncio.to_thread(CopiesInUse, deck_store, store, index)
+        collection = free_rows(collection, copies)
+        if not collection:
+            return {"format": fmt.name, "deck_size": fmt.deck_size, "summary": "",
+                    "problem": FREE_EMPTY, "commander_lifts": False}
+    return await asyncio.to_thread(check_pool, collection, index, fmt, scope)
+
+
 @router.post("/forge")
 async def start_forge(
     request: ForgeRequest,
@@ -154,9 +196,7 @@ async def start_forge(
     collection = await _load_pool(request.job_ids, store)
     index = await bulk_data_manager.load_bulk_data()
     if not index:
-        raise HTTPException(
-            status_code=400,
-            detail="Card data not available. Download it on the Home screen first.")
+        raise HTTPException(status_code=400, detail=NO_CARD_DATA)
     if request.free_only:
         copies = await asyncio.to_thread(CopiesInUse, deck_store, store, index)
         collection = free_rows(collection, copies)

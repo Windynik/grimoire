@@ -23,6 +23,22 @@ export function getCommanders(jobIds, format) {
   return request(`/forge/commanders/${encodeURIComponent(first)}?format=${encodeURIComponent(format)}${also}`);
 }
 
+/**
+ * The check before a run: the legal cards of the pool and, when the run is sure
+ * to fail, why. options: {freeOnly, deckSize, maxCopies, colors}; the last three
+ * apply to Casual only.
+ */
+export function getCheck(jobIds, format, options = {}) {
+  const [first, ...more] = Array.isArray(jobIds) ? jobIds : [jobIds];
+  const query = new URLSearchParams({ format });
+  if (more.length) query.set("also", more.join(","));
+  if (options.freeOnly) query.set("free_only", "true");
+  if (options.deckSize) query.set("deck_size", String(options.deckSize));
+  if (options.maxCopies) query.set("max_copies", String(options.maxCopies));
+  if (options.colors) query.set("colors", options.colors);
+  return request(`/forge/check/${encodeURIComponent(first)}?${query}`);
+}
+
 export function getAiStatus() {
   return request("/ai/status");
 }

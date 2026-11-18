@@ -13,6 +13,7 @@ import { cardImage, cardImg } from "../shared/images.js";
 import { animate } from "../shared/motion.js";
 import { showToast } from "../shared/toast.js";
 import { h } from "../shared/dom.js";
+import { failureText } from "../shared/http.js";
 import { activeCollection } from "../shared/session.js";
 import { openEditor } from "../decks/decks.js";
 
@@ -44,6 +45,9 @@ const state = {
   formats: [],
   commander: "",
   commanderRequest: 0,
+  // The answer of the check before a run (see loadCheck), or null while it is unknown.
+  check: null,
+  checkRequest: 0,
   forgeId: null,
   source: null,
   running: false,
@@ -160,7 +164,72 @@ function renderPoolNote() {
   } else {
     note.textContent = `The forge builds from ${cards.toLocaleString()} cards in ${chosen.length} collections. The copies of a card in two collections add up.`;
   }
-  $("forge-start").disabled = !chosen.length;
+  updateStart();
+}
+
+// ---------------------------------------------------------------------------
+// The check before a run
+// ---------------------------------------------------------------------------
+
+// The options of the check: the same pool options as the run (see params).
+function checkOptions(fmt) {
+  const options = { freeOnly: $("forge-free-only").checked };
+  if (fmt.key === "casual") {
+    options.deckSize = Number($("forge-deck-size").value) || 60;
+    options.maxCopies = Number($("forge-max-copies").value) || 4;
+    options.colors = [...document.querySelectorAll(".forge-color[aria-pressed='true']")]
+      .map((b) => b.dataset.color).join("");
+  }
+  return options;
+}
+
+// Why the run is sure to fail, or "". A chosen commander lifts a block that
+// only "Let the agent choose" has: the forge then builds around that commander.
+function blockReason() {
+  const check = state.check;
+  if (!check || !check.problem) return "";
+  if (check.commander_lifts && state.commander) return "";
+  return String(check.problem);
+}
+
+// The Forge button is off with no collection, or with a run that is sure to fail.
+function updateStart() {
+  const reason = blockReason();
+  const note = $("forge-start-note");
+  note.textContent = reason;
+  note.hidden = !reason;
+  $("forge-start").disabled = !selectedJobs().length || Boolean(reason);
+}
+
+function showCheck(text) {
+  const note = $("forge-format-note");
+  note.textContent = text;
+  note.hidden = !text;
+}
+
+// Ask the server how many cards of the pool are legal, and whether a plan can fit.
+// Until the answer comes, the button stays on: the check blocks only a sure failure.
+async function loadCheck() {
+  const fmt = currentFormat();
+  const jobIds = selectedJobs();
+  const request = ++state.checkRequest;
+  state.check = null;
+  updateStart();
+  if (!fmt || !jobIds.length) {
+    showCheck("");
+    return;
+  }
+  let data;
+  try {
+    data = await api.getCheck(jobIds, fmt.key, checkOptions(fmt));
+  } catch (e) {
+    if (request === state.checkRequest) showCheck(failureText("Could not check the cards", e));
+    return;
+  }
+  if (request !== state.checkRequest) return;
+  state.check = data || null;
+  showCheck(String((data && data.summary) || ""));
+  updateStart();
 }
 
 async function loadCollections() {
@@ -233,6 +302,7 @@ function selectCommander(name) {
     tile.classList.toggle("selected", on);
     tile.tabIndex = on ? 0 : -1;
   });
+  updateStart();
 }
 
 // A commander tile. card is {id, name, image_url} from the commander list, or
@@ -312,7 +382,7 @@ function applyFormat() {
   const fmt = currentFormat();
   $("forge-casual").hidden = !(fmt && fmt.key === "casual");
   if (fmt && fmt.key === "casual") $("forge-deck-size").value = fmt.deck_size || 60;
-  return loadCommanders();
+  return Promise.all([loadCommanders(), loadCheck()]);
 }
 
 // ---------------------------------------------------------------------------
@@ -846,14 +916,14 @@ async function startForge(body) {
 async function submit(event) {
   event.preventDefault();
   const button = $("forge-start");
-  if (!selectedJobs().length) return;
+  if (!selectedJobs().length || blockReason()) return;
   button.disabled = true;
   try {
     await startForge(params());
   } catch (e) {
     showToast(e.message, "error");
   } finally {
-    button.disabled = false;
+    updateStart();
   }
 }
 
@@ -916,7 +986,7 @@ export async function open() {
     await applyFormat();
   } catch (e) {
     console.error("Error loading the forge setup:", e);
-    showToast("Could not load the forge setup", "error");
+    showToast(failureText("Could not load the forge setup", e), "error");
   }
 }
 
@@ -946,9 +1016,14 @@ function init() {
   });
   $("forge-collections").addEventListener("change", () => {
     savePool(selectedJobs());
-    renderPoolNote();
     state.commander = "";
+    loadCheck();
+    renderPoolNote();
     loadCommanders();
+  });
+  // The pool options of the run change the check too.
+  ["forge-free-only", "forge-deck-size", "forge-max-copies"].forEach((id) => {
+    $(id).addEventListener("change", loadCheck);
   });
   $("forge-commander-grid").addEventListener("keydown", moveTileFocus);
   $("forge-cancel").addEventListener("click", cancelForge);
@@ -960,6 +1035,7 @@ function init() {
     chip.addEventListener("click", () => {
       const on = chip.getAttribute("aria-pressed") !== "true";
       chip.setAttribute("aria-pressed", String(on));
+      loadCheck();
     });
   });
 }

@@ -290,6 +290,7 @@
                                     <span>Format</span>
                                     <select id="forge-format"></select>
                                 </label>
+                                <p id="forge-format-note" class="forge-hint forge-format-note" role="status" hidden></p>
                             </div>
                             <fieldset id="forge-commander-group" class="forge-field forge-commanders" hidden>
                                 <legend>Commander</legend>
@@ -340,7 +341,8 @@
                                 <span><b>Only free copies</b> — leave out the copies that your built decks use.</span>
                             </label>
                             <div class="forge-actions">
-                                <button type="submit" id="forge-start" class="btn btn-primary">Forge</button>
+                                <button type="submit" id="forge-start" class="btn btn-primary" aria-describedby="forge-start-note">Forge</button>
+                                <p id="forge-start-note" class="forge-hint forge-start-note" role="status" hidden></p>
                             </div>
                         </form>
                     </div>

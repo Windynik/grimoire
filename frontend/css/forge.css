@@ -232,6 +232,19 @@
     margin-top: 0.25rem;
 }
 
+/* The check before a run: the legal cards under the format, and the reason
+   next to a Forge button that is off. */
+#forge-view .forge-format-note {
+    grid-column: 1 / -1;
+    margin: 0;
+}
+
+#forge-view .forge-start-note {
+    align-self: center;
+    margin: 0;
+    color: var(--warning);
+}
+
 /* --------------------------------------------------------------------------
    Forge run: stage, feed, and timeline (design: specs/assets/forge-hybrid.html)
    -------------------------------------------------------------------------- */

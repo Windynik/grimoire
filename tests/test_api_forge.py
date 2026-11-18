@@ -177,6 +177,47 @@ def test_commanders_route_does_not_tag_cards(overrides, monkeypatch):
     assert [c["name"] for c in body["commanders"]] == ["Atraxa Test"]
 
 
+def test_forge_check_counts_the_legal_cards_of_the_pool(overrides):
+    with TestClient(app) as client:
+        body = client.get("/api/forge/check/aaa1?format=commander").json()
+        # 12 cards with 4 copies each: a legend, 10 black spells and a Swamp.
+        assert body["cards"] == 48 and body["legal"] == 48 and body["commanders"] == 1
+        assert body["room"] == 10 and body["need"] == 10 and body["deck_size"] == 100
+        assert body["summary"] == ("All 48 of your cards are legal in Commander. "
+                                   "A Commander deck has 100 cards.")
+        assert body["problem"] is None and body["commander_lifts"] is False
+        modern = client.get("/api/forge/check/aaa1?format=modern").json()
+        assert modern["room"] == 44 and modern["need"] == 16 and modern["problem"] is None
+        assert client.get("/api/forge/check/aaa1?format=bogus").json()["detail"] == "Unknown format"
+        assert client.get("/api/forge/check/dead?format=commander").status_code == 404
+        assert client.get("/api/forge/check/XYZ?format=commander").status_code == 400
+
+
+def test_forge_check_reads_casual_options_free_copies_and_card_data(overrides):
+    store, bulk, decks = overrides
+    with TestClient(app) as client:
+        casual = client.get("/api/forge/check/aaa1", params={
+            "format": "casual", "deck_size": 40, "max_copies": 1, "colors": "w"}).json()
+        assert casual["summary"] == ("All 48 of your cards are legal in Casual. "
+                                     "A Casual deck has 40 cards.")
+        assert casual["problem"] == ("A Casual deck needs at least 8 different cards in your "
+                                     "colors that are not lands. You have none.")
+        for bad in ({"deck_size": 5}, {"max_copies": 9}, {"colors": "x" * 50}):
+            params = dict({"format": "casual"}, **bad)
+            assert client.get("/api/forge/check/aaa1", params=params).status_code == 422, bad
+        records = synthetic_records()
+        decks.save({"name": "All", "format": "casual", "commander": None, "built": True,
+                    "sections": {"main": [{"scryfall_id": r["id"], "name": r["name"], "count": 4}
+                                          for r in records], "sideboard": [], "maybeboard": []}})
+        free = client.get("/api/forge/check/aaa1?format=modern&free_only=true").json()
+        assert free["summary"] == "" and "Only free copies" in free["problem"]
+        assert client.get("/api/forge/check/aaa1?format=modern").json()["problem"] is None
+        bulk.cards = {}
+        missing = client.get("/api/forge/check/aaa1?format=modern")
+        assert missing.status_code == 400
+        assert "Download it on the Home screen" in missing.json()["detail"]
+
+
 def test_decks_read_routes(overrides):
     _, _, decks = overrides
     with TestClient(app) as client:

@@ -3,6 +3,27 @@
 
 const API = "/api";
 
+// The detail of an error body: a string, or the messages of a list. "" when it has none.
+function detailText(data) {
+  let detail = data && data.detail;
+  if (Array.isArray(detail)) detail = detail.map((d) => d && d.msg).filter(Boolean).join("; ");
+  return typeof detail === "string" ? detail : "";
+}
+
+/**
+ * The reason of a refused Response, for code that reads the response itself:
+ * the detail of the server, else the short text and the HTTP status.
+ */
+export async function refusalText(response, text) {
+  let data = null;
+  try {
+    data = await response.json();
+  } catch (e) {
+    data = null; // The body is not JSON: the status is the reason.
+  }
+  return detailText(data) || `${text} Grimoire answered ${response.status}.`;
+}
+
 export async function request(path, options) {
   const response = await fetch(`${API}${path}`, options);
   let data = null;
@@ -12,9 +33,8 @@ export async function request(path, options) {
     data = null;
   }
   if (!response.ok) {
-    let detail = data && data.detail;
-    if (Array.isArray(detail)) detail = detail.map((d) => d.msg).join("; ");
-    if (typeof detail !== "string" || !detail) {
+    let detail = detailText(data);
+    if (!detail) {
       detail = response.statusText || `Request failed (${response.status})`;
     }
     const error = new Error(detail);
@@ -22,6 +42,16 @@ export async function request(path, options) {
     throw error;
   }
   return data;
+}
+
+/**
+ * A failure line for the owner: the short text, then the reason of the server
+ * when the error has one. An error from request() has the HTTP status. Other
+ * errors (a script error, no connection) add nothing, so no raw error text shows.
+ */
+export function failureText(text, error) {
+  const reason = error && error.status ? String(error.message || "").trim() : "";
+  return reason ? `${text}: ${reason}` : `${text}.`;
 }
 
 function withBody(method, path, body, options) {
