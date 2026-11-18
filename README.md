@@ -90,11 +90,11 @@ The forge is a pipeline. The engine does the work. A model, when you turn one on
 
 The top bar has five screens. Each screen has its own address, such as `#home` or `#collection`.
 
-- **Home** shows the card data status, your collections, and your recent decks. You can download the card data here. Each collection row has an *Export CSV* button. It downloads the enhanced CSV. A collection stored by an older version may need a re-import. In that case the app shows a message.
+- **Home** shows your collections first, then your recent decks, then the card data status. You can download the card data here. Each collection row has a *Rename* button and an *Export CSV* button. *Rename* takes a name of at most 80 characters. *Export CSV* downloads the enhanced CSV. A collection stored by an older version may need a re-import. In that case the app shows a message.
 - **Collection** is the viewer for your cards or for all cards in the archive (see below). The *Import cards* button opens the importer. The importer shows live progress and a summary of the rows it could not match (see *Importing*).
 - **Forge** builds a deck from the cards you own (see below).
 - **Decks** lists your saved decks and opens the editor (see below).
-- **Settings** shows the Ollama status, picks the model (Automatic, Engine only, or one installed model), sets how often the forge asks you a question, clears the card data, chooses the price provider (see *Prices* below), and shows the card images on this Mac. The app downloads the images of your cards in the background when it starts. A switch turns this off, and a button starts a download at any time. *Clear card data* keeps the images. *Remove images* deletes them. *Phone access* lets a phone open Grimoire (see below).
+- **Settings** shows the Ollama status, picks the model (Automatic, Engine only, or one installed model), sets how often the forge asks you a question, shows the card data (the number of cards, the download date and the size on disk), chooses the price provider (see *Prices* below), and shows the card images on this Mac. *Update card data* downloads the card data again and shows the percent. If the download fails, the reason stays on the screen. The app downloads the images of your cards in the background when it starts. A switch turns this off, and a button starts a download at any time. *Clear card data* is in the *Danger zone* at the bottom. It keeps the images. *Remove images* deletes them. *Phone access* lets a phone open Grimoire (see below).
 
 ### Importing
 
@@ -118,6 +118,8 @@ For each row, Grimoire finds the card in this order:
 A name matches in any case and without accents. A split or double-faced card matches by its full name or by one face, such as `Fire/Ice` or `Delver of Secrets`. The summary names the source app and lists each row it could not match.
 
 An import from another app keeps every column of the source file. Grimoire adds the ManaBox columns (such as *Set code* and *Scryfall ID*) to the enhanced CSV. Card data from an older version of Grimoire can lack collector numbers. Then Grimoire matches by name and set only. Press *Update card data* on *Home* to get the exact printings.
+
+**Replace a collection.** When you import an export again, choose the collection in *Import into* at the top of the importer, such as *Replace ManaBox Collection*. The default is *Add as a new collection*. A replace keeps the collection and its name, so the decks that use it stay linked, and the cards of the import before it count as the previous import (see `new`). Grimoire writes the new cards only after the import succeeds. If the import fails, or no row matches a card, the collection stays as it was. *One collection per binder* does not apply to a replace.
 
 **One collection per binder.** ManaBox names the binder of each card, Dragon Shield the folder, and Sorted the list. Grimoire keeps that name on each card. Turn on *One collection per binder* before you import, and each binder of the file becomes its own collection, named after the binder. The option is off by default, so a file becomes one collection. Grimoire has no limit on the number of collections.
 
@@ -160,7 +162,8 @@ A switcher at the top of the *Collection* screen picks a collection or the archi
   An unknown keyword stays plain text and matches the name. A bare `foil`, `dupes` or `new` that finds nothing counts as name text, so `new perspectives` finds New Perspectives. A price comparison never matches a card with no price. The archive search takes the same keywords, but not `foil`, `dupes`, `new`, `is:free`, `is:used` or `is:gem`.
 - **Forgotten gems.** A shelf under the hero shows up to 12 cards that you own, that are in the EDHREC top 2,000, and that no saved deck holds (built or not). Basic lands do not count. The most played cards come first. *See all* searches `is:gem`, sorted by EDHREC rank.
 - **Card tiles.** Each tile shows the card image, the quantity, the mana cost, and the price. A foil card has a FOIL tag. The view control switches between a grid and a list. The size control sets the card width.
-- **Card drawer.** Press a tile to open a drawer at the right, so the results stay in view. The drawer shows a large image, the facts, the prices, the legality of each format, and the saved decks that use the card, with the copies in built decks and the free copies ("3 of 4 copies in built decks · 1 free"). A *built* deck (see the editor) uses the copies of its main deck, its sideboard and its commander, in any printing. The maybeboard does not count, and a deck that is not built holds no copies. A card with two faces has a flip button.
+- **List.** The list shows one short row per card, so a window 860 px high shows 16 rows or more. The *Value* column is the price times the quantity. The column headers sort the list. *Price* puts the most valuable card first; press it again for the least valuable. *Value* (*Total value* in the sort menu) puts the highest value of all copies first.
+- **Card drawer.** Press a tile to open a drawer at the right, so the results stay in view. The drawer shows the card name and your numbers first (*Owned*, *Price*, *Value* and the flags), then a large image, the rules text, the legality of each format, and the saved decks that use the card, with the copies in built decks and the free copies ("3 of 4 copies in built decks · 1 free"). A *built* deck (see the editor) uses the copies of its main deck, its sideboard and its commander, in any printing. The maybeboard does not count, and a deck that is not built holds no copies. A card with two faces has a flip button.
 - **Card flags.** In the drawer, mark an owned card *For trade*, *To sell*, *Keep* or *Lent out*. A flag is on one printing and finish (a foil can be for trade while the non-foil copy stays), and it holds in every collection. A flagged tile shows its first flag. `flag:trade` finds the flagged cards, and the Moxfield and Deckbox exports fill their trade list count from *For trade*.
 - **Keys.** `/` focuses the search, and `Esc` clears it. The arrow keys move between tiles, and `Enter` opens the drawer. In the drawer, the left and right arrows show the previous and next card, `F` flips the card, and `Esc` closes the drawer.
 - **Sets.** The *Sets* view lists each set with the cards you own, a completion bar, and the value you own in it. Each card name counts once in a set. Press a set to open its checklist. The checklist shows missing cards dimmed. *Missing only* hides the cards you own.
@@ -176,6 +179,13 @@ A switcher at the top of the *Collection* screen picks a collection or the archi
 
 Check the collections that the forge may build from: one, or several together. The copies of a card in two collections add up (two binders with 2 copies each give 4), and the commander list shows the commanders of all the checked collections. The forge remembers the choice. The new deck belongs to the first checked collection.
 
+Under the format, a line says how many of your cards are legal in that format, and how many cards a deck of the format has. Before the run, the forge checks that a deck plan can fit. When the run is sure to fail, the *Forge* button is off and the reason shows next to it:
+
+- A commander format needs a card that can be your commander, and at least 10 more different cards in its colors that are not lands (8 in Standard Brawl). If you choose a commander, the button comes back on: the forge then builds around that commander with the cards you have.
+- A 60-card format needs at least 16 cards that are not lands, counting up to 4 copies of each. Casual scales this number with the copy limit.
+
+Basic lands fill the rest of the deck. A pool that passes the check can still have no deck plan. Then the run stops, and it says what a plan needs and the size of your largest group of cards that share a theme.
+
 The forge runs five stages. The screen shows each stage as it runs.
 
 1. **Study cards** — the engine reads the full rules text of your cards.
@@ -186,7 +196,7 @@ The forge runs five stages. The screen shows each stage as it runs.
 
 The engine has the last word on legality. It checks every card name from the model against the cards you own.
 
-When the forge ends, the editor opens on the new deck.
+When the forge ends, the editor opens on the new deck. The deck name has the commander and the theme, such as *Koma: Artifacts* (the commander name up to the first comma). A deck without a commander gets the theme and the format, such as *Artifacts (Standard)*.
 
 Check *Only free copies* to leave out the copies that your built decks use, so the new deck does not take cards from the decks on your shelf.
 
@@ -194,6 +204,9 @@ Check *Only free copies* to leave out the copies that your built decks use, so t
 
 The *Decks* screen lists your saved decks. Each deck belongs to one format.
 
+- **Find a deck:** the search box finds a deck by its name or its commander (case and accents do not count). The sort menu orders the decks by the last change, the name, the price or the number of cards. The format menu shows one format. The screen keeps these choices for the browser session. *Clear filters* shows every deck again.
+- **Tiles or List:** *List* shows a compact table: the name, the commander, the format, the colors, the cards, the owned percent, the price and the last change. Click a row to open the deck. The browser remembers the view. A deck gets its colors, owned percent and price when you open or save it, so a deck that you did not open since this version has empty cells.
+- **More:** *Open* is the main action of a deck. The *More* menu holds *Duplicate* and *Delete*. *Delete* asks first.
 - **Create:** press *New deck*, then pick a name, a format, and one or more collections. The forge also saves each deck it builds, with every collection of its pool.
 - **Collections of a deck:** the *Collection* dropdown in the editor takes several collections. The deck counts the copies you own in all of them (two binders with 2 copies each give 4), and *Add cards* searches them together. With none checked, the deck uses your newest collection.
 - **Import:** press *Import decklist*, then paste a decklist. Plain text, Arena, MTGO and Archidekt lists all work: section lines such as *Sideboard (15)*, lines such as *SB: 2 Duress* or *Commander: Krenko, Mob Boss*, Arena's *About* block, and Archidekt category tags. A companion goes to the sideboard once. The editor flags cards you do not own.
@@ -237,7 +250,7 @@ Evaluation status:
 
 ### Command palette
 
-Press **Cmd-K** (or **Ctrl-K**), or the *Search* button in the top bar, to open the command palette. Type to find a screen, an action (*New deck*, *Import cards*, *Import a decklist*, *Forgotten gems*, *Cards for trade*), or a saved deck by its name or its commander. The first line searches the collection for the typed text. The arrow keys move, `Enter` opens, and `Esc` closes.
+Press **Cmd-K** (or **Ctrl-K**), or the *Search* button in the top bar, to open the command palette. Type to find a screen, an action (*New deck*, *Import cards*, *Import a decklist*, *Forgotten gems*, *Cards for trade*), or a saved deck by its name or its commander. Each deck line also shows the commander, the format and the date of the last change. The first line searches the collection for the typed text. The arrow keys move, `Enter` opens, and `Esc` closes.
 
 ### Dropdowns
 
