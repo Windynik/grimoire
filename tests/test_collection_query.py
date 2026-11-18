@@ -312,6 +312,18 @@ def test_sorts():
     assert names(run(POOL, "", "edhrec")[0])[0] == "Seven Drop"
 
 
+def test_value_sort_is_price_times_copies_highest_first():
+    # Big Land 20 x 2 = 40, Gold Wurm 12, Elf Lord 6, Seven Drop 3, Bolt 2, Counter 0.5 x 3 = 1.5.
+    assert names(run(POOL, "", "value")[0]) == [
+        "Big Land", "Gold Wurm", "Elf Lord", "Seven Drop", "Bolt", "Counter", "Rock"]
+    # A cheap card with many copies goes above a dear single card.
+    cards = [mk("Single", price=5.0), mk("Stack", price=1.0, qty=8), mk("Free", price=0.0, qty=4)]
+    assert names(run(cards, "", "value")[0]) == ["Stack", "Single", "Free"]
+    # A card without a value field counts its price times its quantity.
+    bare = [dict(mk("Old", price=3.0, qty=3), value=None), mk("New", price=5.0)]
+    assert names(run(bare, "", "value")[0]) == ["Old", "New"]
+
+
 def test_edhrec_missing_last_and_ascending():
     cards = [mk("A", rank=50), mk("B"), mk("C", rank=5)]
     assert names(run(cards, "", "edhrec")[0]) == ["C", "A", "B"]

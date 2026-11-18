@@ -38,7 +38,7 @@ const PAGE = 60;
 const SEARCH_DELAY = 250; // ms of quiet before a typed search runs
 const MULTI = ["colors", "rarity", "type", "mv", "format", "set"];
 const SORT_NAMES = {
-  price: "Most valuable", price_asc: "Least valuable", name: "Name", mv: "Mana value",
+  price: "Most valuable", price_asc: "Least valuable", value: "Total value", name: "Name", mv: "Mana value",
   color: "Color", rarity: "Rarity", set: "Set", edhrec: "EDHREC rank",
 };
 const SETS_SORT_NAMES = { pct: "% complete", owned: "Most owned", name: "Name" };

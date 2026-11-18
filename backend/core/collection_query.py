@@ -434,6 +434,14 @@ def _sort_key(sort: str):
         return lambda c: (-price(c), name(c))
     if sort == "price_asc":
         return lambda c: (price(c) <= 0, price(c), name(c))
+    if sort == "value":
+        # The value of all the copies: the price times the quantity.
+        def value(c):
+            stored = c.get("value")
+            if isinstance(stored, (int, float)):
+                return stored
+            return price(c) * _quantity(c.get("quantity"))
+        return lambda c: (-value(c), name(c))
     if sort == "name":
         return name
     if sort == "mv":

@@ -1,5 +1,6 @@
-// The card drawer of the Vault: a panel on the right with the large card
-// image, the card facts, the legality grid, and the decks that hold the card.
+// The card drawer of the Vault: a panel on the right with the card name and
+// the numbers (owned, price, value, flags) first, then the large card image,
+// the rules text, the legality grid, and the decks that hold the card.
 // It moves through a list of cards with the arrow keys.
 //
 // Server text goes in with textContent only. The mana cost and the oracle text
@@ -39,6 +40,8 @@ const capital = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 function build() {
   const scrim = h("div", { class: "vault-dscrim", "aria-hidden": "true" });
   const close = h("button", { type: "button", class: "vault-dclose", "aria-label": "Close" }, "✕");
+  // The name and the numbers come first, so they show without a scroll.
+  const top = h("div", { class: "vault-dtop" });
   const face = h("div", { class: "vault-dface" });
   const head = h("div", { class: "vault-dhead" }, face);
   const flip = h("button", {
@@ -51,7 +54,7 @@ function build() {
   const nav = h("div", { class: "vault-dnav" }, prev, pos, next);
   const root = h("aside", {
     class: "vault-drawer", role: "dialog", "aria-modal": "true", "aria-label": "Card details", tabindex: "-1",
-  }, close, head, flip, body, nav);
+  }, close, top, head, flip, body, nav);
   root.inert = true;
   document.body.append(scrim, root);
 
@@ -63,7 +66,7 @@ function build() {
   root.addEventListener("click", (event) => {
     if (event.target.closest(".vault-decks a")) closeDrawer(false);
   });
-  state.els = { scrim, root, close, face, head, flip, body, prev, next, pos };
+  state.els = { scrim, root, close, top, face, head, flip, body, prev, next, pos };
 }
 
 // ---- content ---------------------------------------------------------------
@@ -170,12 +173,13 @@ function show() {
   const rank = Number.isFinite(Number(card.edhrec_rank)) && Number(card.edhrec_rank) > 0
     ? h("p", { class: "vault-rank", text: `EDHREC #${Math.round(Number(card.edhrec_rank)).toLocaleString("en-US")}` })
     : null;
-  els.body.replaceChildren(...[
+  els.top.replaceChildren(...[
     h("div", { class: "vault-dtitle" }, name, cost),
+    h("div", { class: "vault-facts" }, ...factsOf(card)),
+    card.owned && card.scryfall_id ? flagsBlock(card) : null].filter(Boolean));
+  els.body.replaceChildren(...[
     h("div", { class: "vault-dtype", text: typeLine(card) }),
     oracle,
-    h("div", { class: "vault-facts" }, ...factsOf(card)),
-    card.owned && card.scryfall_id ? flagsBlock(card) : null,
     rank,
     legalBlock(card),
     decks].filter(Boolean));

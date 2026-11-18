@@ -74,6 +74,32 @@ test("opening shows the card: name, cost, type, oracle, position", () => {
   assert.equal($(".vault-drawer").getAttribute("aria-modal"), "true");
 });
 
+// UX audit, batch D item 2: Owned, Price, Value and Flags started 1,065 px down,
+// below the image and the rules text.
+const precedes = (a, b) => Boolean(a.compareDocumentPosition(b) & window.Node.DOCUMENT_POSITION_FOLLOWING);
+
+test("owned, price, value and flags come right under the name, before the image and the rules text", () => {
+  drawer.openDrawer([card(1)], 0);
+  const order = [".vault-dname", ".vault-facts", ".vault-flags", ".vault-dface .card-img", ".vault-dtype", ".vault-oracle"]
+    .map((sel) => {
+      const el = $(sel);
+      assert.ok(el, sel);
+      return el;
+    });
+  for (let i = 1; i < order.length; i += 1) {
+    assert.ok(precedes(order[i - 1], order[i]), `${order[i - 1].className} before ${order[i].className}`);
+  }
+  // Nothing sits between the name and the numbers.
+  assert.equal($(".vault-dtitle").nextElementSibling, $(".vault-facts"));
+});
+
+test("an archive card shows its price under the name, before the image", () => {
+  drawer.openDrawer([card(1, { owned: false, quantity: 0, price: null, value: null })], 0);
+  assert.ok(precedes($(".vault-dname"), $(".vault-facts")));
+  assert.ok(precedes($(".vault-facts"), $(".vault-dface .card-img")));
+  assert.equal($(".vault-flags"), null);
+});
+
 test("facts show owned, price, value, EDHREC rank, and legality", () => {
   drawer.openDrawer([card(1)], 0);
   const facts = $(".vault-facts").textContent;

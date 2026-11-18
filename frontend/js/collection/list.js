@@ -1,5 +1,6 @@
 // The list view of the Vault: a header of sort buttons, then one focusable row
-// per card (thumbnail, name, cost, type, set, rarity, quantity, finish, price).
+// per card (thumbnail, name, cost, type, set, rarity, quantity, finish, price,
+// value). The value is the price times the copies.
 // The header sits outside the role="list" body.
 //
 // Server text goes in with textContent only (h()).
@@ -17,7 +18,15 @@ const COLUMNS = [
   ["Qty", null, "vault-row-qty"],
   ["Finish", null, "vault-row-foil"],
   ["Price", "price", "vault-row-price"],
+  ["Value", "value", "vault-row-value"],
 ];
+
+// The value of all the copies. The server sends it; an older answer gives the
+// price times the quantity. A card that is not owned (the archive) has none.
+function valueOf(card, qty, price) {
+  if (qty <= 0) return null;
+  return typeof card.value === "number" ? card.value : qty * price;
+}
 
 /**
  * One row of the list.
@@ -29,10 +38,12 @@ export function listRow(card, onOpen) {
   const qty = Number(card.quantity) || 0;
   const price = typeof card.price === "number" ? card.price : parseFloat(card.price) || 0;
   const rarity = String(card.rarity || "").toLowerCase();
+  const value = valueOf(card, qty, price);
   const row = h("div", {
     class: `vault-row${card.foil ? " is-foil" : ""}`, role: "listitem", "data-card-id": card.scryfall_id, tabindex: "0",
     "aria-label": [card.name, card.foil ? "foil" : null, qty > 1 ? `${qty} copies` : null,
-      price ? formatCardPrice(price) : null].filter(Boolean).join(", "),
+      price ? formatCardPrice(price) : null,
+      qty > 1 && value > 0 ? `value ${formatCardPrice(value)}` : null].filter(Boolean).join(", "),
   },
   cardImg(card, { className: "vault-row-thumb", size: "small" }),
   h("span", { class: "vault-row-name", text: String(card.name || "") }),
@@ -43,7 +54,8 @@ export function listRow(card, onOpen) {
     h("i", { class: `vault-gem vault-gem-${rarity || "none"}`, "aria-hidden": "true" })),
   h("span", { class: "vault-row-qty", text: qty > 0 ? `×${qty}` : "" }),
   h("span", { class: "vault-row-foil", text: card.foil ? "Foil" : "" }),
-  h("span", { class: "vault-row-price", text: formatCardPrice(price) }));
+  h("span", { class: "vault-row-price", text: formatCardPrice(price) }),
+  h("span", { class: "vault-row-value", text: value === null ? "" : formatCardPrice(value) }));
   row.addEventListener("click", () => onOpen(card));
   row.addEventListener("keydown", (event) => {
     if (event.target !== row || event.repeat) return;
@@ -66,7 +78,8 @@ export function listHead({ sort, sorts, onSort }) {
   const cells = COLUMNS.map(([name, key, className]) => {
     if (!key || !sorts.includes(key)) return h("span", { class: className, text: name });
     const active = sort === key || (key === "price" && sort === "price_asc");
-    const shown = key === "price" && sort === "price" ? "descending" : "ascending";
+    // The price and the value sorts put the highest first.
+    const shown = (key === "price" && sort === "price") || key === "value" ? "descending" : "ascending";
     return h("button", {
       type: "button", class: `${className} vault-row-sort${active ? " is-on" : ""}`, "data-sort": key,
       "data-direction": active ? shown : null, "aria-pressed": String(active),

@@ -573,3 +573,13 @@ def test_the_search_can_read_several_collections(env):
     assert {c["name"]: c["quantity"] for c in get("/api/collection/cur/search?also=cur,")["cards"]} == {
         "Bolt": 2, "Elf": 1, "Gold Wurm": 1}
     assert client.get("/api/collection/cur/search?also=gone").status_code == 404
+
+
+def test_the_value_sort_orders_by_price_times_copies(env):
+    store, _ = env
+    write(store, "val", "Values", "2026-03-01T00:00:00+00:00",
+          [row("id-elf", "Elf"), row("id-wurm", "Gold Wurm"), row("id-bolt", "Bolt", 8)])
+    # Bolt 2.00 x 8 = 16, Gold Wurm 10.00 x 1, Elf 1.00 x 1. The stored order is the reverse.
+    assert names("/api/collection/val/search") == ["Elf", "Gold Wurm", "Bolt"]
+    assert names("/api/collection/val/search?sort=value") == ["Bolt", "Gold Wurm", "Elf"]
+    assert names("/api/collection/val/search?sort=price") == ["Gold Wurm", "Bolt", "Elf"]

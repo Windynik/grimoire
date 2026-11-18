@@ -92,6 +92,11 @@ test("the archive keeps one value per filter and drops the collection-only filte
   assert.deepEqual(normalizeState({ colors: ["M"] }, { archive: true }).colors, []);
 });
 
+test("a collection keeps the value sort, and the archive falls back to price", () => {
+  assert.equal(normalizeState({ sort: "value" }).sort, "value");
+  assert.equal(normalizeState({ sort: "value" }, { archive: true }).sort, "price");
+});
+
 test("a blocked storage gives the defaults and does not throw", () => {
   assert.deepEqual(loadState("job1", {}, blocked), defaultState());
   assert.doesNotThrow(() => saveState("job1", defaultState(), blocked));

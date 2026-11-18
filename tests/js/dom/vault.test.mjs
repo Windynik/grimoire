@@ -517,6 +517,45 @@ test("a list row opens its card and has the table columns", async () => {
   await app.until(() => lastSearch()?.query.get("sort") === "mv");
 });
 
+// UX audit, batch D item 3: the list had no value column.
+test("the list has a Value column: copies times price, in the Price format, and it sorts", async () => {
+  await openVault({
+    storage: { viewerSource: "job1", [STATE("job1")]: JSON.stringify({ view: "list" }) },
+    search: () => page([
+      card(1, { name: "Grüne Karte ✓", quantity: 3, price: 1234.5, value: 3703.5 }),
+      card(2, { quantity: 2, price: 0, value: 0 }),
+      card(3, { quantity: 4, price: 0.25, value: undefined }),
+    ], 3),
+  });
+  const cells = (selector) => $$(`#vault-list .vault-row ${selector}`).map((n) => n.textContent);
+  assert.deepEqual(cells(".vault-row-price"), ["$1,234.50", "—", "$0.25"]);
+  assert.deepEqual(cells(".vault-row-value"), ["$3,703.50", "—", "$1.00"]);
+  const head = $$("#vault-list .vault-row-head > *").map((n) => n.textContent.replace(/ sorted \w+$/, ""));
+  assert.deepEqual(head.slice(-2), ["Price", "Value"]);
+  // The header cells line up with the row cells.
+  assert.equal($("#vault-list .vault-row-head").children.length, $("#vault-list .vault-row").children.length);
+  $('#vault-list .vault-row-head [data-sort="value"]').click();
+  await app.until(() => lastSearch()?.query.get("sort") === "value");
+  await app.until(() => $('#vault-list .vault-row-head [data-sort="value"]')?.getAttribute("aria-pressed") === "true");
+  assert.match(text('#vault-list .vault-row-head [data-sort="value"]'), /sorted descending/);
+  assert.equal($("#vault-sort").value, "value");
+  assert.equal(JSON.parse(window.localStorage.getItem(STATE("job1"))).sort, "value");
+});
+
+test("the archive list shows no value and offers no value sort", async () => {
+  // An archive card from /api/cards/search: quantity 0, not owned, no value.
+  const unowned = cards(2, 50).map((c) => ({ ...c, quantity: 0, owned: false, value: undefined }));
+  await openVault({
+    storage: { viewerSource: "archive", [STATE("archive")]: JSON.stringify({ view: "list" }) },
+    archive: () => ({ json: { cards: unowned, total: 2 } }),
+  });
+  assert.equal($('#vault-list .vault-row-head [data-sort="value"]'), null);
+  assert.ok($$("#vault-list .vault-row").length > 0);
+  assert.deepEqual($$("#vault-list .vault-row .vault-row-value").map((n) => n.textContent),
+    $$("#vault-list .vault-row").map(() => ""));
+  assert.equal([...$("#vault-sort").options].some((o) => o.value === "value"), false);
+});
+
 test("stale remembered state falls back to the defaults", async () => {
   await openVault({
     storage: {

@@ -13,7 +13,7 @@ export const TYPES = [
 ];
 export const MANA_VALUES = ["0", "1", "2", "3", "4", "5", "6", "7+"];
 export const PRICES = [1, 5, 20];
-export const SORTS = ["price", "price_asc", "name", "mv", "color", "rarity", "set", "edhrec"];
+export const SORTS = ["price", "price_asc", "value", "name", "mv", "color", "rarity", "set", "edhrec"];
 export const ARCHIVE_SORTS = ["price", "price_asc", "name"];
 export const VIEWS = ["grid", "list", "sets"];
 export const SETS_SORTS = ["pct", "owned", "name"];

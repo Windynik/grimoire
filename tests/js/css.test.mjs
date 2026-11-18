@@ -456,3 +456,48 @@ test("the deck list tools grow to finger size, and the list fits a phone", () =>
   assert.match(danger, /color:\s*var\(--error\)/);
   assert.doesNotMatch(danger, /background/);
 });
+
+// ---- UX audit, batch D: the numbers come first --------------------------------
+
+const vaultCss = () => cssFiles().find((f) => f.name === join("css", "vault.css")).text;
+
+// The body of the first rule whose selector list is exactly `selector`, in `css`.
+function firstRule(css, selector) {
+  const at = css.indexOf(`${selector} {`);
+  assert.ok(at >= 0, `the CSS has ${JSON.stringify(selector)}`);
+  return css.slice(css.indexOf("{", at) + 1, css.indexOf("}", at));
+}
+
+function pxOf(body, prop) {
+  const match = body.match(new RegExp(`(?:^|[;\\s])${prop}:\\s*(-?[\\d.]+)px`));
+  assert.ok(match, `${prop} in px`);
+  return Number(match[1]);
+}
+
+// Item 3: the list view fit about 9 rows in an 860 px window.
+test("the list rows are dense: 16 or more fit in an 860 px window", () => {
+  const css = vaultCss();
+  const thumb = firstRule(css, "\n.vault-row .vault-row-thumb");
+  const width = pxOf(thumb, "width");
+  // Without its own ratio, the thumbnail keeps the card ratio of .card-img.
+  const ratio = thumb.match(/aspect-ratio:\s*([\d.]+)\s*\/\s*([\d.]+)/) || [null, 488, 680];
+  const thumbHeight = (width * Number(ratio[2])) / Number(ratio[1]);
+  const padding = firstRule(css, "\n.vault-row,\n.vault-row-head").match(/padding:\s*([\d.]+)px/);
+  assert.ok(padding, "the rows set a vertical padding in px");
+  // The tallest text line is about 18 px. Each row has a 1 px border.
+  const row = Math.max(thumbHeight, 18) + 2 * Number(padding[1]) + 1;
+  // An 860 px window shows about 770 px of page. The top bar and the results header keep about 120 px.
+  assert.ok((770 - 120) / row >= 16, `a row is ${row.toFixed(1)} px high`);
+});
+
+// Item 2: the card name moved to the top of the drawer, under the close button.
+test("the drawer title leaves room for the close button", () => {
+  const css = vaultCss();
+  const close = firstRule(css, "\n.vault-dclose");
+  const covered = pxOf(close, "right") + pxOf(close, "width");
+  const room = pxOf(firstRule(css, "\n.vault-dtop .vault-dtitle"), "padding-right");
+  const side = (body) => Number(body.match(/padding:\s*[\d.]+px\s+([\d.]+)px/)[1]);
+  assert.ok(side(firstRule(css, "\n.vault-dtop")) + room >= covered, "on a computer");
+  const phone = blocksOf(css, "@media (max-width: 759px)");
+  assert.ok(side(firstRule(phone, ".vault-dtop")) + room >= covered, "on a phone");
+});
