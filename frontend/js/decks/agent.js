@@ -15,6 +15,7 @@ const MAX_LENGTH = 500;
 const STEP_MS = 150; // Delay between two swaps.
 const FLIP_MS = 700; // Time the last swap needs to finish.
 const NO_MODEL = "Start Ollama to chat with the deck agent.";
+const PLACEHOLDER = "Ask for swaps or cuts";
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -46,7 +47,7 @@ export function renderAgent(root, state) {
   const log = h("div", { class: "agent-log", role: "log", "aria-live": "polite" });
   const input = h("input", {
     type: "text", class: "agent-input", maxlength: String(MAX_LENGTH), autocomplete: "off",
-    spellcheck: "true", placeholder: "Ask for swaps or cuts", "aria-label": "Message to the deck agent",
+    spellcheck: "true", placeholder: PLACEHOLDER, "aria-label": "Message to the deck agent",
   });
   const send = h("button", { type: "button", class: "btn btn-secondary btn-compact agent-send", text: "Send" });
   const notice = h("p", { class: "agent-notice", text: NO_MODEL, hidden: true });
@@ -58,7 +59,7 @@ export function renderAgent(root, state) {
     input.disabled = off;
     send.disabled = off;
     notice.hidden = Boolean(model);
-    if (!model) input.placeholder = "No local model";
+    input.placeholder = model ? PLACEHOLDER : "No local model";
   };
 
   const add = (className, ...children) => {

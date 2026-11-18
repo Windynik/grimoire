@@ -153,6 +153,16 @@ test("without the recommended model the agent shows the notice", async () => {
   assert.equal(document.querySelector(".agent-input").disabled, true);
 });
 
+// Audit bug 1: the box kept "No local model" after the model check found the model.
+test("with the model ready, the agent box shows its normal placeholder", async () => {
+  await openEditor();
+  click(document.querySelector('[data-editor="side-tab"][data-side="agent"]'));
+  const input = document.querySelector(".agent-input");
+  await app.until(() => !input.disabled);
+  assert.equal(input.placeholder, "Ask for swaps or cuts");
+  assert.equal(document.querySelector(".agent-notice").hidden, true);
+});
+
 test("a search result adds to the main section", async () => {
   await openEditor({
     "GET /api/cards/search": () => ({
