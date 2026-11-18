@@ -468,3 +468,148 @@ def test_collection_export_in_the_format_of_another_app(export_env):
     assert listed.headers["content-type"].startswith("text/plain")
     assert listed.text.strip()
     assert client.get(f"/api/collection/{job_id}/export", params={"kind": "pdf"}).status_code == 400
+
+
+# --- rename a collection ---
+
+def collection_names():
+    return [c["name"] for c in client.get("/api/collections").json()["collections"]]
+
+
+def test_rename_a_collection_trims_the_name(overrides):
+    store, _ = overrides
+    store.store_collection(JOB_ID, [], {}, source_name="ManaBox_Collection.csv")
+    response = client.patch(f"/api/collection/{JOB_ID}", json={"name": "  Trade binder · Grün ✓ "})
+    assert response.status_code == 200, response.text
+    assert response.json()["job_id"] == JOB_ID
+    assert response.json()["name"] == "Trade binder · Grün ✓"
+    assert collection_names() == ["Trade binder · Grün ✓"]
+
+
+def test_rename_refuses_an_empty_or_long_name(overrides):
+    store, _ = overrides
+    store.store_collection(JOB_ID, [], {}, source_name="Box.csv")
+    for empty in ("", "   "):
+        response = client.patch(f"/api/collection/{JOB_ID}", json={"name": empty})
+        assert response.status_code == 400
+        assert response.json()["detail"] == routes.NAME_EMPTY
+    response = client.patch(f"/api/collection/{JOB_ID}", json={"name": "x" * 81})
+    assert response.status_code == 400
+    assert response.json()["detail"] == routes.NAME_TOO_LONG
+    assert collection_names() == ["Box"]
+    # 80 characters fit, also with spaces around them.
+    assert client.patch(f"/api/collection/{JOB_ID}", json={"name": " " + "y" * 80 + " "}).status_code == 200
+    assert collection_names() == ["y" * 80]
+    # Two collections can have the same name.
+    store.store_collection("ffff-0001", [], {}, source_name="Other.csv")
+    assert client.patch("/api/collection/ffff-0001", json={"name": "y" * 80}).status_code == 200
+    assert collection_names() == ["y" * 80, "y" * 80]
+
+
+def test_rename_of_an_unknown_or_bad_id(overrides):
+    assert client.patch("/api/collection/ffff-0000", json={"name": "A"}).status_code == 404
+    assert client.patch("/api/collection/NOT_VALID!", json={"name": "A"}).status_code == 400
+    assert client.patch(f"/api/collection/{JOB_ID}", json={}).status_code == 422
+
+
+# --- replace a collection on import ---
+
+@pytest.fixture
+def replace_env(stream_env, tmp_path, monkeypatch):
+    """The import routes with the enhanced CSVs in tmp_path, never in the real cache."""
+    store, bulk = stream_env
+    monkeypatch.setattr(routes, "PROGRESS_DIR", tmp_path / "progress")
+    bulk.cards.update({f"id-{i}": index_card(f"Card{i}", "1.00") for i in range(6)})
+    first = sse_events(client.post(
+        "/api/process/stream", files={"file": ("ManaBox Collection.csv", make_csv(3))}))
+    job = first[-1]["result"]["job_id"]
+    return store, bulk, job, tmp_path / "progress"
+
+
+def card_names(store, job):
+    return sorted(c["name"] for c in store.get_collection(job))
+
+
+def replace_file(job, text, name="ManaBox Collection (2).csv", **data):
+    return client.post("/api/process/stream", files={"file": (name, text)},
+                       data=dict(data, replace=job))
+
+
+def test_replace_keeps_the_job_id_and_the_name(replace_env):
+    store, _, job, _ = replace_env
+    done = sse_events(replace_file(job, "Name,Scryfall ID\nCard3,id-3\nCard4,id-4\n"))[-1]
+    assert done["type"] == "done"
+    assert done["result"]["job_id"] == job
+    assert done["result"]["collections"] == [{"job_id": job, "name": "ManaBox Collection", "rows": 2}]
+    assert [(c["job_id"], c["name"]) for c in store.list_collections()] == [(job, "ManaBox Collection")]
+    assert card_names(store, job) == ["Card3", "Card4"]
+
+
+def test_a_failed_replace_keeps_the_collection(replace_env):
+    store, _, job, _ = replace_env
+    before = (store.storage_dir / f"{job}.json").read_bytes()
+    for bad in ("Sideboard\n// none\n", b"PK\x03\x04\x00\x00bad"):
+        events = sse_events(replace_file(job, bad))
+        assert events[-1]["type"] == "error"
+    assert (store.storage_dir / f"{job}.json").read_bytes() == before
+    assert card_names(store, job) == ["Card0", "Card1", "Card2"]
+
+
+def test_a_replace_that_matches_no_card_keeps_the_collection(replace_env):
+    store, _, job, _ = replace_env
+    events = sse_events(replace_file(job, "Name,Scryfall ID\nGhost,nope-1\n"))
+    assert events[-1] == {"type": "error", "detail": routes.REPLACE_NO_MATCH}
+    assert card_names(store, job) == ["Card0", "Card1", "Card2"]
+    assert collection_names() == ["ManaBox Collection"]
+
+
+def test_replace_of_an_unknown_or_bad_collection_is_refused(replace_env):
+    store, _, job, _ = replace_env
+    assert replace_file("ffff-0000", make_csv(2)).status_code == 404
+    assert replace_file("../x", make_csv(2)).status_code == 400
+    response = client.post("/api/process/text", json={"text": "Card1", "replace": "ffff-0000"})
+    assert response.status_code == 404
+    assert card_names(store, job) == ["Card0", "Card1", "Card2"]
+    assert len(store.list_collections()) == 1
+
+
+def test_an_empty_replace_field_adds_a_new_collection(replace_env):
+    store, _, job, _ = replace_env
+    done = sse_events(replace_file("", make_csv(2), name="Other.csv"))[-1]["result"]
+    assert done["job_id"] != job
+    assert sorted(collection_names()) == ["ManaBox Collection", "Other"]
+
+
+def test_a_pasted_list_can_replace_a_collection(replace_env):
+    store, _, job, _ = replace_env
+    events = sse_events(client.post("/api/process/text", json={"text": "2 Card5", "replace": job}))
+    assert events[-1]["result"]["job_id"] == job
+    assert collection_names() == ["ManaBox Collection"]
+    assert card_names(store, job) == ["Card5"]
+
+
+def test_replace_with_split_binders_stays_one_collection(replace_env):
+    store, _, job, _ = replace_env
+    done = sse_events(replace_file(job, binder_csv(), split_binders="true"))[-1]["result"]
+    assert done["collections"] == [{"job_id": job, "name": "ManaBox Collection", "rows": 5}]
+    assert collection_names() == ["ManaBox Collection"]
+
+
+def test_the_plain_process_route_can_replace(replace_env):
+    store, _, job, _ = replace_env
+    response = client.post("/api/process", files={"file": ("x.csv", "Name,Scryfall ID\nCard4,id-4\n")},
+                           data={"replace": job})
+    assert response.status_code == 200
+    assert response.json()["job_id"] == job
+    assert card_names(store, job) == ["Card4"]
+    assert collection_names() == ["ManaBox Collection"]
+
+
+def test_a_replace_drops_the_old_enhanced_csv_so_the_export_has_the_new_cards(replace_env):
+    store, _, job, progress = replace_env
+    (progress / f"{job}.csv").write_text("Name\nCard0\nCard1\nCard2\n")
+    assert "Card0" in client.get(f"/api/collection/{job}/export").text
+    sse_events(replace_file(job, "Name,Scryfall ID\nCard5,id-5\n"))
+    exported = client.get(f"/api/collection/{job}/export").text
+    assert "Card5" in exported
+    assert "Card0" not in exported

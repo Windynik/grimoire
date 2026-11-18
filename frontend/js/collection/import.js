@@ -2,9 +2,13 @@
 // progress, then show a summary.
 //
 // One of three states shows at a time: upload, progress, or summary.
+//
+// The import adds a new collection, or it replaces one (same job id, same
+// name), so the decks that read that collection stay linked.
 
 import { navigate } from "../app/router.js";
 import { h } from "../shared/dom.js";
+import { getJSON } from "../shared/http.js";
 import { isImportFile, sourceText, WRONG_FILE } from "../shared/importfile.js";
 import { readSSE } from "../shared/sse.js";
 import { setActiveCollection, setViewerSource } from "../shared/session.js";
@@ -23,6 +27,7 @@ const $ = (id) => document.getElementById(id);
 
 let busy = false; // an import is running
 let resultJobId = null; // the job of the summary on view
+let targetsRequest = 0; // bumped by each read of the collection list
 
 /** Show one state: "upload", "progress" or "summary". */
 function showState(name) {
@@ -31,10 +36,46 @@ function showState(name) {
   $("import-summary").hidden = name !== "summary";
 }
 
-/** Show Upload again. A failed import keeps the pasted list, so it is not lost. */
+// ---- the import target: a new collection, or one to replace ----------------
+
+/** The job id of the collection to replace, or "" for a new collection. */
+function replaceTarget() {
+  return $("import-target").value;
+}
+
+function syncTarget() {
+  // One collection per binder makes new collections, so it does not apply to a replace.
+  $("import-split").disabled = Boolean(replaceTarget());
+}
+
+/** Fill the choice from the collection list. A choice that is gone falls back to a new collection. */
+async function loadTargets() {
+  const request = ++targetsRequest;
+  let collections = [];
+  try {
+    const data = await getJSON("/collections");
+    collections = Array.isArray(data && data.collections) ? data.collections : [];
+  } catch (error) {
+    // Without the list the import still adds a new collection.
+  }
+  if (request !== targetsRequest) return;
+  const select = $("import-target");
+  const chosen = select.value;
+  select.replaceChildren(h("option", { value: "", text: "Add as a new collection" }),
+    ...collections.map((c) => h("option", { value: c.job_id, "data-name": c.name, text: `Replace ${c.name}` })));
+  select.value = collections.some((c) => c.job_id === chosen) ? chosen : "";
+  $("import-target-field").hidden = collections.length === 0;
+  syncTarget();
+}
+
+/** Show Upload again. A failed import keeps the pasted list and the choice, so they are not lost. */
 function resetToUpload({ clearPaste = false } = {}) {
   $("file-input").value = "";
-  if (clearPaste) $("import-paste-text").value = "";
+  if (clearPaste) {
+    $("import-paste-text").value = "";
+    $("import-target").value = "";
+    syncTarget();
+  }
   resultJobId = null;
   showState("upload");
 }
@@ -56,16 +97,21 @@ function showProgress(event) {
   $("import-unmatched-count").textContent = `${event.errors || 0} unmatched`;
 }
 
-function showSummary(result) {
+function showSummary(result, replaced) {
   resultJobId = result.job_id;
   setActiveCollection(result.job_id);
   // A fresh import becomes the viewer's collection again.
   setViewerSource(null);
 
   const made = Array.isArray(result.collections) ? result.collections : [];
-  $("import-summary-title").textContent = made.length > 1
-    ? `Imported ${result.success_count} of ${result.total_processed} rows into ${made.length} collections`
-    : `Imported ${result.success_count} of ${result.total_processed} rows`;
+  const rows = `${result.success_count} of ${result.total_processed} rows`;
+  const title = $("import-summary-title");
+  if (replaced) {
+    const name = (made[0] && made[0].name) || replaced;
+    title.textContent = `Replaced ${name} with ${rows}`;
+  } else {
+    title.textContent = made.length > 1 ? `Imported ${rows} into ${made.length} collections` : `Imported ${rows}`;
+  }
   const list = $("import-summary-collections");
   list.replaceChildren(...(made.length > 1
     ? made.map((c) => h("li", { text: `${c.name} · ${Number(c.rows).toLocaleString()} rows` }))
@@ -107,7 +153,9 @@ function handleFile(file) {
   }
   const formData = new FormData();
   formData.append("file", file);
-  if ($("import-split").checked) formData.append("split_binders", "true");
+  const replace = replaceTarget();
+  if (replace) formData.append("replace", replace);
+  else if ($("import-split").checked) formData.append("split_binders", "true");
   runImport(() => fetch(`${API_BASE}/process/stream`, { method: "POST", body: formData }));
 }
 
@@ -119,10 +167,11 @@ function handlePaste() {
     $("import-paste-text").focus();
     return;
   }
+  const replace = replaceTarget();
   runImport(() => fetch(`${API_BASE}/process/text`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text }),
+    body: JSON.stringify(replace ? { text, replace } : { text }),
   }));
 }
 
@@ -130,6 +179,9 @@ function handlePaste() {
 async function runImport(request) {
   busy = true;
   let finished = false;
+  // The name of the collection to replace, for the summary when the server gives none.
+  const select = $("import-target");
+  const replaced = select.value ? select.selectedOptions[0].dataset.name || "the collection" : "";
   showProgress({ current: 0, total: 0 });
   showState("progress");
 
@@ -153,7 +205,7 @@ async function runImport(request) {
         showProgress(event);
       } else if (event.type === "done") {
         finished = true;
-        showSummary(event.result);
+        showSummary(event.result, replaced);
       } else if (event.type === "error") {
         finished = true;
         fail(event.detail);
@@ -198,11 +250,17 @@ function init() {
   });
 
   $("import-paste-go").addEventListener("click", handlePaste);
+  $("import-target").addEventListener("change", syncTarget);
   $("import-view-collection").addEventListener("click", () => navigate("#collection"));
   $("import-another").addEventListener("click", () => resetToUpload({ clearPaste: true }));
 }
 
-/** Show the screen. It keeps its state, so a running import stays on view. */
-export function open() {}
+/**
+ * Show the screen. It keeps its state, so a running import stays on view.
+ * The choice of a collection to replace is read again from the server.
+ */
+export function open() {
+  if (!busy) loadTargets();
+}
 
 init();

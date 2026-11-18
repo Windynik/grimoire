@@ -103,6 +103,44 @@
     color: var(--text);
 }
 
+/* A replace makes no new collection, so "one collection per binder" does not apply. */
+.import-split:has(input:disabled) {
+    opacity: 0.5;
+    cursor: default;
+}
+
+/* The import target: a new collection, or one to replace. It comes before the drop box. */
+.import-target {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem 0.8rem;
+    margin: 0 0 1.25rem;
+    font-size: 0.95rem;
+    color: var(--text-dim);
+}
+
+.import-target[hidden] {
+    display: none;
+}
+
+/* On a computer, js/shared/select.js shows a button.gselect in place of the select. */
+.import-target .gselect {
+    flex: 1 1 16rem;
+    max-width: 28rem;
+}
+
+.import-target select {
+    flex: 1 1 16rem;
+    max-width: 28rem;
+    padding: 0.55rem 0.7rem;
+    font: inherit;
+    color: var(--text);
+    background: var(--surface-2);
+    border: 1px solid var(--border-bright);
+    border-radius: var(--radius-sm);
+}
+
 .import-summary-collections {
     margin: 0.6rem 0 0;
     padding-left: 1.2rem;

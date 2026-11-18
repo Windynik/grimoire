@@ -28,8 +28,10 @@ class CollectionStore:
     def store_collection(self, job_id: str, cards: List[Dict], bulk_data: Dict,
                          source_name: str = "",
                          original_headers: Optional[List[str]] = None,
-                         original_rows: Optional[List[Dict]] = None):
-        """Store collection with card images for viewing.
+                         original_rows: Optional[List[Dict]] = None,
+                         name: Optional[str] = None,
+                         previous: Optional[List[Dict]] = None) -> Dict:
+        """Store collection with card images for viewing. Return its metadata.
 
         Args:
             job_id: Job identifier
@@ -38,6 +40,8 @@ class CollectionStore:
             source_name: Original CSV filename, used as the collection's display name
             original_headers: CSV headers before enrichment, kept for export
             original_rows: CSV rows before enrichment, kept for export
+            name: The display name. It takes the place of the name from source_name.
+            previous: The cards of the import that this one replaced
         """
         collection_data = []
 
@@ -68,7 +72,8 @@ class CollectionStore:
                 })
 
         # Save to file with metadata so collections are remembered by name
-        name = source_name.rsplit(".", 1)[0].replace("_", " ").strip() if source_name else ""
+        if name is None:
+            name = source_name.rsplit(".", 1)[0].replace("_", " ").strip() if source_name else ""
         payload = {
             "meta": {
                 "job_id": job_id,
@@ -83,9 +88,89 @@ class CollectionStore:
                 "headers": list(original_headers),
                 "rows": original_rows,
             }
-        collection_file = self.storage_dir / f"{job_id}.json"
-        with open(collection_file, 'w', encoding='utf-8') as f:
+        if previous is not None:
+            payload["previous"] = previous
+        self._write(job_id, payload)
+        return dict(payload["meta"])
+
+    def _file(self, job_id: str) -> Path:
+        return self.storage_dir / f"{job_id}.json"
+
+    def _read(self, job_id: str):
+        """The stored data of a collection (a dict, or a bare list for a legacy file), or None."""
+        collection_file = self._file(job_id)
+        if not collection_file.exists():
+            return None
+        with open(collection_file, 'r', encoding='utf-8') as f:
+            return json.load(f)
+
+    def _write(self, job_id: str, payload) -> None:
+        """Write a collection file in one step. A crash leaves the old file whole.
+
+        The temporary name does not end in .json, so list_collections never reads it.
+        """
+        collection_file = self._file(job_id)
+        tmp = collection_file.with_name(f".{collection_file.name}.tmp")
+        with open(tmp, 'w', encoding='utf-8') as f:
             json.dump(payload, f, indent=2)
+        tmp.replace(collection_file)
+
+    def _meta_of(self, job_id: str, data) -> Dict:
+        """The metadata of stored data, as list_collections shows it."""
+        if isinstance(data, dict):
+            meta = dict(data.get("meta", {}))
+            meta["card_count"] = copies_of(data.get("cards") or [])
+            return meta
+        # Legacy list format: synthesize metadata
+        return {
+            "job_id": job_id,
+            "name": f"Collection {job_id[:8]}",
+            "created": datetime.fromtimestamp(
+                self._file(job_id).stat().st_mtime, timezone.utc
+            ).isoformat(),
+            "card_count": copies_of(data),
+        }
+
+    def rename_collection(self, job_id: str, name: str) -> Optional[Dict]:
+        """Give a stored collection a new name. Return its metadata, or None when it is missing.
+
+        The caller checks the name. The cards and the import date stay.
+        """
+        data = self._read(job_id)
+        if data is None:
+            return None
+        meta = self._meta_of(job_id, data)
+        meta["name"] = name
+        if isinstance(data, dict):
+            data["meta"] = dict(data.get("meta", {}), name=name)
+        else:
+            # A legacy list becomes the current format, with the date it showed before.
+            data = {"meta": dict(meta), "cards": data}
+        self._write(job_id, data)
+        return meta
+
+    def replace_collection(self, job_id: str, cards: List[Dict], bulk_data: Dict,
+                           original_headers: Optional[List[str]] = None,
+                           original_rows: Optional[List[Dict]] = None) -> Optional[Dict]:
+        """Write a new import over a stored collection. Return its metadata, or None when it is missing.
+
+        The collection keeps its job id, so the decks that read it stay linked,
+        and it keeps its name. The cards before the replace stay as the
+        previous import, so the screens can mark the new cards.
+        """
+        data = self._read(job_id)
+        if data is None:
+            return None
+        name = self._meta_of(job_id, data)["name"]
+        before = data.get("cards", []) if isinstance(data, dict) else data
+        return self.store_collection(job_id, cards, bulk_data, original_headers=original_headers,
+                                     original_rows=original_rows, name=name, previous=before)
+
+    def get_previous(self, job_id: str) -> Optional[List[Dict]]:
+        """The cards of the import that the last replace wrote over, or None."""
+        data = self._read(job_id)
+        previous = data.get("previous") if isinstance(data, dict) else None
+        return previous if isinstance(previous, list) else None
 
     def get_collection(self, job_id: str) -> Optional[List[Dict]]:
         """Retrieve stored collection data.
@@ -193,20 +278,8 @@ class CollectionStore:
             except Exception:
                 continue
 
-            if isinstance(data, dict):
-                meta = dict(data.get("meta", {}))
-                # Older files counted rows. "cards" means copies on every screen.
-                meta["card_count"] = copies_of(data.get("cards") or [])
-            else:
-                # Legacy list format: synthesize metadata
-                meta = {
-                    "job_id": path.stem,
-                    "name": f"Collection {path.stem[:8]}",
-                    "created": datetime.fromtimestamp(
-                        path.stat().st_mtime, timezone.utc
-                    ).isoformat(),
-                    "card_count": copies_of(data),
-                }
+            # Older files counted rows. "cards" means copies on every screen.
+            meta = self._meta_of(path.stem, data)
             if meta.get("job_id"):
                 collections.append(meta)
 

@@ -68,6 +68,23 @@
                         <a class="btn btn-secondary" id="home-browse" href="#collection">Browse</a>
                     </section>
 
+                    <!-- The collection numbers come first. The card data panel is an admin detail, so it comes last. -->
+                    <section class="home-section" aria-labelledby="home-collections-title">
+                        <div class="home-section-head">
+                            <h2 class="home-section-title" id="home-collections-title">Collections</h2>
+                            <a class="btn btn-secondary btn-compact" id="home-collections-import" href="#import">Import cards</a>
+                        </div>
+                        <div id="dashboard-collections" class="home-collections"></div>
+                    </section>
+
+                    <section class="home-section" aria-labelledby="home-decks-title">
+                        <div class="home-section-head">
+                            <h2 class="home-section-title" id="home-decks-title">Recent decks</h2>
+                            <a class="home-link" href="#decks">All decks</a>
+                        </div>
+                        <div id="home-decks" class="home-decks"></div>
+                    </section>
+
                     <section class="home-section" aria-labelledby="home-data-title">
                         <h2 class="home-section-title" id="home-data-title">Card data</h2>
                         <div class="home-data">
@@ -89,22 +106,6 @@
                             <p class="progress-text" id="download-progress-text">0%</p>
                         </div>
                     </section>
-
-                    <section class="home-section" aria-labelledby="home-collections-title">
-                        <div class="home-section-head">
-                            <h2 class="home-section-title" id="home-collections-title">Collections</h2>
-                            <a class="btn btn-secondary btn-compact" id="home-collections-import" href="#import">Import cards</a>
-                        </div>
-                        <div id="dashboard-collections" class="home-collections"></div>
-                    </section>
-
-                    <section class="home-section" aria-labelledby="home-decks-title">
-                        <div class="home-section-head">
-                            <h2 class="home-section-title" id="home-decks-title">Recent decks</h2>
-                            <a class="home-link" href="#decks">All decks</a>
-                        </div>
-                        <div id="home-decks" class="home-decks"></div>
-                    </section>
                 </div>
 
                 <!-- Import View -->
@@ -114,6 +115,13 @@
 
                         <!-- State 1: Upload -->
                         <div id="import-upload">
+                            <!-- A new collection, or one to replace. It shows when a collection exists. -->
+                            <label class="import-target" id="import-target-field" hidden>
+                                <span>Import into</span>
+                                <select id="import-target">
+                                    <option value="">Add as a new collection</option>
+                                </select>
+                            </label>
                             <div id="upload-zone" class="upload-zone" tabindex="0" role="button" aria-label="Choose a CSV file to import">
                                 <input type="file" id="file-input" accept=".csv,.tsv,.txt" aria-label="Choose a collection file to import" hidden>
                                 <div class="upload-content">

@@ -2,7 +2,7 @@ import asyncio
 import json
 import re
 import uuid
-from typing import Dict, List
+from typing import Dict, List, Optional
 from pathlib import Path
 
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException
@@ -251,11 +251,17 @@ async def clear_cache(
 @router.post("/process", response_model=ProcessResult)
 async def process_csv(
     file: UploadFile = File(...),
+    replace: str = Form(""),
     bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager),
     csv_processor: CSVProcessor = Depends(get_csv_processor),
     store: CollectionStore = Depends(get_collection_store),
 ):
-    """Upload and process CSV file."""
+    """Upload and process CSV file.
+
+    replace names a stored collection that the new cards take the place of.
+    Without it, the import adds a new collection.
+    """
+    target = replace_target(store, replace)
 
     # Load bulk data
     bulk_data = await bulk_data_manager.load_bulk_data()
@@ -278,12 +284,17 @@ async def process_csv(
 
     # Store collection for viewer
     if result.status == "complete" and hasattr(result, '_enriched_rows'):
-        store.store_collection(
-            result.job_id, result._enriched_rows, bulk_data,
-            source_name=file.filename or "",
-            original_headers=getattr(result, '_original_headers', None),
-            original_rows=getattr(result, '_original_rows', None),
-        )
+        if target:
+            replace_with(result, target, bulk_data, store)
+            # The job id names the collection, as it does for a new one.
+            result.job_id = target
+        else:
+            store.store_collection(
+                result.job_id, result._enriched_rows, bulk_data,
+                source_name=file.filename or "",
+                original_headers=getattr(result, '_original_headers', None),
+                original_rows=getattr(result, '_original_rows', None),
+            )
 
     return result
 
@@ -293,17 +304,71 @@ SAMPLE_NAME = "Sample collection.csv"
 
 
 NO_BINDER = "No binder"
+JOB_ID_FORMAT = re.compile(r'^[a-f0-9-]+$')
+REPLACE_NO_MATCH = ("No row of the file matched a card, so the collection stays as it was. "
+                    "Check the file, or import it as a new collection.")
+REPLACE_GONE = "The collection to replace is gone. Import the file as a new collection."
+
+
+def replace_target(store: CollectionStore, replace: str) -> Optional[str]:
+    """The job id of the collection that an import replaces, or None for a new collection.
+
+    Refuse a bad id (400) or an unknown collection (404) before the import runs.
+    """
+    job_id = (replace or "").strip()
+    if not job_id:
+        return None
+    if not JOB_ID_FORMAT.match(job_id):
+        raise HTTPException(status_code=400, detail="Invalid job ID format")
+    if store.get_collection(job_id) is None:
+        raise HTTPException(status_code=404, detail="Collection not found")
+    return job_id
+
+
+def replace_with(result: ProcessResult, job_id: str, bulk_data: dict,
+                 store: CollectionStore) -> dict:
+    """Write a finished import over a stored collection. Return its metadata.
+
+    The caller runs this only after the import succeeded. An import that
+    matched no card raises 400 and writes nothing, so the old cards stay.
+    """
+    rows = result._enriched_rows
+    if not result.success_count:
+        raise HTTPException(status_code=400, detail=REPLACE_NO_MATCH)
+    meta = store.replace_collection(
+        job_id, rows, bulk_data,
+        original_headers=getattr(result, "_original_headers", None),
+        original_rows=getattr(result, "_original_rows", None),
+    )
+    if meta is None:
+        raise HTTPException(status_code=404, detail=REPLACE_GONE)
+    # The enhanced CSV of the old cards is stale. The export makes a new one
+    # from the stored rows when it is asked for.
+    try:
+        stale = progress_file(job_id)
+        if stale.exists():
+            stale.unlink()
+    except (HTTPException, OSError):
+        pass
+    return meta
 
 
 def store_import(result: ProcessResult, filename: str, bulk_data: dict,
-                 store: CollectionStore, split: bool = False) -> List[dict]:
+                 store: CollectionStore, split: bool = False,
+                 replace: Optional[str] = None) -> List[dict]:
     """Store the rows of an import as collections. Return [{job_id, name, rows}].
 
     With split, each binder (or folder, or list) of the export becomes its own
     collection, named after it. An export with no binder column, or with one
     binder only, stays one collection under the import's job id.
+
+    With replace, the rows take the place of that collection's cards, and
+    split does not apply.
     """
     rows = result._enriched_rows
+    if replace:
+        meta = replace_with(result, replace, bulk_data, store)
+        return [{"job_id": replace, "name": meta.get("name", ""), "rows": len(rows)}]
     originals = getattr(result, "_original_rows", None) or [{} for _ in rows]
     headers = getattr(result, "_original_headers", None)
     groups = {}  # type: Dict[str, List[int]]
@@ -328,8 +393,12 @@ def store_import(result: ProcessResult, filename: str, bulk_data: dict,
 
 def import_stream(content: bytes, filename: str, bulk_data: dict,
                   csv_processor: CSVProcessor, store: CollectionStore,
-                  split: bool = False) -> StreamingResponse:
-    """Process CSV bytes and stream progress as server-sent events."""
+                  split: bool = False, replace: Optional[str] = None) -> StreamingResponse:
+    """Process CSV bytes and stream progress as server-sent events.
+
+    replace names the collection that the new cards take the place of. The
+    new cards are written only after the import succeeded.
+    """
     def sse(payload: dict) -> str:
         return f"data: {json.dumps(payload)}\n\n"
 
@@ -378,7 +447,11 @@ def import_stream(content: bytes, filename: str, bulk_data: dict,
 
         collections = []  # type: List[dict]
         if hasattr(result, '_enriched_rows'):
-            collections = store_import(result, filename, bulk_data, store, split)
+            try:
+                collections = store_import(result, filename, bulk_data, store, split, replace)
+            except HTTPException as exc:
+                yield sse({"type": "error", "detail": exc.detail})
+                return
 
         yield sse({"type": "done", "result": {
             # The collection to open: the first one when the import split.
@@ -402,11 +475,16 @@ def import_stream(content: bytes, filename: str, bulk_data: dict,
 async def process_csv_stream(
     file: UploadFile = File(...),
     split_binders: bool = Form(False),
+    replace: str = Form(""),
     bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager),
     csv_processor: CSVProcessor = Depends(get_csv_processor),
     store: CollectionStore = Depends(get_collection_store),
 ):
-    """Upload and process a CSV file. Stream progress as server-sent events."""
+    """Upload and process a CSV file. Stream progress as server-sent events.
+
+    replace names a stored collection that the new cards take the place of.
+    """
+    target = replace_target(store, replace)
     bulk_data = await bulk_data_manager.load_bulk_data()
 
     if not bulk_data:
@@ -417,7 +495,7 @@ async def process_csv_stream(
 
     content = await file.read()
     return import_stream(content, file.filename or "", bulk_data, csv_processor, store,
-                         split=split_binders)
+                         split=split_binders, replace=target)
 
 
 # A pasted list of about 100 000 lines is the most the import takes.
@@ -427,9 +505,10 @@ PASTE_TOO_LONG = "The list is too long. Split it into parts of 100,000 lines or 
 
 
 class PasteRequest(BaseModel):
-    """A card list pasted as text."""
+    """A card list pasted as text. replace names a collection to write over."""
     text: str
     name: str = Field("", max_length=80)
+    replace: str = ""
 
 
 @router.post("/process/text")
@@ -444,6 +523,7 @@ async def process_text(
         raise HTTPException(status_code=400, detail="Paste a card list first.")
     if len(request.text) > MAX_PASTE:
         raise HTTPException(status_code=413, detail=PASTE_TOO_LONG)
+    target = replace_target(store, request.replace)
     bulk_data = await bulk_data_manager.load_bulk_data()
     if not bulk_data:
         raise HTTPException(
@@ -452,7 +532,8 @@ async def process_text(
         )
     name = request.name.strip() or PASTE_NAME
     # The store drops the file extension from the name.
-    return import_stream(request.text.encode("utf-8"), f"{name}.txt", bulk_data, csv_processor, store)
+    return import_stream(request.text.encode("utf-8"), f"{name}.txt", bulk_data, csv_processor, store,
+                         replace=target)
 
 
 @router.post("/process/sample")
@@ -585,6 +666,36 @@ async def delete_collection(
         pass
 
     return {"success": True}
+
+
+NAME_MAX = 80
+NAME_EMPTY = "Give the collection a name."
+NAME_TOO_LONG = "A collection name has at most 80 characters."
+
+
+class RenameRequest(BaseModel):
+    """The new name of a collection."""
+    name: str
+
+
+@router.patch("/collection/{job_id}")
+async def rename_collection(
+    job_id: str,
+    request: RenameRequest,
+    store: CollectionStore = Depends(get_collection_store),
+):
+    """Rename a collection. The name is trimmed, not empty, and at most 80 characters."""
+    if not JOB_ID_FORMAT.match(job_id):
+        raise HTTPException(status_code=400, detail="Invalid job ID format")
+    name = request.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail=NAME_EMPTY)
+    if len(name) > NAME_MAX:
+        raise HTTPException(status_code=400, detail=NAME_TOO_LONG)
+    meta = store.rename_collection(job_id, name)
+    if meta is None:
+        raise HTTPException(status_code=404, detail="Collection not found")
+    return meta
 
 
 @router.get("/collection/{job_id}")

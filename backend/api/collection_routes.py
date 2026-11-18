@@ -97,12 +97,15 @@ def _merge(store, job_id: str, index: dict) -> Merged:
     listing = store.list_collections()
     position = next((i for i, m in enumerate(listing) if m.get("job_id") == job_id), None)
     meta = listing[position] if position is not None else {}
-    # The previous import of the same collection, not just the last import:
-    # an unrelated collection in between must not make every card "new".
-    olders = listing[position + 1:position + 1 + MAX_PREVIOUS] if position is not None else []
-    older_rows = [store.get_collection(m["job_id"]) or [] for m in olders]
-    found = previous_import(stored, older_rows)
-    previous_rows = older_rows[found] if found is not None else None
+    # A collection that an import replaced keeps the cards it had before.
+    previous_rows = store.get_previous(job_id)
+    if previous_rows is None:
+        # The previous import of the same collection, not just the last import:
+        # an unrelated collection in between must not make every card "new".
+        olders = listing[position + 1:position + 1 + MAX_PREVIOUS] if position is not None else []
+        older_rows = [store.get_collection(m["job_id"]) or [] for m in olders]
+        found = previous_import(stored, older_rows)
+        previous_rows = older_rows[found] if found is not None else None
     new_keys = new_since(stored, previous_rows) if previous_rows is not None else set()
     return Merged(cards, new_keys, meta, previous_rows is not None, index)
 

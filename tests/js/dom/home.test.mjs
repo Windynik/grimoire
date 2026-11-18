@@ -45,6 +45,19 @@ async function setup({ status = READY, collections = [box], deckList = decks, st
 const text = (selector) => document.querySelector(selector)?.textContent || "";
 const deletes = () => app.fetchLog.filter((r) => r.method === "DELETE");
 
+// UX audit, batch D item 1: on a phone the card data panel filled the first screen.
+test("the collections come first and the card data panel comes last", async () => {
+  await setup();
+  const titles = [...document.querySelectorAll("#home-view .home-section-title")].map((t) => t.textContent);
+  assert.deepEqual(titles, ["Collections", "Recent decks", "Card data"]);
+  const sections = [...document.querySelectorAll("#home-view > section")];
+  assert.ok(sections[0].classList.contains("home-quick"), "the quick actions stay at the top");
+  assert.equal(sections[1].getAttribute("aria-labelledby"), "home-collections-title");
+  assert.equal(sections.at(-1).getAttribute("aria-labelledby"), "home-data-title");
+  // The collection numbers show in the first section after the quick actions.
+  await app.until(() => /3 cards/.test(text("#dashboard-collections")));
+});
+
 test("a ready archive offers Update card data", async () => {
   await setup();
   await app.until(() => /Update card data/.test(text("#download-cache")));
@@ -109,6 +122,71 @@ test("Delete then confirm sends DELETE, forgets the session keys, and drops the 
   await app.until(() => !document.querySelector(".collection-row"));
   assert.equal(window.localStorage.getItem("lastJobId"), null);
   assert.equal(window.localStorage.getItem("viewerSource"), null);
+});
+
+// ---- UX audit, batch D item 5: rename a collection ------------------------
+
+const patches = () => app.fetchLog.filter((r) => r.method === "PATCH");
+
+// Open the Rename dialog of the first row and type a name.
+async function rename(name) {
+  const button = await app.until(() => document.querySelector(".collection-rename"));
+  button.click();
+  const input = await app.until(() => document.querySelector("dialog[open] input"));
+  input.value = name;
+  document.querySelector("dialog[open] button[type=submit]").click();
+  return input;
+}
+
+test("Rename asks for a name, saves it trimmed, and shows the new name", async () => {
+  await setup();
+  let current = "Test box";
+  app.route("PATCH /api/collection/job1", (req) => {
+    current = req.body.name;
+    return { json: { job_id: "job1", name: current, card_count: 3, created: null } };
+  });
+  app.route("GET /api/collections", () => ({ json: { collections: [{ ...box, name: current }] } }));
+  const button = await app.until(() => document.querySelector(".collection-rename"));
+  assert.equal(button.getAttribute("aria-label"), "Rename Test box");
+  button.click();
+  const input = await app.until(() => document.querySelector("dialog[open] input"));
+  assert.equal(input.value, "Test box", "the dialog starts with the current name");
+  assert.equal(input.getAttribute("maxlength"), "80");
+  input.value = "  Grüne Sammlung ✓ ";
+  document.querySelector("dialog[open] button[type=submit]").click();
+  await app.until(() => patches().length === 1);
+  assert.equal(patches()[0].path, "/api/collection/job1");
+  assert.deepEqual(patches()[0].body, { name: "Grüne Sammlung ✓" });
+  await app.until(() => text(".collection-row-name") === "Grüne Sammlung ✓");
+  assert.equal(document.querySelector("dialog[open]"), null);
+});
+
+test("an empty name sends nothing and says why", async () => {
+  await setup();
+  await rename("   ");
+  await app.until(() => /Give the collection a name\./.test(text("dialog[open] .dialog-alert")));
+  assert.equal(patches().length, 0);
+  document.querySelector("dialog[open] .btn-secondary").click();
+});
+
+test("a refused rename keeps the dialog open with the reason of the server", async () => {
+  await setup();
+  app.route("PATCH /api/collection/job1", () => ({ status: 404, json: { detail: "Collection not found" } }));
+  await rename("New name");
+  await app.until(() => text("dialog[open] .dialog-alert") === "Collection not found");
+  assert.equal(text(".collection-row-name"), "Test box");
+  document.querySelector("dialog[open] .btn-secondary").click();
+  await app.until(() => !document.querySelector("dialog[open]"));
+});
+
+test("Cancel on Rename sends nothing", async () => {
+  await setup();
+  const button = await app.until(() => document.querySelector(".collection-rename"));
+  button.click();
+  await app.until(() => document.querySelector("dialog[open] input"));
+  document.querySelector("dialog[open] .btn-secondary").click();
+  await app.settle();
+  assert.equal(patches().length, 0);
 });
 
 test("Import cards goes to the import screen", async () => {

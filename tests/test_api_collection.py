@@ -583,3 +583,20 @@ def test_the_value_sort_orders_by_price_times_copies(env):
     assert names("/api/collection/val/search") == ["Elf", "Gold Wurm", "Bolt"]
     assert names("/api/collection/val/search?sort=value") == ["Bolt", "Gold Wurm", "Elf"]
     assert names("/api/collection/val/search?sort=price") == ["Gold Wurm", "Bolt", "Elf"]
+
+
+def test_after_a_replace_the_new_cards_compare_with_the_cards_it_replaced(env):
+    store, bulk = env
+    # "cur" holds Bolt 2, Elf 1, Gold Wurm 1. "old" (Bolt 1, Elf 1) is an older collection.
+    # The same cards again: nothing is new, although "old" has fewer.
+    same = [{"Name": "Bolt", "Scryfall ID": "id-bolt", "Quantity": 2},
+            {"Name": "Elf", "Scryfall ID": "id-elf", "Quantity": 1},
+            {"Name": "Gold Wurm", "Scryfall ID": "id-wurm", "Quantity": 1}]
+    store.replace_collection("cur", same, bulk.cards)
+    assert {c["name"]: c["new"] for c in get("/api/collection/cur/search")["cards"]} == {
+        "Bolt": False, "Elf": False, "Gold Wurm": False}
+    assert get("/api/collection/cur/insights")["has_previous"] is True
+    # One more Elf in the next replace: only the Elf is new.
+    store.replace_collection("cur", [dict(same[0]), dict(same[1], Quantity=2), dict(same[2])], bulk.cards)
+    assert {c["name"]: c["new"] for c in get("/api/collection/cur/search")["cards"]} == {
+        "Bolt": False, "Elf": True, "Gold Wurm": False}

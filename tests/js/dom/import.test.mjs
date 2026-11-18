@@ -40,7 +40,7 @@ const visible = (selector) => {
 const toasts = () => [...document.querySelectorAll("#toast-container .toast")].map((t) => t.textContent);
 
 // Reset the screen, the storage, the toasts and the stubs. Each test calls this first.
-async function setup({ stream = null, reply = null } = {}) {
+async function setup({ stream = null, reply = null, collections = [] } = {}) {
   window.localStorage.clear();
   document.getElementById("toast-container").replaceChildren();
   app.fetchLog.length = 0;
@@ -48,7 +48,7 @@ async function setup({ stream = null, reply = null } = {}) {
   app.route("POST /api/process/stream", answer);
   app.route("POST /api/process/text", answer);
   app.route("GET /api/cache/status", () => ({ json: { status: "ready", card_count: 1 } }));
-  app.route("GET /api/collections", () => ({ json: { collections: [] } }));
+  app.route("GET /api/collections", () => ({ json: { collections } }));
   app.route("GET /api/decks", () => ({ json: { decks: [] } }));
   if (window.location.hash !== "#import") {
     window.location.hash = "#import";
@@ -330,4 +330,118 @@ test("without the option no split field goes out and no list shows", async () =>
   const request = app.fetchLog.find((r) => r.path === "/api/process/stream");
   assert.equal(request.body.get("split_binders"), null);
   assert.ok(!visible("#import-summary-collections"));
+});
+
+// ---- UX audit, batch D item 6: replace a collection on re-import ------------
+
+const MINE = [
+  { job_id: "job1", name: "ManaBox Collection", card_count: 1002, created: "2026-07-19T10:00:00" },
+  { job_id: "job2", name: "Trade · Grün ✓", card_count: 5, created: "2026-07-20T10:00:00" },
+];
+const target = () => document.getElementById("import-target");
+function pick(value) {
+  target().value = value;
+  target().dispatchEvent(new window.Event("change", { bubbles: true }));
+}
+
+test("the import offers Add as a new collection first, then Replace for each collection", async () => {
+  await setup({ collections: MINE });
+  await app.until(() => target().options.length === 3);
+  assert.deepEqual([...target().options].map((o) => [o.value, o.textContent]), [
+    ["", "Add as a new collection"],
+    ["job1", "Replace ManaBox Collection"],
+    ["job2", "Replace Trade · Grün ✓"],
+  ]);
+  assert.equal(target().value, "", "a new collection is the default");
+  assert.ok(visible("#import-target-field"));
+});
+
+test("with no collection the choice stays hidden", async () => {
+  await setup();
+  await app.until(() => app.fetchLog.some((r) => r.path === "/api/collections"));
+  await app.settle();
+  assert.ok(!visible("#import-target-field"));
+  assert.equal(target().value, "");
+});
+
+test("Replace sends the job id with the file, and the summary names the collection", async () => {
+  const stream = openStream();
+  await setup({ stream, collections: MINE });
+  await app.until(() => target().options.length === 3);
+  pick("job1");
+  assert.equal(document.getElementById("import-split").disabled, true, "one collection per binder does not apply");
+  document.getElementById("import-split").checked = true;
+  choose("ManaBox Collection (2).csv");
+  const finish = done([], 25);
+  finish.result.job_id = "job1";
+  finish.result.collections = [{ job_id: "job1", name: "ManaBox Collection", rows: 25 }];
+  stream.send(finish);
+  stream.end();
+  await app.until(() => visible("#import-summary"));
+  const request = app.fetchLog.find((r) => r.path === "/api/process/stream");
+  assert.equal(request.body.get("replace"), "job1");
+  assert.equal(request.body.get("split_binders"), null);
+  assert.equal(text("#import-summary h3"), "Replaced ManaBox Collection with 25 of 25 rows");
+  assert.equal(window.localStorage.getItem("lastJobId"), "job1");
+  // Import another starts again on a new collection.
+  document.getElementById("import-another").click();
+  assert.equal(target().value, "");
+  assert.equal(document.getElementById("import-split").disabled, false);
+  document.getElementById("import-split").checked = false;
+});
+
+test("Add as a new collection sends no replace field", async () => {
+  const stream = openStream();
+  await setup({ stream, collections: MINE });
+  await app.until(() => target().options.length === 3);
+  choose("other.csv");
+  stream.send(done([], 3));
+  stream.end();
+  await app.until(() => visible("#import-summary"));
+  const request = app.fetchLog.find((r) => r.path === "/api/process/stream");
+  assert.equal(request.body.get("replace"), null);
+  assert.equal(text("#import-summary h3"), "Imported 3 of 3 rows");
+});
+
+test("a pasted list can replace a collection", async () => {
+  const stream = openStream();
+  await setup({ stream, collections: MINE });
+  await app.until(() => target().options.length === 3);
+  pick("job2");
+  document.getElementById("import-paste-text").value = "4 Lightning Bolt";
+  document.getElementById("import-paste-go").click();
+  const finish = done([], 1);
+  finish.result.job_id = "job2";
+  finish.result.collections = [{ job_id: "job2", name: "Trade · Grün ✓", rows: 1 }];
+  stream.send(finish);
+  stream.end();
+  await app.until(() => visible("#import-summary"));
+  const request = app.fetchLog.find((r) => r.path === "/api/process/text");
+  assert.deepEqual(request.body, { text: "4 Lightning Bolt", replace: "job2" });
+  assert.equal(text("#import-summary h3"), "Replaced Trade · Grün ✓ with 1 of 1 rows");
+});
+
+test("a failed replace shows the reason and keeps the choice for the next try", async () => {
+  const stream = openStream();
+  await setup({ stream, collections: MINE });
+  await app.until(() => target().options.length === 3);
+  pick("job1");
+  choose("empty.csv");
+  const reason = "No row of the file matched a card, so the collection stays as it was. "
+    + "Check the file, or import it as a new collection.";
+  stream.send({ type: "error", detail: reason });
+  stream.end();
+  await app.until(() => toasts().length > 0);
+  assert.deepEqual(toasts(), [reason]);
+  assert.ok(visible("#import-upload"));
+  assert.equal(target().value, "job1");
+});
+
+test("a collection that is gone keeps the choice list current on the next visit", async () => {
+  await setup({ collections: MINE });
+  await app.until(() => target().options.length === 3);
+  pick("job2");
+  await setup({ collections: MINE.slice(0, 1) });
+  await app.until(() => target().options.length === 2);
+  assert.equal(target().value, "", "a choice that is gone falls back to a new collection");
 });
