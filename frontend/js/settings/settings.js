@@ -1,11 +1,11 @@
 // Settings screen: the local AI model, the question mode, card data, prices, card
-// images, phone access, and About.
+// images, phone access, About, and a danger area with Clear card data.
 //
 // Each change saves at once and shows a "Saved" toast. The forge reads the
 // saved values when its setup opens.
 
 import { h } from "../shared/dom.js";
-import { formatDay } from "../shared/format.js";
+import { formatDay, plural } from "../shared/format.js";
 import { del, getJSON, postJSON, putJSON } from "../shared/http.js";
 import { autoStartImageSync, imageSyncState, onImageSync, startImageSync } from "../shared/imagesync.js";
 import { isRecommended } from "../shared/models.js";
@@ -13,6 +13,7 @@ import { confirmDialog } from "../shared/modal.js";
 import {
   ENGINE_ONLY, readSettings, recommendedMissingNote, writeSettings,
 } from "../shared/settings.js";
+import { readSSE } from "../shared/sse.js";
 import { showToast } from "../shared/toast.js";
 
 const PULL_COMMAND = "ollama pull qwen3.5:9b";
@@ -61,6 +62,122 @@ async function clearCardData() {
   } catch (e) {
     showToast(e && e.status === 409 ? e.message : "Could not clear the card data", "error");
   }
+  refreshCardData();
+  // The image counts need the card data, so the images line changes too.
+  refreshImages();
+}
+
+// ---- card data ---------------------------------------------------------------
+
+const DOWNLOAD_STOPPED = "The download stopped. Try again.";
+let cardData = null;
+let dataChecking = 0;
+
+function cardDataGroup() {
+  const status = h("p", { id: "settings-data-status", class: "settings-status", role: "status" });
+  const fill = h("div", { id: "settings-data-fill", class: "progress-fill" });
+  const bar = h("div", {
+    class: "progress-bar", role: "progressbar", "aria-valuemin": "0", "aria-valuemax": "100",
+    "aria-valuenow": "0", "aria-label": "Card data download",
+  }, fill);
+  const percent = h("p", { id: "settings-data-percent", class: "settings-status", text: "0%" });
+  const progress = h("div", { id: "settings-data-progress", class: "settings-progress", hidden: true }, bar, percent);
+  // The reason of a failed download stays here until the next try. The toast goes away.
+  const error = h("p", { id: "settings-data-error", class: "settings-note", role: "alert", hidden: true });
+  const update = h("button", {
+    id: "settings-data-update", type: "button", class: "btn btn-secondary", text: "Update card data",
+    onclick: updateCardData,
+  });
+  cardData = { status, fill, bar, percent, progress, error, update, running: false, ready: true };
+  return group("Card data",
+    h("p", { class: "settings-help", text: "Grimoire keeps the Scryfall card data on this Mac, so it works offline. An update gets the newest cards and prices." }),
+    status, progress, error,
+    h("div", { class: "settings-actions" }, update));
+}
+
+function cardCount(count) {
+  const n = Math.max(0, Math.round(Number(count) || 0));
+  // plural() gives "1 card" or "3 cards"; the count gets thousands separators.
+  return plural(n, "card").replace(String(n), n.toLocaleString("en-US"));
+}
+
+function renderCardData(data) {
+  cardData.ready = data.status === "ready";
+  if (cardData.ready) {
+    const day = formatDay(data.download_date);
+    const size = Number(data.file_size_mb) || 0;
+    cardData.status.textContent = `${cardCount(data.card_count)}${day ? `, downloaded ${day}` : ""}.`
+      + (size > 0 ? ` ${size.toLocaleString("en-US", { maximumFractionDigits: 1 })} MB on disk.` : "");
+  } else {
+    cardData.status.textContent = "No card data on this Mac. The download is about 100 MB, one time.";
+  }
+  if (!cardData.running) cardData.update.textContent = cardData.ready ? "Update card data" : "Download card data";
+}
+
+async function refreshCardData() {
+  const request = ++dataChecking;
+  try {
+    const data = await getJSON("/cache/status");
+    if (request === dataChecking && cardData) renderCardData(data);
+  } catch (e) {
+    if (request === dataChecking && cardData) cardData.status.textContent = "Could not read the card data status.";
+  }
+}
+
+function setDataMeter(percent) {
+  const p = Math.max(0, Math.min(100, Number(percent) || 0));
+  cardData.fill.style.transform = `scaleX(${p / 100})`;
+  cardData.bar.setAttribute("aria-valuenow", String(Math.round(p)));
+  cardData.percent.textContent = `${Math.round(p)}%`;
+}
+
+/** Download the card data again, with the percent. A failure keeps its reason on screen. */
+async function updateCardData() {
+  if (cardData.running) return;
+  cardData.running = true;
+  let finished = false;
+  cardData.update.disabled = true;
+  cardData.update.textContent = "Downloading\u2026";
+  cardData.error.hidden = true;
+  cardData.error.textContent = "";
+  setDataMeter(0);
+  cardData.progress.hidden = false;
+
+  const fail = (message) => {
+    finished = true;
+    cardData.error.textContent = message || DOWNLOAD_STOPPED;
+    cardData.error.hidden = false;
+    showToast(message || DOWNLOAD_STOPPED, "error");
+  };
+
+  try {
+    const response = await fetch("/api/cache/download", { method: "POST" });
+    if (!response.ok) {
+      fail(DOWNLOAD_STOPPED);
+    } else {
+      await readSSE(response, (data) => {
+        if (finished) return;
+        if (data.error) {
+          fail(String(data.error));
+          return;
+        }
+        if (data.percentage !== undefined) setDataMeter(data.percentage);
+        if (data.status === "complete") {
+          finished = true;
+          showToast("Card data updated", "success");
+        }
+      });
+      if (!finished) fail(DOWNLOAD_STOPPED);
+    }
+  } catch (e) {
+    if (!finished) fail(DOWNLOAD_STOPPED);
+  } finally {
+    cardData.running = false;
+    cardData.progress.hidden = true;
+    cardData.update.disabled = false;
+    cardData.update.textContent = cardData.ready ? "Update card data" : "Download card data";
+  }
+  await refreshCardData();
   // The image counts need the card data, so the images line changes too.
   refreshImages();
 }
@@ -292,12 +409,7 @@ function build() {
       field("Model", model, note)),
     group("Questions",
       field("Ask me", ask)),
-    group("Card data",
-      h("p", { class: "settings-help", text: "Removes the downloaded card data. Your collections, decks, and card images stay." }),
-      h("button", {
-        id: "settings-clear-cache", type: "button", class: "btn btn-danger", text: "Clear card data",
-        onclick: clearCardData,
-      })),
+    cardDataGroup(),
     pricesGroup(),
     imagesGroup(),
     phoneGroup(),
@@ -313,11 +425,24 @@ function build() {
         h("a", { href: "https://scryfall.com", target: "_blank", rel: "noopener noreferrer", text: "Scryfall" }),
         " and ",
         h("a", { href: "https://mtgjson.com", target: "_blank", rel: "noopener noreferrer", text: "MTGJSON" }))),
+    dangerGroup(),
   );
   ask.value = readSettings().askMode;
   onImageSync(renderImages);
   renderImages(imageSyncState());
   return { model, note, status, ask };
+}
+
+// The actions that remove data sit apart, at the bottom, under their own heading.
+function dangerGroup() {
+  const section = group("Danger zone",
+    h("p", { class: "settings-help", text: "Removes the downloaded card data. Your collections, decks, and card images stay." }),
+    h("div", { class: "settings-actions" }, h("button", {
+      id: "settings-clear-cache", type: "button", class: "btn btn-danger", text: "Clear card data",
+      onclick: clearCardData,
+    })));
+  section.classList.add("settings-danger");
+  return section;
 }
 
 function renderStatus(ai) {
@@ -479,6 +604,7 @@ function renderPhone(data) {
 
 export async function open() {
   if (!ui) ui = build();
+  refreshCardData();
   refreshPhone();
   refreshPrices();
   ui.ask.value = readSettings().askMode;

@@ -43,6 +43,8 @@ const PROVIDERS = [
 const PRICES_PLAIN = { provider: "scryfall", active: "scryfall", date: null, downloaded: null, providers: PROVIDERS };
 const STATUS_MISSING = { count: 2, bytes: 3145728, owned_total: 10, owned_small: 4, owned_normal: 2 };
 let imageStatus = STATUS_MISSING;
+const CACHE_READY = { status: "ready", card_count: 108412, download_date: "2026-11-01T10:00:00", file_size_mb: 121 };
+let cacheStatus = CACHE_READY;
 
 before(async () => {
   app = await loadApp({
@@ -65,9 +67,11 @@ async function goTo(hash, screen) {
 }
 
 // Set the stubs and the storage this test needs, then open Settings.
-async function setup({ ai = AI_UP, saved = null, status = STATUS_MISSING, keepRun = false } = {}) {
+async function setup({ ai = AI_UP, saved = null, status = STATUS_MISSING, keepRun = false, cache = CACHE_READY } = {}) {
   if (!keepRun) await idle();
   imageStatus = status;
+  cacheStatus = cache;
+  app.route("GET /api/cache/status", () => ({ json: cacheStatus }));
   app.route("GET /api/ai/status", () => ({ json: ai }));
   app.route("DELETE /api/cache", () => ({ json: { ok: true } }));
   app.route("DELETE /api/images", () => ({ json: { removed: 2 } }));
@@ -558,4 +562,133 @@ test("a failed price download shows the server's reason and keeps the button", a
   await app.until(() => /Could not download the store prices/.test(document.getElementById("toast-container").textContent));
   await app.until(() => !button.disabled);
   assert.equal(button.textContent, "Download store prices");
+});
+
+// ---- UX audit, batch D item 4: Settings had only "Clear card data" -----------
+
+// A card data download stream that the test feeds by hand.
+function cardDataStream() {
+  let controller;
+  const body = new ReadableStream({ start(c) { controller = c; } });
+  app.route("POST /api/cache/download", () => ({ status: 200, body, headers: { "content-type": "text/event-stream" } }));
+  return {
+    send(event) { controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`)); },
+    end() { try { controller.close(); } catch (e) { /* already closed */ } },
+  };
+}
+
+const dataText = () => $("settings-data-status").textContent;
+const groupTitled = (title) => [...document.querySelectorAll("#settings-body > section")]
+  .find((g) => g.querySelector("h3").textContent === title);
+
+test("Card data shows the number of cards, the download date and the size on disk", async () => {
+  await setup();
+  await app.until(() => /cards/.test(dataText()));
+  assert.equal(dataText(), "108,412 cards, downloaded 1 Nov 2026. 121 MB on disk.");
+  assert.equal($("settings-data-update").textContent, "Update card data");
+  assert.equal($("settings-data-progress").hidden, true);
+  assert.equal($("settings-data-error").hidden, true);
+  assert.ok(groupTitled("Card data").contains($("settings-data-update")));
+});
+
+test("one card and no date or size still read well", async () => {
+  await setup({ cache: { status: "ready", card_count: 1, download_date: null, file_size_mb: 0 } });
+  await app.until(() => /card/.test(dataText()));
+  assert.equal(dataText(), "1 card.");
+});
+
+test("without card data the section says so and offers the download", async () => {
+  await setup({ cache: { status: "missing" } });
+  await app.until(() => /No card data/.test(dataText()));
+  assert.equal(dataText(), "No card data on this Mac. The download is about 100 MB, one time.");
+  assert.equal($("settings-data-update").textContent, "Download card data");
+});
+
+test("a status that cannot be read says so", async () => {
+  await setup();
+  app.route("GET /api/cache/status", () => ({ status: 503, json: { detail: "busy" } }));
+  open();
+  await app.until(() => dataText() === "Could not read the card data status.");
+});
+
+test("Update card data shows the percent, then reads the status again", async () => {
+  await setup();
+  await app.until(() => /108,412/.test(dataText()));
+  const stream = cardDataStream();
+  $("settings-data-update").click();
+  await app.until(() => $("settings-data-progress").hidden === false);
+  assert.equal($("settings-data-update").disabled, true);
+  assert.deepEqual(app.fetchLog.filter((r) => r.method === "POST").map((r) => r.path), ["/api/cache/download"]);
+  stream.send({ percentage: 40 });
+  await app.until(() => $("settings-data-percent").textContent === "40%");
+  assert.equal($("settings-data-fill").style.transform, "scaleX(0.4)");
+  assert.equal($("settings-data-progress").querySelector("[role=progressbar]").getAttribute("aria-valuenow"), "40");
+  // A second press during the run sends nothing.
+  $("settings-data-update").click();
+  cacheStatus = { ...CACHE_READY, card_count: 108500, download_date: "2026-11-18T09:00:00" };
+  stream.send({ percentage: 100, status: "complete" });
+  stream.end();
+  await app.until(() => /108,500 cards, downloaded 18 Nov 2026/.test(dataText()));
+  assert.equal($("settings-data-update").disabled, false);
+  assert.equal($("settings-data-progress").hidden, true);
+  assert.ok(toasts().includes("Card data updated"));
+  assert.equal(app.fetchLog.filter((r) => r.path === "/api/cache/download").length, 1);
+});
+
+test("a failed update keeps the reason of the server on screen until the next try", async () => {
+  await setup();
+  const reason = "Download failed. The certificate of api.scryfall.com is not trusted.";
+  let stream = cardDataStream();
+  $("settings-data-update").click();
+  stream.send({ percentage: 12 });
+  stream.send({ error: reason });
+  stream.end();
+  await app.until(() => $("settings-data-error").textContent === reason);
+  assert.equal($("settings-data-error").hidden, false);
+  assert.equal($("settings-data-update").disabled, false);
+  assert.equal($("settings-data-progress").hidden, true);
+  // The toast goes away; the line stays.
+  document.getElementById("toast-container").replaceChildren();
+  await app.settle();
+  assert.equal($("settings-data-error").textContent, reason);
+  // A new try clears it.
+  stream = cardDataStream();
+  $("settings-data-update").click();
+  await app.until(() => $("settings-data-error").hidden === true);
+  stream.send({ percentage: 100, status: "complete" });
+  stream.end();
+  await app.until(() => !$("settings-data-update").disabled);
+});
+
+test("a stream that stops early, or a refused request, says the download stopped", async () => {
+  await setup();
+  let stream = cardDataStream();
+  $("settings-data-update").click();
+  stream.send({ percentage: 5 });
+  stream.end();
+  await app.until(() => $("settings-data-error").textContent === "The download stopped. Try again.");
+  app.route("POST /api/cache/download", () => ({ status: 500, json: { detail: "boom" } }));
+  $("settings-data-update").click();
+  await app.until(() => !$("settings-data-update").disabled && !$("settings-data-error").hidden);
+  assert.equal($("settings-data-error").textContent, "The download stopped. Try again.");
+});
+
+test("Clear card data sits in a danger area at the bottom, under its own heading", async () => {
+  await setup();
+  const groups = [...document.querySelectorAll("#settings-body > section")];
+  const last = groups.at(-1);
+  assert.equal(last.querySelector("h3").textContent, "Danger zone");
+  assert.ok(last.contains($("settings-clear-cache")));
+  assert.equal(groupTitled("Card data").querySelector("#settings-clear-cache"), null);
+});
+
+test("after Clear card data the Card data section shows the missing status", async () => {
+  await setup();
+  await app.until(() => /108,412/.test(dataText()));
+  $("settings-clear-cache").click();
+  await app.until(() => document.querySelector("dialog"));
+  cacheStatus = { status: "missing" };
+  [...document.querySelectorAll("dialog button")].find((b) => b.type === "submit").click();
+  await app.until(() => /No card data/.test(dataText()));
+  assert.equal($("settings-data-update").textContent, "Download card data");
 });
