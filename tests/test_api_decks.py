@@ -528,7 +528,7 @@ def _summary(client, deck_id):
     return next(d for d in client.get("/api/decks").json()["decks"] if d["id"] == deck_id)
 
 
-def test_the_deck_list_has_empty_facts_until_a_deck_is_analyzed(overrides):
+def test_the_deck_list_fills_in_the_facts_of_an_older_deck(overrides):
     _, bulk, decks = overrides
     sac = _sac()
     bulk.cards[sac["id"]]["prices"]["usd"] = "1.25"
@@ -539,16 +539,28 @@ def test_the_deck_list_has_empty_facts_until_a_deck_is_analyzed(overrides):
                               "sideboard": [], "maybeboard": []}})
     updated = decks.get(deck_id)["updated"]
     with TestClient(app) as client:
+        # The first list analyzes the deck and keeps its facts in the file.
         summary = _summary(client, deck_id)
         assert summary["format_name"] == "Modern"
-        assert (summary["colors"], summary["price"], summary["owned_percent"]) == (None, None, None)
-        # Opening the deck analyzes it. The list then has the facts.
-        assert client.get("/api/decks/%s" % deck_id).status_code == 200
-        summary = _summary(client, deck_id)
         assert (summary["colors"], summary["price"], summary["owned_percent"]) == (["B"], 3.75, 100)
+        assert decks.get(deck_id)["facts"]["colors"] == ["B"]
         # The facts are not a change of the deck: the last change stays.
         assert summary["updated"] == updated
         assert client.get("/api/decks/missing-1").status_code == 404
+
+
+def test_the_deck_list_keeps_empty_facts_without_card_data(overrides):
+    _, bulk, decks = overrides
+    sac = _sac()
+    deck_id = decks.save({"name": "Old deck", "format": "modern", "collection_job_id": "aaa1",
+                          "commander": None, "sections": {"main": [
+                              {"scryfall_id": sac["id"], "name": "Sac Outlet 0", "count": 3}],
+                              "sideboard": [], "maybeboard": []}})
+    bulk.cards.clear()
+    with TestClient(app) as client:
+        summary = _summary(client, deck_id)
+        assert (summary["colors"], summary["price"], summary["owned_percent"]) == (None, None, None)
+        assert "facts" not in decks.get(deck_id)
 
 
 def test_an_editor_save_refreshes_the_list_facts(overrides):
@@ -568,3 +580,25 @@ def test_an_editor_save_refreshes_the_list_facts(overrides):
         # A copy starts with the facts of its source.
         copy_id = client.post("/api/decks/%s/duplicate" % deck_id).json()["id"]
         assert _summary(client, copy_id)["owned_percent"] == 80
+
+
+def test_a_deck_that_cannot_be_analyzed_does_not_break_the_list(overrides, monkeypatch):
+    from backend.api import deck_routes
+    _, _, decks = overrides
+    sac = _sac()
+    entry = {"scryfall_id": sac["id"], "name": "Sac Outlet 0", "count": 1}
+    good = decks.save({"name": "Good", "format": "modern", "collection_job_id": "aaa1",
+                       "commander": None, "sections": {"main": [entry], "sideboard": [], "maybeboard": []}})
+    bad = decks.save({"name": "Bad", "format": "modern", "collection_job_id": "aaa1",
+                      "commander": None, "sections": {"main": [entry], "sideboard": [], "maybeboard": []}})
+    real = deck_routes.deck_response
+
+    def flaky(record, *args, **kwargs):
+        if record.get("id") == bad:
+            raise ValueError("broken record")
+        return real(record, *args, **kwargs)
+
+    monkeypatch.setattr(deck_routes, "deck_response", flaky)
+    with TestClient(app) as client:
+        assert _summary(client, good)["colors"] == ["B"]
+        assert _summary(client, bad)["colors"] is None

@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import re
 from typing import Dict, List, Optional, Tuple
 
@@ -43,6 +44,8 @@ from backend.decks.textio import (
 )
 from backend.forge.playbook import load_playbook
 
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api")
 
@@ -165,10 +168,48 @@ def _stored(store: DeckStore, deck_id: str) -> dict:
     return record
 
 
+async def fill_missing_facts(store: DeckStore, decks: List[dict],
+                             bulk_data_manager: BulkDataManager,
+                             collections: CollectionStore) -> bool:
+    """Analyze each listed deck that has no list facts yet, and keep its facts.
+
+    A deck saved before the list facts existed has none. Without this step its
+    colors, price and owned cells stay empty until the owner opens the deck.
+    The work happens once per deck: the facts stay in the deck file.
+
+    Returns:
+        True when at least one deck got its facts.
+    """
+    missing = [d["id"] for d in decks if d.get("colors") is None]
+    if not missing:
+        return False
+    index = await bulk_data_manager.load_bulk_data()
+    if not index:
+        return False  # without the card data the analysis cannot run
+    filled = False
+    for deck_id in missing:
+        record = store.get(deck_id)
+        if record is None:
+            continue
+        try:
+            body = await asyncio.to_thread(deck_response, record, index, collections)
+            await keep_facts(store, record, body)
+            filled = True
+        except Exception:  # one bad deck file must not break the list
+            logger.exception("Could not find the list facts of deck %s", deck_id)
+    return filled
+
+
 @router.get("/decks")
-async def list_decks(store: DeckStore = Depends(get_deck_store)):
+async def list_decks(
+    store: DeckStore = Depends(get_deck_store),
+    bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager),
+    collections: CollectionStore = Depends(get_collection_store),
+):
     """Summaries of the saved decks, newest first."""
     decks = store.list()
+    if await fill_missing_facts(store, decks, bulk_data_manager, collections):
+        decks = store.list()
     for deck in decks:
         fmt = _FORMATS.get(deck["format"])
         deck["format_name"] = fmt.name if fmt is not None else deck["format"]
