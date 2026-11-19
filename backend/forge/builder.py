@@ -196,6 +196,7 @@ class _State:
     synergy: Dict[str, float]
     filled: int = 0
     counts: Dict[str, int] = field(default_factory=dict)
+    named: Dict[str, int] = field(default_factory=dict)  # core card id -> fill reasons that name it
     have: Dict[str, int] = field(default_factory=dict)
     buckets: Dict[str, int] = field(default_factory=dict)
     picks: List[_Pick] = field(default_factory=list)
@@ -381,9 +382,38 @@ def core_reason(card: OwnedCard, plan: BuildPlan,
     return f"Core card of the {name} plan."
 
 
+def _synergy_reason(card: OwnedCard, state: _State) -> str:
+    """Name a core card that this card works with, and what it does there.
+
+    The core card named the fewest times so far wins, so the reasons spread over
+    the core. Then the heaviest synergy edge wins, then the core card name, so the
+    text is the same on each run.
+    """
+    best = None
+    for edge in state.graph.between(set(state.core) | {card.id}):
+        if card.id not in (edge.src, edge.dst):
+            continue
+        other = edge.dst if edge.src == card.id else edge.src
+        if other == card.id or other not in state.core:
+            continue
+        key = (state.named.get(other, 0), -edge.weight, state.graph.cards[other].name, edge.hook)
+        if best is None or key < best[0]:
+            best = (key, edge, other)
+    if best is None:
+        return "Synergy with the core."
+    _, edge, other = best
+    state.named[other] = state.named.get(other, 0) + 1
+    partner = state.graph.cards[other].name
+    deed = (_gives_deed(card, edge.hook) if edge.src == card.id
+            else _wants_deed(edge.hook, state.plurals))
+    if deed:
+        return "Works with %s: %s%s." % (partner, deed[:1].lower(), deed[1:])
+    return "Works with %s." % partner
+
+
 def _fill_reason(card: OwnedCard, state: _State) -> Tuple[str, str]:
     if _synergy(card, state) > 0:
-        return "synergy", "Synergy with the core."
+        return "synergy", _synergy_reason(card, state)
     if card.roles:
         role = sorted(card.roles)[0]
         return role, f"{ROLE_DEEDS[role]}." if role in ROLE_DEEDS else f"Adds {role}."

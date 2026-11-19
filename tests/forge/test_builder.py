@@ -683,3 +683,29 @@ def test_an_off_color_fetch_land_is_left_out(playbook):
     cards = tagged(playbook, "modern", recs, [4] * len(recs))
     deck = build(playbook, "modern", cards, backbone(cards, set(), "R"))
     assert "Flooded Strand" not in {e.name for e in deck.entries}
+
+
+def test_synergy_fill_reasons_name_the_core_card_they_work_with(playbook):
+    # A forged deck gave 20 of its 75 cards the same reason, "Synergy with the core."
+    cards = tagged(playbook, "pauper", gw_records(), [4] * len(gw_records()))
+    deck = build(playbook, "pauper", cards, backbone(cards, CORE_NAMES, "GW"))
+    synergy = {e.name: e.reason for e in deck.entries if e.role == "synergy"}
+    assert "Death Payoff 3" in synergy, synergy
+    assert synergy["Death Payoff 3"].startswith("Works with Sac Outlet ")
+    assert synergy["Death Payoff 3"].endswith(": pays off creatures dying.")
+    assert "Synergy with the core." not in synergy.values()
+
+
+def test_synergy_reasons_spread_over_the_core_cards(playbook):
+    # A live forge named one partner in 14 of its fill reasons. Each reason now names
+    # the core card that was named the fewest times so far.
+    from types import SimpleNamespace
+    from backend.forge.builder import _synergy_reason
+    recs = [creature(f"Sac Outlet {i}", i, SAC) for i in range(2)]
+    recs += [creature(f"Payoff {i}", 10 + i, DEATH_PAYOFF) for i in range(3)]
+    cards = by_name(tagged(playbook, "pauper", recs))
+    graph = build_graph(list(cards.values()), playbook)
+    state = SimpleNamespace(graph=graph, core={cards["Sac Outlet 0"].id, cards["Sac Outlet 1"].id},
+                            plurals={}, named={})
+    partners = [_synergy_reason(cards[f"Payoff {i}"], state).split(":")[0] for i in range(3)]
+    assert partners == ["Works with Sac Outlet 0", "Works with Sac Outlet 1", "Works with Sac Outlet 0"]
