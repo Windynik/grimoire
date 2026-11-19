@@ -112,6 +112,23 @@ def _avg_quality(deck: BuiltDeck) -> float:
     return sum(e.card.quality * e.count for e in entries) / copies
 
 
+def synergy_cap(playbook: Playbook) -> float:
+    """The synergy_density that gets full marks in the combined score (at least 1 when unset)."""
+    cap = playbook.metric_weights.get(SYNERGY_CAP, 3.0)
+    return cap if cap > 0 else 1.0
+
+
+def metric_scale(playbook: Playbook) -> Dict[str, object]:
+    """The numbers that explain the metrics: the synergy cap and the weight of each metric.
+
+    Returns:
+        {"synergy_cap": float, "weights": {metric name: weight in the combined score}}
+    """
+    return {"synergy_cap": synergy_cap(playbook),
+            "weights": {name: playbook.metric_weights.get(key, 0.0)
+                        for name, key in WEIGHT_KEYS.items()}}
+
+
 def deck_metrics(deck: BuiltDeck, graph: SynergyGraph, playbook: Playbook) -> Dict[str, float]:
     """Grade a built deck.
 
@@ -137,9 +154,7 @@ def deck_metrics(deck: BuiltDeck, graph: SynergyGraph, playbook: Playbook) -> Di
         "mana_consistency": _mana_consistency(deck),
         "avg_quality": _avg_quality(deck),
     }
-    cap = playbook.metric_weights.get(SYNERGY_CAP, 3.0)
-    if cap <= 0:
-        cap = 1.0
+    cap = synergy_cap(playbook)
     combined = 0.0
     for name, key in WEIGHT_KEYS.items():
         value = min(1.0, metrics[name] / cap) if name == "synergy_density" else metrics[name]

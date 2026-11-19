@@ -1032,13 +1032,28 @@
 /* One metric per row: the label and the value, then a line on what it measures. */
 #decks-view .stat-metrics {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.5rem;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.6rem;
 }
 
 #decks-view .stat-metric {
     display: flex;
     flex-direction: column;
+    gap: 0.15rem;
+}
+
+#decks-view .stat-metric-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+#decks-view .stat-metric-note {
+    margin: 0;
+    font-size: 0.78rem;
+    line-height: 1.35;
+    color: var(--text-dim);
 }
 
 #decks-view .stat-metric-value {

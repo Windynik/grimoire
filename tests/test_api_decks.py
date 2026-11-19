@@ -651,6 +651,11 @@ def test_a_deck_that_cannot_be_analyzed_does_not_break_the_list(overrides, monke
     with TestClient(app) as client:
         assert _summary(client, good)["colors"] == ["B"]
         assert _summary(client, bad)["colors"] is None
+
+
+# Audit: opening a deck showed nothing for about 3 seconds. The editor now asks
+# for the record first (quick), then for the analysis with the "taken" check.
+
 def _shared_card_decks(decks):
     """A built deck "Other" that uses 3 of the 4 copies of Sac Outlet 0, and a deck that needs 2."""
     sac = _sac()
@@ -682,6 +687,28 @@ def test_the_quick_deck_answer_has_the_record_and_no_slow_checks(overrides):
     assert "cards" not in analysis and "metrics" not in analysis
     # The list facts come from a full analysis only.
     assert decks.get(deck_id).get("facts") is None
+
+
+def test_the_analysis_route_gives_the_full_analysis_with_the_taken_check(overrides):
+    _, _, decks = overrides
+    deck_id = _shared_card_decks(decks)
+    with TestClient(app) as client:
+        full = client.get("/api/decks/%s/analysis" % deck_id)
+        assert full.status_code == 200
+        body = full.json()
+        assert body["revision"] == 0
+        card = body["analysis"]["cards"][_sac()["id"]]
+        assert "taken" in card["issues"] and card["taken"]["free"] == 1
+        assert body["analysis"]["metric_scale"]["synergy_cap"] > 0
+        assert "partial" not in body["analysis"]
+        assert "sections" not in body  # the editor has the record already
+        # The route keeps the list facts, as the full GET does.
+        assert decks.get(deck_id)["facts"]["owned_percent"] == 100
+        # The full GET still answers with everything, for the other callers.
+        old = client.get("/api/decks/%s" % deck_id).json()
+        assert "taken" in old["analysis"]["cards"][_sac()["id"]]["issues"]
+        assert client.get("/api/decks/nope-1/analysis").status_code == 404
+        assert client.get("/api/decks/nope-1?analysis=false").status_code == 404
 
 
 def test_one_deck_answer_reads_each_collection_once(overrides):

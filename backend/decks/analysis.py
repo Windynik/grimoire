@@ -16,7 +16,7 @@ from backend.forge.cards import (
     ANY_NUMBER_PHRASE, OwnedCard, build_card, fits_colors, is_game_card, named_copy_limit,
 )
 from backend.forge.graph import Backbone, build_graph
-from backend.forge.metrics import _pip_demand, deck_metrics, display_curve
+from backend.forge.metrics import _pip_demand, deck_metrics, display_curve, metric_scale
 from backend.forge.playbook import FormatRules, Playbook
 from backend.forge.tagging import tag_cards
 
@@ -425,6 +425,7 @@ def analyze(record: dict, index: Dict[str, dict], collection: Optional[List[dict
         "price": price,
         "game_changers": changers,
         "metrics": metrics,
+        "metric_scale": metric_scale(playbook),
         "cards": _card_report(record, index, owned, fmt, deck, meta.get("name") or ""),
         # Without a collection, no copy is owned, and a share would mislead.
         "owned_percent": owned_percent(record, index, owned) if collection is not None else None,

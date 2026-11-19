@@ -319,3 +319,16 @@ def test_a_commander_deck_has_bracket_facts_and_other_formats_do_not(playbook):
     assert result["bracket"]["floor"] == 3
     assert result["bracket"]["game_changers"] == ["Power Card"]
     assert _run(_deck([_line(gc, 1)]), index, playbook)["bracket"] is None
+def test_analysis_gives_the_scale_of_the_metrics(playbook):
+    # The editor explains each metric; the synergy cap and the weights come from the playbook.
+    bear = make_record("Bear", legal=LEGAL_ALL)
+    result = _run(_deck([_line(bear, 4)]), _pool(bear), playbook)
+    weights = playbook.metric_weights
+    assert result["metric_scale"] == {
+        "synergy_cap": weights["synergy_cap"],
+        "weights": {"synergy_density": weights["synergy"], "role_coverage": weights["roles"],
+                    "curve_fit": weights["curve"], "mana_consistency": weights["mana"],
+                    "avg_quality": weights["quality"]},
+    }
+
+

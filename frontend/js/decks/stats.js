@@ -133,6 +133,39 @@ function metricText(key, value) {
   return key === "synergy_density" ? value.toFixed(2) : `${Math.round(value * 100)}%`;
 }
 
+// What one metric measures and its scale (see backend/forge/metrics.py). The
+// synergy cap and the weights come from the server (analysis.metric_scale).
+function metricNote(key, scale) {
+  const weights = (scale && scale.weights) || {};
+  const cap = Number(scale && scale.synergy_cap);
+  switch (key) {
+    case "combined": {
+      const parts = METRICS.filter(([k]) => k !== "combined" && Number.isFinite(Number(weights[k])))
+        .map(([k, label]) => `${label} ${Math.round(Number(weights[k]) * 100)}%`);
+      return parts.length
+        ? `The five scores below in one, weighted: ${parts.join(", ")}. Higher is better.`
+        : "The five scores below in one, weighted. Higher is better.";
+    }
+    case "synergy_density":
+      return "Links between cards, per card. A link is one card that makes what another card uses. "
+        + (cap > 0 ? `Higher is better; ${cap.toFixed(2)} or more gets full marks in Score.`
+          : "Higher is better.");
+    case "role_coverage":
+      return "Share of the role targets that the deck fills, such as ramp, card draw and removal. "
+        + "100% fills every target.";
+    case "curve_fit":
+      return "How close the mana curve is to the target curve of the playstyle. "
+        + "100% is an exact match.";
+    case "mana_consistency":
+      return "Share of the deck colors with enough mana sources. 100% means every color has enough.";
+    case "avg_quality":
+      return "How popular the nonland cards are on EDHREC, on average. 100% is the top card; "
+        + "0% is rank 40,000 or lower. A card with no rank counts as 50%.";
+    default:
+      return "";
+  }
+}
+
 /**
  * Render the stats panel into root.
  *
@@ -195,9 +228,12 @@ export function renderStats(root, analysis, names = {}, extra = {}) {
   METRICS.forEach(([key, label]) => {
     const value = Number(metrics[key]);
     if (!Number.isFinite(value)) return;
+    // The note is visible text, so a touch screen shows it too.
     items.push(h("div", { class: "stat-metric" },
-      h("span", { class: "stat-metric-label", text: label }),
-      h("span", { class: "stat-metric-value", text: metricText(key, value) })));
+      h("div", { class: "stat-metric-head" },
+        h("span", { class: "stat-metric-label", text: label }),
+        h("span", { class: "stat-metric-value", text: metricText(key, value) })),
+      h("p", { class: "stat-metric-note", text: metricNote(key, data.metric_scale) })));
   });
   if (!items.length) items.push(h("p", { class: "stat-empty", text: "Add cards to see scores." }));
   ui.metrics.replaceChildren(...items);

@@ -444,6 +444,45 @@ test("the deck reads several collections: the editor saves them and searches the
   await app.until(() => app.fetchLog.some((r) => r.path === "/api/collection/job1/search"
     && r.query.get("also") === "job2"));
 });
+// Audit: "Quality 21%" and "Synergy 7.32" had no scale and no meaning.
+test("each metric says what it measures and its scale in visible text", async () => {
+  const analysis = {
+    metrics: { combined: 0.64, synergy_density: 7.32, role_coverage: 0.8, curve_fit: 0.9,
+      mana_consistency: 1, avg_quality: 0.21 },
+    metric_scale: { synergy_cap: 3, weights: { synergy_density: 0.35, role_coverage: 0.2,
+      curve_fit: 0.15, mana_consistency: 0.15, avg_quality: 0.15 } },
+  };
+  await openEditor({ "GET /api/decks/d1": () => ({ json: { ...deckRecord(), analysis } }) });
+  const stats = document.querySelector('[data-editor="stats"]');
+  await app.until(() => stats.querySelectorAll(".stat-metric").length === 6);
+  const rows = Object.fromEntries([...stats.querySelectorAll(".stat-metric")].map((row) => [
+    row.querySelector(".stat-metric-label").textContent,
+    { value: row.querySelector(".stat-metric-value").textContent,
+      note: row.querySelector(".stat-metric-note") }]));
+  Object.values(rows).forEach(({ note }) => {
+    assert.ok(note && note.textContent.trim().length > 20, "each metric has a note");
+    assert.equal(note.hidden, false);
+  });
+  assert.equal(rows.Synergy.value, "7.32");
+  assert.match(rows.Synergy.note.textContent, /per card/);
+  assert.match(rows.Synergy.note.textContent, /3\.00 or more gets full marks in Score/);
+  assert.equal(rows.Quality.value, "21%");
+  assert.match(rows.Quality.note.textContent, /EDHREC/);
+  assert.match(rows.Quality.note.textContent, /40,000/);
+  assert.match(rows.Score.note.textContent, /Synergy 35%, Roles 20%, Curve 15%, Mana 15%, Quality 15%/);
+  assert.match(rows.Mana.note.textContent, /100%/);
+});
+
+test("without the scale from the server the metric notes still explain each metric", async () => {
+  const analysis = { metrics: { combined: 0.5, synergy_density: 2 } };
+  await openEditor({ "GET /api/decks/d1": () => ({ json: { ...deckRecord(), analysis } }) });
+  const stats = document.querySelector('[data-editor="stats"]');
+  await app.until(() => stats.querySelectorAll(".stat-metric").length === 2);
+  const notes = [...stats.querySelectorAll(".stat-metric-note")].map((n) => n.textContent);
+  assert.equal(notes.length, 2);
+  assert.ok(notes.every((text) => text.length > 20 && !/undefined|NaN/.test(text)), notes);
+  assert.doesNotMatch(notes[1], /full marks/);
+});
 
 // Audit: a Commander deck still showed a Sideboard section and targets.
 const COMMANDER_FORMAT = { key: "commander", name: "Commander", commander: true, deck_size: 100 };
