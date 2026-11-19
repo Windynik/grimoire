@@ -9,7 +9,9 @@ import {
   cardImage, cardImg, isDeferred, loadCardImg, stopCardImg, wasLoaded,
 } from "../shared/images.js";
 import { reducedMotion } from "../shared/motion.js";
-import { MAX_COUNT, SECTIONS, entryKey, groupEntries } from "./model.js";
+import {
+  MAX_COUNT, SECTIONS, entryKey, groupEntries, isCommanderDeck, shownSections,
+} from "./model.js";
 
 const SECTION_NAMES = { main: "Main", sideboard: "Sideboard", maybeboard: "Maybeboard" };
 const ISSUE_LABELS = {
@@ -65,11 +67,6 @@ function cardsOf(state) {
   return (state.analysis && state.analysis.cards) || {};
 }
 
-function isCommanderFormat(state) {
-  const fmt = state.analysis && state.analysis.format;
-  return Boolean((fmt && fmt.commander) || state.commander);
-}
-
 // ---------------------------------------------------------------------------
 // Rows
 // ---------------------------------------------------------------------------
@@ -104,8 +101,8 @@ function badges(info) {
   return box;
 }
 
-function rowMenu(section, entry, id, commanderFormat) {
-  const items = SECTIONS.filter((s) => s !== section).map((to) => h("button", {
+function rowMenu(section, entry, id, commanderFormat, sections) {
+  const items = sections.filter((s) => s !== section).map((to) => h("button", {
     type: "button", class: "deck-row-menu-item", role: "menuitem",
     "data-action": "move", "data-to": to, "data-focus": `${id}|move-${to}`,
     text: `Move to ${SECTION_NAMES[to]}`,
@@ -134,7 +131,7 @@ function flipButton(card, state, focusId) {
   }, "⟲");
 }
 
-function rowNode(section, entry, state, previous, commanderFormat) {
+function rowNode(section, entry, state, previous, commanderFormat, sections) {
   const key = entryKey(entry);
   const id = rowId(section, key);
   const info = cardsOf(state)[key] || {};
@@ -165,12 +162,12 @@ function rowNode(section, entry, state, previous, commanderFormat) {
       type: "button", class: "deck-row-btn deck-row-remove", "data-action": "remove",
       "data-focus": `${id}|remove`, "aria-label": `Remove ${entry.name}`, title: "Remove",
     }, "×"),
-    rowMenu(section, entry, id, commanderFormat));
+    rowMenu(section, entry, id, commanderFormat, sections));
   row.append(count, name, flip || "", rowMana(entry.mana_cost), badges(info), actions);
   return row;
 }
 
-function sectionNode(section, state, previous, commanderFormat) {
+function sectionNode(section, state, previous, commanderFormat, sections) {
   const entries = (state.sections && state.sections[section]) || [];
   const total = entries.reduce((sum, e) => sum + (e.count || 0), 0);
   const head = h("header", { class: "deck-section-head" },
@@ -188,7 +185,7 @@ function sectionNode(section, state, previous, commanderFormat) {
   groupEntries(entries, state.groupMode, cardsOf(state)).forEach((group) => {
     const list = h("ul", { class: "deck-group-rows" });
     group.entries.forEach((entry) => {
-      list.append(rowNode(section, entry, state, previous, commanderFormat));
+      list.append(rowNode(section, entry, state, previous, commanderFormat, sections));
     });
     groups.append(h("div", { class: "deck-group" },
       h("h4", { class: "deck-group-title" },
@@ -543,10 +540,13 @@ export function renderPane(root, state, handlers) {
   const ghosts = ctx.counts ? ghostsOf(root, counts) : [];
   const hovered = ctx.hover ? anchorId(ctx.hover) : null;
 
-  const commanderFormat = isCommanderFormat(state);
+  const commanderFormat = isCommanderDeck(state);
   const nodes = [];
   if (commanderFormat) nodes.push(commanderNode(state, ctx.commander));
-  SECTIONS.forEach((section) => nodes.push(sectionNode(section, state, ctx.counts, commanderFormat)));
+  // A commander deck shows no Sideboard while it has no sideboard cards.
+  const sections = shownSections(state);
+  sections.forEach((section) => nodes.push(
+    sectionNode(section, state, ctx.counts, commanderFormat, sections)));
   root.replaceChildren(...nodes);
   ghosts.forEach((ghost) => {
     root.append(ghost);

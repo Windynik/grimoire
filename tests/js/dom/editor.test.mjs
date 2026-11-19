@@ -492,6 +492,36 @@ const sectionTitles = () => [...document.querySelectorAll('[data-editor="pane"] 
 const menuItems = () => [...document.querySelector('[data-editor="pane"] .deck-row-menu')
   .querySelectorAll(".deck-row-menu-item")].map((el) => el.textContent);
 
+test("a commander deck with an empty sideboard hides the Sideboard and its targets", async () => {
+  await openEditor({
+    "GET /api/decks/d1": () => ({ json: { ...deckRecord(), analysis: { format: COMMANDER_FORMAT } } }),
+    "GET /api/cards/search": () => ({ json: { cards: [searchCard], total: 1 } }),
+  });
+  assert.deepEqual(sectionTitles(), ["Commander", "Main", "Maybeboard"]);
+  assert.equal(document.querySelector('[data-drop="sideboard"]'), null);
+  assert.ok(!menuItems().includes("Move to Sideboard"));
+  assert.ok(menuItems().includes("Move to Maybeboard"));
+  click(document.querySelector('[data-editor="tab"][data-tab="search"]'));
+  await app.until(() => document.querySelector(".search-result"));
+  const adds = [...document.querySelectorAll(".search-result .search-add")].map((b) => b.dataset.section);
+  assert.deepEqual(adds, ["main", "maybeboard"]);
+});
+
+test("a commander deck that has sideboard cards keeps the Sideboard", async () => {
+  const record = { ...deckRecord(), analysis: { format: COMMANDER_FORMAT },
+    sections: { main: [entry("Card A", "id-a")], sideboard: [entry("Card S", "id-s")], maybeboard: [] } };
+  await openEditor({
+    "GET /api/decks/d1": () => ({ json: record }),
+    "GET /api/cards/search": () => ({ json: { cards: [searchCard], total: 1 } }),
+  });
+  assert.deepEqual(sectionTitles(), ["Commander", "Main", "Sideboard", "Maybeboard"]);
+  const side = document.querySelector('[data-drop="sideboard"]');
+  assert.match(side.textContent, /Card S/);
+  click(document.querySelector('[data-editor="tab"][data-tab="search"]'));
+  await app.until(() => document.querySelector(".search-result"));
+  const adds = [...document.querySelectorAll(".search-result .search-add")].map((b) => b.dataset.section);
+  assert.deepEqual(adds, ["main", "sideboard", "maybeboard"]);
+});
 
 // Audit: opening a deck showed nothing for about 3 seconds. The editor shows the
 // record at once and the analysis (with the "taken" check) when it is ready.
@@ -504,6 +534,36 @@ function held() {
   const gate = new Promise((resolve) => { release = resolve; });
   return { gate, release: (reply) => release(reply) };
 }
+
+test("the editor shows the deck at once and the analysis when it is ready", async () => {
+  const asked = [];
+  const slow = held();
+  const banned = { issues: ["banned"], owned: 1, reasons: { banned: "Banned in Commander." } };
+  await openEditor({
+    "GET /api/decks/d1": (req) => { asked.push(req.query.get("analysis")); return { json: quickRecord() }; },
+    "GET /api/decks/d1/analysis": () => slow.gate,
+  });
+  assert.deepEqual(asked, ["false"]);
+  assert.equal(document.querySelector('[data-editor="name"]').value, "Deck One");
+  assert.equal(document.querySelector('[data-editor="format"]').textContent, "Commander");
+  assert.ok([...document.querySelectorAll(".deck-row-name")].some((el) => el.textContent === "Card A"));
+  // A commander deck: no Sideboard, also before the analysis.
+  assert.equal(document.querySelector('[data-drop="sideboard"]'), null);
+  const stats = document.querySelector('[data-editor="stats"]');
+  const status = stats.querySelector(".stat-status");
+  assert.equal(status.hidden, false);
+  assert.equal(status.textContent, "Checking the deck…");
+  assert.equal(stats.querySelector(".stat-body").hidden, true);
+  slow.release({ json: { id: "d1", revision: 3, analysis: {
+    format: COMMANDER_FORMAT, count: { main: 1, target: 100 }, cards: { "id-a": banned } } } });
+  await app.until(() => document.querySelector(".deck-badge-banned"));
+  assert.equal(status.hidden, true);
+  assert.equal(stats.querySelector(".stat-body").hidden, false);
+  assert.equal(stats.querySelector(".stat-count").textContent, "1 / 100 cards");
+  // The analysis does not change the revision of the saves.
+  click(document.querySelector('.deck-row [data-action="inc"]'));
+  await app.until(() => puts.some((body) => body.edit && body.edit.base_revision === 3), SAVE_WAIT);
+});
 
 test("a save answer that comes before the analysis keeps the newer analysis", async () => {
   const slow = held();
@@ -533,3 +593,44 @@ test("a failed analysis says so in the stats panel and keeps the deck", async ()
   assert.ok(document.querySelector(".deck-row"));
 });
 
+// Audit: the card pool showed each Island printing as its own row.
+test("the card pool shows one row per card name and adds the deck's own printing", async () => {
+  const island = (id, set) => ({ ...entry("Island", id), basic: false, type_line: "Basic Land — Island",
+    mana_cost: "", set });
+  const record = { ...deckRecord(), collection_job_id: "job1", collection_job_ids: ["job1"],
+    sections: { main: [entry("Card A", "id-a"), island("isl-a", "aaa")], sideboard: [], maybeboard: [] },
+    analysis: { collection: { job_id: "job1", name: "Binder", job_ids: ["job1"], names: ["Binder"] } } };
+  const pool = [
+    { scryfall_id: "isl-c", name: "Island", mana_cost: "", type_line: "Basic Land — Island", set: "ccc",
+      quantity: 12, printings: 3 },
+    { scryfall_id: "id-z", name: "Zap", mana_cost: "{R}", type_line: "Instant", set: "zzz",
+      quantity: 1, printings: 1 },
+  ];
+  const asked = [];
+  await openEditor({
+    "GET /api/decks/d1": () => ({ json: record }),
+    "GET /api/collection/job1/search": (req) => {
+      asked.push(req.query.get("group"));
+      return { json: { cards: pool, total: 2, facets: {} } };
+    },
+  });
+  click(document.querySelector('[data-editor="tab"][data-tab="search"]'));
+  await app.until(() => document.querySelectorAll(".search-result").length === 2);
+  assert.ok(asked.length > 0 && asked.every((group) => group === "name"), asked);
+  const lines = [...document.querySelectorAll(".search-result .search-line")].map((el) => el.textContent);
+  assert.deepEqual(lines, ["Own 12 · 3 printings", "Own 1"]);
+  click(document.querySelector('.search-add[aria-label="Add Island to Main"]'));
+  await app.until(() => puts.some((body) => body.sections.main.some((e) => e.name === "Island" && e.count === 2)),
+    SAVE_WAIT);
+  const islands = puts.at(-1).sections.main.filter((e) => e.name === "Island");
+  assert.deepEqual(islands.map((e) => [e.scryfall_id, e.count]), [["isl-a", 2]]);
+});
+
+test("a deck of a format without a commander shows the empty Sideboard", async () => {
+  const modern = { key: "modern", name: "Modern", commander: false, deck_size: 60 };
+  await openEditor({
+    "GET /api/decks/d1": () => ({ json: { ...deckRecord(), format: "modern", analysis: { format: modern } } }),
+  });
+  assert.deepEqual(sectionTitles(), ["Main", "Sideboard", "Maybeboard"]);
+  assert.ok(menuItems().includes("Move to Sideboard"));
+});

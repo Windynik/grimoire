@@ -8,6 +8,23 @@ const TYPE_ORDER = [
   "Creature", "Planeswalker", "Battle", "Instant", "Sorcery", "Artifact", "Enchantment", "Land",
 ];
 
+/** True when the deck has a commander: its format has one, or it holds one. */
+export function isCommanderDeck(state) {
+  const fmt = state && state.analysis && state.analysis.format;
+  return Boolean((fmt && fmt.commander) || (state && state.commander));
+}
+
+/**
+ * The sections the editor shows and offers as a target. A commander format
+ * has no sideboard, so it drops out, unless the deck already has sideboard
+ * cards (an import): then it stays, so no card hides.
+ */
+export function shownSections(state) {
+  const side = (state && state.sections && state.sections.sideboard) || [];
+  if (isCommanderDeck(state) && !side.length) return SECTIONS.filter((s) => s !== "sideboard");
+  return SECTIONS.slice();
+}
+
 /** Key that identifies a card line: its Scryfall id, or "basic:{name}". */
 export function entryKey(entry) {
   return entry.scryfall_id || `basic:${entry.name}`;
@@ -50,13 +67,17 @@ export function applyOp(state, op) {
 
   switch (op.type) {
     case "add": {
-      const key = entryKey(op.card);
-      const at = find(op.section, key);
+      // The search adds a card by name. A deck that has a printing of the card
+      // keeps it: the line of that name takes the copy, or gives its printing.
+      const sameName = (e) => Boolean(e) && e.name === op.card.name;
+      let at = find(op.section, entryKey(op.card));
+      if (at < 0) at = lines(op.section).findIndex(sameName);
       if (at >= 0) {
         const line = lines(op.section)[at];
         line.count = Math.min(MAX_COUNT, line.count + 1);
       } else {
-        const entry = clone(op.card);
+        const had = [next.commander, ...SECTIONS.flatMap((s) => sections[s] || [])].find(sameName);
+        const entry = had ? { basic: false, ...clone(had), role: "", reason: "" } : clone(op.card);
         entry.count = 1;
         lines(op.section).push(entry);
       }

@@ -29,6 +29,7 @@ from backend.core.collection_query import (
     shelves,
 )
 from backend.core.collection_store import CollectionStore
+from backend.decks.pool import group_by_name
 from backend.decks.store import DeckStore
 from backend.core.card_flags import FLAGS, CardFlags, flag_key
 from backend.core.price_history import add_snapshot, movers, value_history
@@ -189,6 +190,7 @@ async def search_collection(
     card_type: str = "",
     color: str = "",
     also: str = "",
+    group: str = "",
     store: CollectionStore = Depends(get_collection_store),
     bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager),
     deck_store: DeckStore = Depends(get_deck_store),
@@ -196,7 +198,8 @@ async def search_collection(
     """Search a collection: keywords, multi-value filters, live facets, value.
 
     also names more collections (comma separated) to search with this one, as
-    one pool: the deck editor reads every collection of its deck.
+    one pool: the deck editor reads every collection of its deck. group=name
+    gives one row per card name (see backend.decks.pool.group_by_name).
     """
     formats = _csv(format)
     for key in formats:
@@ -237,6 +240,8 @@ async def search_collection(
         if found[0]:
             results, facets, value = found
 
+    if group == "name":
+        results = group_by_name(results)
     limit = max(1, min(limit, 200))
     offset = max(0, offset)
     page = [

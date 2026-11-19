@@ -27,6 +27,7 @@ from backend.core.importers import (
     IMPORT_STOPPED, ImportFormatError, binder_of, decode_upload, import_failure, with_error_event,
 )
 from backend.core.ollama_client import OllamaClient
+from backend.decks.pool import first_per_name
 from backend.forge.cards import is_game_card
 from backend.forge.playbook import load_playbook
 from backend.models.schemas import CacheStatus, ProcessResult
@@ -754,12 +755,14 @@ async def search_all_cards(
     color: str = "",
     rarity: str = "",
     format: str = "",
+    group: str = "",
     bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager)
 ):
     """Search/browse the full bulk data archive with pagination and filters.
 
     Empty query browses every card. `total` reflects all matches so the
-    frontend can page through the entire archive.
+    frontend can page through the entire archive. group=name gives the first
+    printing of each card name, with the number of its printings.
     """
     bulk_data = await bulk_data_manager.load_bulk_data()
 
@@ -790,10 +793,16 @@ async def search_all_cards(
         key, reverse = spec
         matches.sort(key=lambda item: key(item[1]), reverse=reverse)
 
+    printings = None
+    if group == "name":
+        matches, printings = first_per_name(matches)
     cards = [
         serialize_bulk_card(cid, info)
         for cid, info in matches[offset:offset + limit]
     ]
+    if printings is not None:
+        for card in cards:
+            card["printings"] = printings.get(card["name"], 1)
 
     return {"cards": cards, "total": len(matches), "offset": offset, "limit": limit}
 

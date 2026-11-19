@@ -46,6 +46,33 @@ test("applyOp keeps the commander and ignores unknown keys", () => {
   assert.deepEqual(same.sections, next.sections);
 });
 
+// Audit: the card pool adds by name. A deck that has a printing keeps it.
+test("applyOp add of another printing keeps the printing the deck has", () => {
+  const islandA = { scryfall_id: "isl-a", name: "Island", set: "aaa", basic: true };
+  const islandC = { scryfall_id: "isl-c", name: "Island", set: "ccc", basic: true };
+  const s1 = applyOp(state0(), { type: "add", section: "main", card: islandA });
+  const s2 = applyOp(s1, { type: "add", section: "main", card: islandC });
+  assert.deepEqual(s2.sections.main.map((e) => [e.scryfall_id, e.count]), [["isl-a", 2]]);
+  // Another section takes the printing that the deck has too.
+  const s3 = applyOp(s2, { type: "add", section: "maybeboard", card: islandC });
+  assert.deepEqual(s3.sections.maybeboard.map((e) => [e.scryfall_id, e.set, e.count]),
+    [["isl-a", "aaa", 1]]);
+  // The commander's printing counts as the deck's printing.
+  const lead = { scryfall_id: "k1", name: "Krenko, Mob Boss" };
+  const withLead = { ...state0(), commander: lead };
+  const s4 = applyOp(withLead, { type: "add", section: "maybeboard",
+    card: { scryfall_id: "k2", name: "Krenko, Mob Boss" } });
+  assert.equal(s4.sections.maybeboard[0].scryfall_id, "k1");
+  // A name the deck does not have adds the printing given.
+  const s5 = applyOp(s2, { type: "add", section: "main", card: bolt });
+  assert.deepEqual(s5.sections.main.map((e) => e.scryfall_id), ["isl-a", "bolt"]);
+  // Unicode names match as written.
+  const j1 = { scryfall_id: "j1", name: "Jötun Grunt" };
+  const s6 = applyOp(applyOp(state0(), { type: "add", section: "main", card: j1 }),
+    { type: "add", section: "main", card: { scryfall_id: "j2", name: "Jötun Grunt" } });
+  assert.deepEqual(s6.sections.main.map((e) => [e.scryfall_id, e.count]), [["j1", 2]]);
+});
+
 test("applyOp add treats a basic land by name", () => {
   const forest = { name: "Forest", basic: true };
   const s = applyOp(applyOp(state0(), { type: "add", section: "main", card: forest }),

@@ -6,7 +6,7 @@
 
 import { h, manaNode } from "../shared/dom.js";
 import { cardImage, cardImg } from "../shared/images.js";
-import { toEntryCard } from "./model.js";
+import { shownSections, toEntryCard } from "./model.js";
 import * as api from "./api.js";
 
 const PAGE = 30;
@@ -74,7 +74,16 @@ function build(root, ctx) {
   });
 }
 
-function resultNode(card, index, owned) {
+// One add button per section the deck shows (a commander deck has no Sideboard).
+function addButtons(card, sections) {
+  return ADD_SECTIONS.filter(([section]) => sections.includes(section)).map(([section, label]) => h(
+    "button", {
+      type: "button", class: "search-add", "data-section": section,
+      "aria-label": `Add ${card.name} to ${SECTION_NAMES[section]}`, text: label,
+    }));
+}
+
+function resultNode(card, index, owned, sections) {
   const art = cardImage(card)
     ? cardImg(card, { className: "search-art", size: "small" })
     : h("span", { class: "search-art" });
@@ -82,17 +91,18 @@ function resultNode(card, index, owned) {
   name.textContent = card.name;
   const mana = manaNode(card.mana_cost, "search-mana");
   mana.setAttribute("aria-hidden", "true");
+  // One row stands for every printing of the card: the copies add up.
+  const printings = Number(card.printings) || 1;
   const have = owned
-    ? h("span", { class: "search-owned", text: `Own ${Number(card.quantity) || 0}` })
+    ? h("span", { class: "search-owned",
+      text: `Own ${Number(card.quantity) || 0}${printings > 1 ? ` · ${printings} printings` : ""}` })
     : h("span", { class: "deck-badge deck-badge-not_owned", text: "not owned" });
-  const buttons = ADD_SECTIONS.map(([section, label]) => h("button", {
-    type: "button", class: "search-add", "data-section": section,
-    "aria-label": `Add ${card.name} to ${SECTION_NAMES[section]}`, text: label,
-  }));
+  const more = !owned && printings > 1
+    ? h("span", { class: "search-printings", text: `${printings} printings` }) : null;
   return h("li", { class: "search-result", "data-index": index },
     art,
-    h("span", { class: "search-info" }, name, h("span", { class: "search-line" }, mana, have)),
-    h("span", { class: "search-adds" }, buttons));
+    h("span", { class: "search-info" }, name, h("span", { class: "search-line" }, mana, have, more)),
+    h("span", { class: "search-adds" }, addButtons(card, sections)));
 }
 
 /**
@@ -111,6 +121,15 @@ export function renderSearch(root, state) {
     build(root, ctx);
   }
   ctx.state = state;
+  // The add targets follow the sections the deck shows.
+  const sections = shownSections(state);
+  if (ctx.sections && ctx.sections.join() !== sections.join()) {
+    ctx.list.querySelectorAll(".search-result").forEach((row) => {
+      const card = ctx.cards[Number(row.dataset.index)];
+      if (card) row.querySelector(".search-adds").replaceChildren(...addButtons(card, sections));
+    });
+  }
+  ctx.sections = sections;
   // Every collection of the deck: the search reads them as one pool.
   const collection = (state.analysis && state.analysis.collection) || {};
   ctx.jobIds = (collection.job_ids && collection.job_ids.length ? collection.job_ids
@@ -138,6 +157,8 @@ async function run(ctx, append) {
     card_type: ctx.type.value,
     color: ctx.color.value,
     format: ctx.legal.checked && fmt ? fmt.key : "",
+    // One row per card name; the add takes the printing with the most copies.
+    group: "name",
     limit: PAGE,
     offset: append ? ctx.cards.length : 0,
   };
@@ -151,7 +172,7 @@ async function run(ctx, append) {
     ctx.total = data.total || 0;
     if (!append) ctx.list.replaceChildren();
     const start = ctx.cards.length - cards.length;
-    cards.forEach((card, i) => ctx.list.append(resultNode(card, start + i, !archive)));
+    cards.forEach((card, i) => ctx.list.append(resultNode(card, start + i, !archive, ctx.sections)));
     ctx.status.textContent = ctx.cards.length
       ? `Showing ${ctx.cards.length} of ${ctx.total}.` : "No cards match.";
     ctx.note.hidden = true;
