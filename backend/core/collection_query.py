@@ -234,6 +234,7 @@ class Query:
     copies: Optional[Dict[str, Tuple[int, int]]] = None
     # "is:gem": a popular card (see is_gem_card) that no saved deck holds. The
     # route fills `decked` (the card keys of every saved deck) when it is on.
+    # None means no deck is saved: then no card is a gem.
     gem: bool = False
     decked: Optional[Set[str]] = None
     # "flag:trade" and the other card flags (see backend.core.card_flags). The
@@ -412,7 +413,7 @@ def _query_passes(card: dict, query: Query, new_keys) -> bool:
             return False
         if query.free and owned - used <= 0:
             return False
-    if query.gem and (not is_gem_card(card) or card_key(card) in (query.decked or set())):
+    if query.gem and (query.decked is None or not is_gem_card(card) or card_key(card) in query.decked):
         return False
     if query.flags:
         has = (query.card_flags or {}).get(flag_key(card.get("scryfall_id"), card.get("foil")), [])

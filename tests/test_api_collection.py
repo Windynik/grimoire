@@ -510,7 +510,12 @@ def test_forgotten_gems_are_popular_cards_that_no_deck_holds(env, tmp_path):
     bulk.cards["id-wurm"]["edhrec_rank"] = 5000  # not popular enough
     decks = DeckStore(storage_dir=str(tmp_path / "decks"))
     app.dependency_overrides[get_deck_store] = lambda: decks
+    # A deck that holds another card: every popular card stays forgotten.
+    other = decks.save({"name": "Other", "format": "modern", "commander": None,
+                        "sections": {"main": [{"scryfall_id": "id-wurm", "name": "Gold Wurm", "count": 1}],
+                                     "sideboard": [], "maybeboard": []}})
     assert [c["name"] for c in get("/api/collection/cur/shelves")["gems"]] == ["Bolt", "Elf"]
+    decks.delete(other)
     # A deck that is not built still remembers the card.
     decks.save({"name": "Idea", "format": "modern", "commander": None,
                 "sections": {"main": [{"scryfall_id": "id-bolt", "name": "Bolt", "count": 1}],
@@ -518,6 +523,42 @@ def test_forgotten_gems_are_popular_cards_that_no_deck_holds(env, tmp_path):
     assert [c["name"] for c in get("/api/collection/cur/shelves")["gems"]] == ["Elf"]
     assert names("/api/collection/cur/search?q=is:gem&sort=edhrec") == ["Elf"]
     assert names("/api/collection/cur/search?q=is:gems") == ["Elf"]
+
+
+def test_forgotten_gems_hide_while_the_owner_has_no_saved_deck(env, tmp_path):
+    # UX audit, batch G2 item 5: with no saved deck every popular card qualified.
+    _, bulk = env
+    bulk.cards["id-bolt"]["edhrec_rank"] = 10
+    bulk.cards["id-elf"]["edhrec_rank"] = 50
+    decks = DeckStore(storage_dir=str(tmp_path / "decks"))
+    app.dependency_overrides[get_deck_store] = lambda: decks
+    body = get("/api/collection/cur/shelves")
+    assert body["gems"] == []
+    # The other shelves stay.
+    assert [c["name"] for c in body["valuable"]] == ["Gold Wurm", "Bolt", "Elf"]
+    # The first saved deck brings the shelf back.
+    first = decks.save({"name": "Idea", "format": "modern", "commander": None,
+                        "sections": {"main": [{"scryfall_id": "id-wurm", "name": "Gold Wurm", "count": 1}],
+                                     "sideboard": [], "maybeboard": []}})
+    assert [c["name"] for c in get("/api/collection/cur/shelves")["gems"]] == ["Bolt", "Elf"]
+    # A delete of the last deck hides it again.
+    decks.delete(first)
+    assert get("/api/collection/cur/shelves")["gems"] == []
+
+
+def test_the_gem_search_agrees_with_the_shelf_while_no_deck_is_saved(env, tmp_path):
+    # The palette action "Forgotten gems" searches is:gem. With no saved deck it listed
+    # every popular card, while the shelf was hidden.
+    _, bulk = env
+    bulk.cards["id-bolt"]["edhrec_rank"] = 10
+    bulk.cards["id-elf"]["edhrec_rank"] = 50
+    decks = DeckStore(storage_dir=str(tmp_path / "decks"))
+    app.dependency_overrides[get_deck_store] = lambda: decks
+    assert get("/api/collection/cur/search?q=is%3Agem")["cards"] == []
+    decks.save({"name": "Idea", "format": "modern", "commander": None,
+                "sections": {"main": [{"scryfall_id": "id-wurm", "name": "Gold Wurm", "count": 1}],
+                             "sideboard": [], "maybeboard": []}})
+    assert sorted(c["name"] for c in get("/api/collection/cur/search?q=is%3Agem")["cards"]) == ["Bolt", "Elf"]
 
 
 def test_insights_keep_one_price_snapshot_per_card_data_download(env):

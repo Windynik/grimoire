@@ -227,7 +227,8 @@ async def search_collection(
         used = used_counts(copies.usage)
         query.copies = {key: (used.get(key, 0), copies.owned.get(key, 0))
                         for key in used.keys() | copies.owned.keys()}
-    if query.wants_decks:
+    if query.wants_decks and await asyncio.to_thread(deck_store.list):
+        # With no saved deck, decked stays None: no card is a gem, as on the shelf.
         query.decked = await asyncio.to_thread(decked_keys, deck_store, index)
     flags = CardFlags(store.storage_dir).all()
     if query.flags:
@@ -327,7 +328,11 @@ async def collection_shelves(
     index = await bulk_data_manager.load_bulk_data()
     merged = get_merged(store, job_id, index)
     day = (today() - datetime.date(1970, 1, 1)).days
-    decked = await asyncio.to_thread(decked_keys, deck_store, index)
+    # With no saved deck every popular card is "forgotten", so the gems shelf
+    # would only be noise. Then decked stays None and the shelf stays empty.
+    decked = None
+    if await asyncio.to_thread(deck_store.list):
+        decked = await asyncio.to_thread(decked_keys, deck_store, index)
     return shelves(merged.cards, merged.new_keys, day, decked)
 
 
