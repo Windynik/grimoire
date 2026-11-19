@@ -1,7 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
-  SETTINGS_KEY, ENGINE_ONLY, ASK_MODES, DEFAULTS, readSettings, writeSettings, chooseModel,
+  SETTINGS_KEY, ENGINE_ONLY, ASK_MODES, ASK_LABELS, DEFAULTS, QUESTION_SECONDS, readSettings, writeSettings,
+  chooseModel,
 } from "../../frontend/js/shared/settings.js";
 
 function fakeStorage(initial = {}) {
@@ -25,6 +27,16 @@ test("the constants have the agreed values", () => {
   assert.equal(ENGINE_ONLY, "none");
   assert.deepEqual(ASK_MODES, ["countdown", "wait", "never"]);
   assert.deepEqual(DEFAULTS, { model: "", askMode: "countdown", autoImages: true });
+});
+
+// The Forge setup has its ask options in index.html. They keep the words of Settings.
+test("the Forge ask options in index.html match the shared labels", () => {
+  const html = readFileSync(new URL("../../frontend/index.html", import.meta.url), "utf8");
+  const select = /<select id="forge-ask-mode">([\s\S]*?)<\/select>/.exec(html)[1];
+  const options = [...select.matchAll(/<option value="([^"]+)">([^<]+)<\/option>/g)].map((m) => [m[1], m[2]]);
+  assert.deepEqual(options, Object.entries(ASK_LABELS));
+  assert.deepEqual(Object.keys(ASK_LABELS), ASK_MODES);
+  assert.match(ASK_LABELS.countdown, new RegExp(`after ${QUESTION_SECONDS} seconds`));
 });
 
 test("readSettings falls back per field", () => {

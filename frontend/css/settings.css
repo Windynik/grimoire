@@ -153,17 +153,6 @@
     margin: 0;
 }
 
-#settings-view .settings-badge {
-    font-size: 0.7rem;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--violet);
-    border: 1px solid var(--violet-dim);
-    border-radius: 999px;
-    padding: 0.15rem 0.6rem;
-}
-
 #settings-view .settings-group a {
     color: var(--gold);
     text-decoration: none;

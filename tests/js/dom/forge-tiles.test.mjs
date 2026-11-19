@@ -48,3 +48,24 @@ test("the forge asks for free copies only when the box is checked", async () => 
   await app.until(() => bodies.length === 2);
   assert.equal(bodies[1].free_only, true);
 });
+
+// UX audit, batch G2 item 6: the ask option names the countdown, so the forge sends that length.
+test("the forge sends the countdown length that its ask option names", async () => {
+  const { document, window } = app;
+  const bodies = [];
+  app.route("POST /api/forge", (req) => {
+    bodies.push(req.body);
+    return { status: 400, json: { detail: "Stop here." } };
+  });
+  await app.until(() => !document.getElementById("forge-start").disabled);
+  const select = document.getElementById("forge-ask-mode");
+  select.value = "countdown";
+  select.dispatchEvent(new window.Event("change", { bubbles: true }));
+  const label = select.selectedOptions[0].textContent;
+  const seconds = Number(/after (\d+) seconds/.exec(label)?.[1]);
+  assert.ok(seconds > 0, label);
+  document.getElementById("forge-form").dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true }));
+  await app.until(() => bodies.length === 1);
+  assert.equal(bodies[0].ask_mode, "countdown");
+  assert.equal(bodies[0].question_timeout, seconds);
+});

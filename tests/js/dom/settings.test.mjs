@@ -275,15 +275,29 @@ test("the forge setup starts with the saved ask mode", async () => {
   assert.equal($("forge-model").value, "llama3:8b");
 });
 
-test("online research is disabled", async () => {
+// UX audit, batch G2 item 6: the placeholder for a feature that does not exist is gone.
+test("Settings has no Online research placeholder", async () => {
   await setup();
-  const sw = $("settings-research");
-  assert.equal(sw.disabled, true);
-  assert.equal(sw.getAttribute("role"), "switch");
-  assert.match($("settings-view").textContent, /Coming later/);
-  assert.match($("settings-view").textContent, /Research the current meta online while forging\./);
-  sw.dispatchEvent(new window.Event("change", { bubbles: true }));
-  assert.equal(app.fetchLog.filter((r) => r.method !== "GET").length, 0);
+  assert.equal($("settings-research"), null);
+  assert.doesNotMatch($("settings-view").textContent, /Online research|Coming later|Research the current meta/);
+  assert.equal(document.querySelector("#settings-view .settings-badge"), null);
+});
+
+// UX audit, batch G2 item 6: "With a countdown" did not say what happens.
+const ASK_TEXTS = [
+  "Ask, then choose for me after 20 seconds", "Ask and wait for my answer", "Never ask; the engine chooses",
+];
+
+test("each ask mode option says what happens, on Settings and on the Forge setup", async () => {
+  await setup({ saved: { model: "", askMode: "wait" } });
+  assert.deepEqual(optionTexts("settings-ask-mode"), ASK_TEXTS);
+  assert.deepEqual([...$("settings-ask-mode").options].map((o) => o.value), ["countdown", "wait", "never"]);
+  // A saved value of an older version still selects its option.
+  assert.equal($("settings-ask-mode").value, "wait");
+  assert.deepEqual(optionTexts("forge-ask-mode"), ASK_TEXTS);
+  assert.deepEqual([...$("forge-ask-mode").options].map((o) => o.value), ["countdown", "wait", "never"]);
+  choose("settings-ask-mode", "countdown");
+  assert.equal(stored().askMode, "countdown");
 });
 
 test("the forge keeps a model the owner picked during the visit", async () => {

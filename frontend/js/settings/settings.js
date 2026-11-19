@@ -11,17 +11,12 @@ import { autoStartImageSync, imageSyncState, onImageSync, startImageSync } from 
 import { isRecommended } from "../shared/models.js";
 import { confirmDialog } from "../shared/modal.js";
 import {
-  ENGINE_ONLY, readSettings, recommendedMissingNote, writeSettings,
+  ASK_LABELS, ENGINE_ONLY, readSettings, recommendedMissingNote, writeSettings,
 } from "../shared/settings.js";
 import { readSSE } from "../shared/sse.js";
 import { showToast } from "../shared/toast.js";
 
 const PULL_COMMAND = "ollama pull qwen3.5:9b";
-const ASK_LABELS = {
-  countdown: "With a countdown",
-  wait: "Wait for my answer",
-  never: "Never ask",
-};
 
 let ui = null;
 let images = null;
@@ -394,9 +389,6 @@ function build() {
   });
   const ask = h("select", { id: "settings-ask-mode", class: "settings-select" },
     ...Object.entries(ASK_LABELS).map(([value, label]) => option(value, label)));
-  const research = h("input", {
-    id: "settings-research", type: "checkbox", role: "switch", disabled: true, "aria-describedby": "settings-research-help",
-  });
 
   model.addEventListener("change", () => saved({ model: model.value }));
   ask.addEventListener("change", () => saved({ askMode: ask.value }));
@@ -413,12 +405,6 @@ function build() {
     pricesGroup(),
     imagesGroup(),
     phoneGroup(),
-    group("Online research",
-      h("label", { class: "settings-switch" },
-        research,
-        h("span", { class: "settings-switch-label", text: "Online research" }),
-        h("span", { class: "settings-badge", text: "Coming later" })),
-      h("p", { id: "settings-research-help", class: "settings-help", text: "Research the current meta online while forging." })),
     group("About",
       h("p", { class: "settings-help" }, h("strong", { text: "Version" }), " 1.0.0"),
       h("p", { class: "settings-help" }, h("strong", { text: "Powered by" }), " ",

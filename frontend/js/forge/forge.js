@@ -5,7 +5,9 @@
 
 import * as api from "./api.js";
 import { isRecommended as isRecommendedModel } from "../shared/models.js";
-import { ENGINE_ONLY, chooseModel, readSettings, recommendedMissingNote } from "../shared/settings.js";
+import {
+  ENGINE_ONLY, QUESTION_SECONDS, chooseModel, readSettings, recommendedMissingNote,
+} from "../shared/settings.js";
 import { ForgeStage } from "./stage.js";
 import { ThoughtFeed } from "./feed.js";
 import { Timeline, STAGE_NAMES } from "./timeline.js";
@@ -403,6 +405,8 @@ function params() {
     wish: $("forge-wish").value.trim(),
     model: $("forge-model").value,
     ask_mode: $("forge-ask-mode").value,
+    // The ask option names this length, so the forge sends it.
+    question_timeout: QUESTION_SECONDS,
   };
   if ($("forge-free-only").checked) body.free_only = true;
   if (casual) {

@@ -9,6 +9,14 @@ export const SETTINGS_KEY = "grimoire.settings";
 /** The model value that means "run the engine without AI". */
 export const ENGINE_ONLY = "none";
 export const ASK_MODES = ["countdown", "wait", "never"];
+/** The seconds a forge question waits before the engine chooses ("countdown" mode). The forge sends it. */
+export const QUESTION_SECONDS = 20;
+/** The label of each ask mode. Settings and the Forge setup show the same words. */
+export const ASK_LABELS = {
+  countdown: `Ask, then choose for me after ${QUESTION_SECONDS} seconds`,
+  wait: "Ask and wait for my answer",
+  never: "Never ask; the engine chooses",
+};
 /** model "" means automatic. */
 export const DEFAULTS = { model: "", askMode: "countdown", autoImages: true };
 
