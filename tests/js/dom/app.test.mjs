@@ -36,8 +36,10 @@ test("the nav switches views", async () => {
 test("a failed collection export shows the server's reason", async () => {
   document.querySelector('.nav-item[data-screen="home"]').click();
   await app.until(() => document.getElementById("home-view").classList.contains("active"));
-  const link = await app.until(() => document.querySelector(".collection-export"));
-  link.click();
+  // Home has the Export menu of the Collection screen (UX audit, batch G2 item 3).
+  const menu = await app.until(() => document.querySelector("#dashboard-collections .collection-export-menu"));
+  menu.open = true;
+  menu.querySelector('[data-kind="enhanced"]').click();
   await app.until(() => document.querySelector("#toast-container .toast.error"));
   assert.match(document.querySelector("#toast-container").textContent, /Import the CSV again/);
 });

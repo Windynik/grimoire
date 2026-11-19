@@ -14,7 +14,7 @@ import {
 } from "../shared/session.js";
 import { readSSE } from "../shared/sse.js";
 import { showToast } from "../shared/toast.js";
-import { exportCollection } from "../shared/export.js";
+import { exportMenu } from "../shared/export.js";
 import { gateFirstRun } from "../welcome/gate.js";
 
 const API_BASE = "/api";
@@ -180,17 +180,10 @@ function collectionRow(c) {
     onclick: () => renameCollection(c),
   }, "Rename");
 
-  const exportLink = h("a", {
-    class: "btn btn-secondary btn-compact collection-export",
-    href: `${API_BASE}/collection/${encodeURIComponent(c.job_id)}/export`,
-    download: true,
-    title: "Download this collection as a CSV",
-    "aria-label": `Export ${c.name} as CSV`,
-    onclick: (e) => {
-      e.preventDefault();
-      exportCollection(c);
-    },
-  }, "Export CSV");
+  // The same Export menu as on the Collection screen.
+  const exportChoices = exportMenu(() => c, {
+    summaryClass: "btn btn-secondary btn-compact", label: `Export ${c.name}`, title: "Download this collection",
+  });
 
   const remove = h("button", {
     type: "button",
@@ -204,7 +197,15 @@ function collectionRow(c) {
     h("div", { class: "collection-row-info" },
       h("span", { class: "collection-row-name", text: c.name }),
       h("span", { class: "collection-row-meta", text: `${count} cards${created}` })),
-    h("div", { class: "collection-row-actions" }, view, rename, exportLink, remove));
+    h("div", { class: "collection-row-actions" }, view, rename, exportChoices, remove));
+}
+
+// The list starts with a loading line (index.html). A failure puts the reason in its place.
+function showCollectionsError(reason) {
+  $("dashboard-collections").replaceChildren(h("p", {
+    class: "home-empty", role: "alert",
+    text: reason ? `Could not load the collections: ${reason}` : "Could not load the collections.",
+  }));
 }
 
 /** Show the collection list. Resolves to the list, or null when it did not load. */

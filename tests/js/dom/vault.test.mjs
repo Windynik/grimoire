@@ -937,6 +937,17 @@ test("the Export menu downloads each format and is hidden in the archive", async
   assert.equal($("#collection-export").hidden, true);
 });
 
+// UX audit, batch G2 item 3: Home and this screen share one Export menu.
+test("the Export menu is the shared menu, with the labels that Home shows", async () => {
+  await openVault();
+  const menu = $("#collection-export");
+  assert.ok(menu.classList.contains("collection-export-menu"));
+  assert.equal(menu.querySelector("summary").textContent, "Export");
+  assert.deepEqual($$("#collection-export [data-kind]").map((b) => b.textContent), [
+    "CSV with card data", "ManaBox CSV", "Moxfield CSV", "Archidekt CSV", "Deckbox CSV", "Card list (text)"]);
+  assert.equal($$(".collection-export-menu#collection-export").length, 1, "one menu, no copy in the markup");
+});
+
 test("a failed export shows the server's reason", async () => {
   await openVault();
   app.route("GET /api/collection/job1/export", () => ({ status: 409, json: { detail: "Import the CSV again to export it." } }));

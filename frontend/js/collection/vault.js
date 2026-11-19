@@ -9,7 +9,7 @@
 
 import { h } from "../shared/dom.js";
 import { getJSON } from "../shared/http.js";
-import { exportCollection } from "../shared/export.js";
+import { exportMenu } from "../shared/export.js";
 import { reducedMotion } from "../shared/motion.js";
 import {
   activeCollection, setActiveCollection, setViewerSource, viewerSource,
@@ -956,8 +956,13 @@ function init() {
     empty: byId("vault-empty"),
     sentinel: byId("scroll-sentinel"),
     moreError: byId("vault-more-error"),
-    exportLink: byId("collection-export"),
+    // The Export menu of the shown collection. Home rows use the same menu.
+    exportLink: exportMenu(() => collectionOf(screen.source), {
+      id: "collection-export", summaryClass: "vault-import vault-export", title: "Download this collection",
+    }),
   });
+  ui.exportLink.hidden = true;
+  byId("collection-import").after(ui.exportLink);
   ui.listBody = null;
 
   ui.title.addEventListener("click", () => (menuOpen() ? closeMenu(false) : openMenu()));
@@ -1010,15 +1015,6 @@ function init() {
     else if (event.key === "Escape" && event.target !== ui.search) closeSheet();
   });
   ui.moreError.querySelector("button").addEventListener("click", retryMore);
-  // The Export menu: each button downloads one format.
-  ui.exportLink.addEventListener("click", (event) => {
-    const button = event.target.closest("button[data-kind]");
-    if (!button) return;
-    ui.exportLink.open = false;
-    const current = collectionOf(screen.source);
-    if (current) exportCollection(current, button.dataset.kind);
-  });
-
   ui.grid.addEventListener("keydown", onGridKey);
   ui.list.addEventListener("keydown", onListKey);
   ui.shelves.addEventListener("keydown", onShelfKey);

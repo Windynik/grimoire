@@ -215,3 +215,83 @@ test("a page in view on another screen does not check the card data", async () =
   await app.settle();
   assert.equal(app.fetchLog.filter((r) => r.path === "/api/cache/status").length, 0);
 });
+
+// ---- UX audit, batch G2 item 3: one Export menu ------------------------------
+
+// The choices of the Export menu on the Collection screen (see vault.test.mjs).
+const EXPORT_CHOICES = [
+  ["enhanced", "CSV with card data"], ["manabox", "ManaBox CSV"], ["moxfield", "Moxfield CSV"],
+  ["archidekt", "Archidekt CSV"], ["deckbox", "Deckbox CSV"], ["list", "Card list (text)"],
+];
+
+// Catch the download link clicks of the export. Returns the file names and a restore function.
+function catchDownloads() {
+  const files = [];
+  const proto = window.HTMLAnchorElement.prototype;
+  const original = proto.click;
+  proto.click = function spy() {
+    if (this.hasAttribute("download") && String(this.getAttribute("href")).startsWith("blob:")) {
+      files.push(this.getAttribute("download"));
+    } else {
+      original.call(this);
+    }
+  };
+  return { files, restore: () => { proto.click = original; } };
+}
+
+test("each collection row has the Export menu of the Collection screen", async () => {
+  const second = { job_id: "job2", name: "Trade Box", card_count: 9, created: null };
+  await setup({ collections: [box, second] });
+  await app.until(() => document.querySelectorAll(".collection-row").length === 2);
+  const menus = [...document.querySelectorAll("#dashboard-collections details.collection-export-menu")];
+  assert.equal(menus.length, 2);
+  const summary = menus[0].querySelector("summary");
+  assert.equal(summary.textContent, "Export");
+  assert.equal(summary.getAttribute("aria-label"), "Export Test box");
+  assert.equal(menus[1].querySelector("summary").getAttribute("aria-label"), "Export Trade Box");
+  const choices = [...menus[0].querySelectorAll("[data-kind]")].map((b) => [b.dataset.kind, b.textContent]);
+  assert.deepEqual(choices, EXPORT_CHOICES);
+  // The old one-format link is gone, and no menu has an id that a second row would repeat.
+  assert.doesNotMatch(text("#dashboard-collections"), /Export CSV/);
+  assert.ok(menus.every((menu) => !menu.id));
+});
+
+test("a choice in the Home Export menu downloads that format and closes the menu", async () => {
+  await setup();
+  app.route("GET /api/collection/job1/export", () => ({ body: "name\nBolt\n", headers: { "content-type": "text/csv" } }));
+  const menu = await app.until(() => document.querySelector("#dashboard-collections .collection-export-menu"));
+  const caught = catchDownloads();
+  try {
+    menu.open = true;
+    menu.querySelector('[data-kind="moxfield"]').click();
+    await app.until(() => caught.files.length === 1);
+    assert.equal(caught.files[0], "Test box (Moxfield).csv");
+    assert.equal(menu.open, false);
+    menu.querySelector('[data-kind="enhanced"]').click();
+    await app.until(() => caught.files.length === 2);
+    assert.equal(caught.files[1], "Test box.csv");
+  } finally {
+    caught.restore();
+  }
+  const asked = app.fetchLog.filter((r) => r.path === "/api/collection/job1/export");
+  assert.deepEqual(asked.map((r) => r.query.get("kind")), ["moxfield", null]);
+});
+
+test("a click outside an open Export menu closes it", async () => {
+  await setup();
+  const menu = await app.until(() => document.querySelector("#dashboard-collections .collection-export-menu"));
+  menu.open = true;
+  menu.querySelector(".collection-export-list").click();
+  assert.equal(menu.open, true, "a click inside the list keeps it open");
+  document.getElementById("home-collections-title").click();
+  assert.equal(menu.open, false);
+});
+
+test("a refused Home export shows the reason of the server", async () => {
+  await setup();
+  app.route("GET /api/collection/job1/export", () => ({ status: 404, json: { detail: "Collection not found" } }));
+  document.getElementById("toast-container").textContent = "";
+  const menu = await app.until(() => document.querySelector("#dashboard-collections .collection-export-menu"));
+  menu.querySelector('[data-kind="list"]').click();
+  await app.until(() => /Collection not found/.test(text("#toast-container")));
+});
