@@ -140,7 +140,7 @@ def test_analysis_size_and_no_commander_issues(playbook):
     bear = make_record("Bear", legal=LEGAL_ALL)
     index = _pool(bear)
     short = _run(_deck([_line(bear, 4)]), index, playbook)
-    assert {"code": "size", "message": "4 of 60 cards"} in short["issues"]
+    assert {"code": "size", "message": "4 cards; 60 needed."} in short["issues"]
     over = _run(_deck([_line(bear, 4), _forest(60)]), index, playbook)
     assert not [i for i in over["issues"] if i["code"] == "size"]
     edh = _run(_deck([_line(bear, 1)], fmt="commander"), index, playbook)
@@ -319,6 +319,23 @@ def test_a_commander_deck_has_bracket_facts_and_other_formats_do_not(playbook):
     assert result["bracket"]["floor"] == 3
     assert result["bracket"]["game_changers"] == ["Power Card"]
     assert _run(_deck([_line(gc, 1)]), index, playbook)["bracket"] is None
+
+
+def test_mana_issue_names_the_color_and_counts_one_source(playbook):
+    # Audit: "1 U sources; 8 recommended." used the color letter and the wrong plural.
+    spell = make_record("Blue Wish", mana_cost="{U}{U}{U}", cmc=3, color_identity=("U",))
+    island = make_record("Lone Island", type_line="Land", mana_cost="", cmc=0,
+                         color_identity=("U",), produced=("U",))
+    index = _pool(spell, island)
+    needed = playbook.formats["modern"].color_sources["primary"]
+    one = _run(_deck([_line(spell, 4), _line(island, 1)]), index, playbook)
+    assert {"code": "mana", "message": "1 blue source; %d recommended." % needed} in one["issues"]
+    none = _run(_deck([_line(spell, 4)]), index, playbook)
+    assert {"code": "mana", "message": "0 blue sources; %d recommended." % needed} in none["issues"]
+    two = _run(_deck([_line(spell, 4), _line(island, 2)]), index, playbook)
+    assert {"code": "mana", "message": "2 blue sources; %d recommended." % needed} in two["issues"]
+
+
 def test_analysis_gives_the_scale_of_the_metrics(playbook):
     # The editor explains each metric; the synergy cap and the weights come from the playbook.
     bear = make_record("Bear", legal=LEGAL_ALL)
@@ -332,3 +349,14 @@ def test_analysis_gives_the_scale_of_the_metrics(playbook):
     }
 
 
+def test_size_issue_counts_one_card(playbook):
+    bear = make_record("Bear", legal=LEGAL_ALL)
+    one = _run(_deck([_line(bear, 1)]), _pool(bear), playbook)
+    assert {"code": "size", "message": "1 card; 60 needed."} in one["issues"]
+
+
+# "61 of 60 cards" read as 61 out of 60, like the old "18 of 14 sources".
+def test_size_issue_of_a_commander_deck_with_too_many_cards(playbook):
+    bear = make_record("Bear", legal=LEGAL_ALL)
+    over = _run(_deck([_line(bear, 1), _forest(100)], fmt="commander"), _pool(bear), playbook)
+    assert {"code": "size", "message": "101 cards; 100 allowed."} in over["issues"]

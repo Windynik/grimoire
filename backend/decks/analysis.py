@@ -399,14 +399,18 @@ def analyze(record: dict, index: Dict[str, dict], collection: Optional[List[dict
     mana = _mana(deck, fmt, colors)
     issues = []  # type: List[dict]
     if (count["main"] != fmt.deck_size) if fmt.commander else (count["main"] < fmt.deck_size):
-        issues.append({"code": "size",
-                       "message": "%d of %d cards" % (count["main"], fmt.deck_size)})
+        # "61 of 60 cards" read as 61 out of 60. Say the count, then the rule it breaks.
+        rule = "allowed" if count["main"] > fmt.deck_size else "needed"
+        issues.append({"code": "size", "message": "%d card%s; %d %s." % (
+            count["main"], "" if count["main"] == 1 else "s", fmt.deck_size, rule)})
     if fmt.commander and not record.get("commander"):
         issues.append({"code": "no_commander", "message": "Choose a commander."})
     for row in mana:
         if row["sources"] < row["needed"]:
-            issues.append({"code": "mana", "message": "%d %s sources; %d recommended." % (
-                row["sources"], row["color"], row["needed"])})
+            # "1 blue source; 8 recommended." The color has its name, not its letter.
+            issues.append({"code": "mana", "message": "%d %s %s; %d recommended." % (
+                row["sources"], COLOR_WORDS.get(row["color"], row["color"]),
+                "source" if row["sources"] == 1 else "sources", row["needed"])})
     metrics = {}
     if deck.nonland_entries():
         cards = {e.card.id: e.card for e in deck.entries if e.card is not None}

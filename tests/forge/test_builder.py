@@ -286,7 +286,8 @@ def test_color_source_warning(playbook):
     deck = build(playbook, "modern", cards, backbone(cards, set(), "GW"))
     plains = basics(deck).get("Plains", 0)
     assert plains < 10
-    assert f"Only {plains} white sources; 10 recommended." in deck.warnings
+    noun = "source" if plains == 1 else "sources"
+    assert f"Only {plains} white {noun}; 10 recommended." in deck.warnings
     assert not any("green sources" in w for w in deck.warnings)
 
 
@@ -657,6 +658,16 @@ def test_fill_reason_names_the_role_in_plain_words(playbook):
     assert "boardwipe" in card.roles
     no_synergy = SimpleNamespace(synergy={card.id: 0.0})
     assert _fill_reason(card, no_synergy) == ("boardwipe", "Wipes the board.")
+
+
+def test_source_warning_counts_one_source(rules):
+    from backend.forge.builder import DeckEntry, _source_warnings
+    fmt = rules["modern"]
+    one = [DeckEntry(card=None, name="Island", count=1, role="basic", reason="", basic=True)]
+    assert _source_warnings(one, {"U": 6}, fmt, frozenset("U")) == [
+        "Only 1 blue source; %d recommended." % fmt.color_sources["primary"]]
+    assert _source_warnings([], {"U": 6}, fmt, frozenset("U")) == [
+        "Only 0 blue sources; %d recommended." % fmt.color_sources["primary"]]
 
 
 def test_an_off_color_fetch_land_is_left_out(playbook):

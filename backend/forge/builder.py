@@ -664,7 +664,8 @@ def source_shortfalls(entries: List[DeckEntry], demand: Dict[str, int], fmt: For
 def _source_warnings(entries: List[DeckEntry], demand: Dict[str, int],
                      fmt: FormatRules, colors: FrozenSet[str]) -> List[str]:
     """Warn for each demanded color with fewer sources than fmt.color_sources."""
-    return [f"Only {have} {COLOR_NAMES[color]} sources; {need} recommended."
+    return [f"Only {have} {COLOR_NAMES[color]} {'source' if have == 1 else 'sources'}; "
+            f"{need} recommended."
             for color, have, need in source_shortfalls(entries, demand, fmt, colors)]
 
 
