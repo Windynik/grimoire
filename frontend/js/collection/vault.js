@@ -139,7 +139,7 @@ function update(change) {
   renderChips();
   renderSidebar();
   syncOrbs(ui.orbs, screen.state.colors);
-  reload();
+  return reload();
 }
 
 function toggle(facet, value) {
@@ -622,12 +622,17 @@ function enterSets() {
   drawSets();
 }
 
-/** The owner left Sets for Grid or List. */
-function leaveSets() {
+/** Close the Sets panel and drop a sets answer that is still on its way. */
+function closeSets() {
   screen.setsToken += 1;
   screen.setsOpen = null;
   ui.sets.hidden = true;
   ui.sets.replaceChildren();
+}
+
+/** The owner left Sets for Grid or List. */
+function leaveSets() {
+  closeSets();
   renderShelvesVisibility();
   setStatus("ready");
   if (screen.stale) {
@@ -1135,11 +1140,45 @@ export async function open(params = {}) {
   if (gateFirstRun("collection", collections)) return;
   screen.collections = collections;
   await switchTo(resolveSource());
+  const wanted = (params && params.state) || {};
+  const card = wanted.card && typeof wanted.card.id === "string" ? wanted.card : null;
+  if (card && opened === opens) {
+    await showCard(card);
+    return;
+  }
   // A search from the command palette (or another screen) replaces the search text.
-  const asked = params && params.state && typeof params.state.q === "string" ? params.state.q : null;
+  const asked = typeof wanted.q === "string" ? wanted.q : null;
   if (asked !== null && opened === opens) {
     clearTimeout(searchTimer);
     ui.search.value = asked;
     update((s) => { s.q = asked; });
   }
+}
+
+/** The search text that finds one card name: the name in quotes, when the name has no quote. */
+function nameQuery(name) {
+  const text = String(name || "").trim();
+  return text.includes("\"") ? text : `"${text}"`;
+}
+
+/**
+ * Show one card from the command palette: search its name, then open its card
+ * panel. The Sets view gives way to the grid, which shows cards.
+ */
+async function showCard(card) {
+  const opened = opens;
+  const text = nameQuery(card.name);
+  clearTimeout(searchTimer);
+  searchTimer = 0;
+  ui.search.value = text;
+  if (inSets()) {
+    closeSets();
+    screen.state.view = "grid";
+    redrawView();
+  }
+  await update((s) => { s.q = text; });
+  if (opened !== opens || screen.archive) return;
+  const found = screen.cards.find((c) => c.scryfall_id === card.id)
+    || screen.cards.find((c) => c.name === card.name);
+  if (found) openFrom(found);
 }
