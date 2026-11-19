@@ -582,6 +582,83 @@ def test_color_sources_matches_source_shortfalls(playbook, rules):
         ("U", sources["U"], fmt.color_sources["secondary"])]
 
 
+def test_core_reasons_say_what_each_card_does_for_the_plan(playbook):
+    # Audit: every core row said "Core card of the Aristocrats plan."
+    cards = tagged(playbook, "pauper", gw_records(), [4] * len(gw_records()))
+    deck = build(playbook, "pauper", cards, backbone(cards, CORE_NAMES, "GW"))
+    core = {e.name: e.reason for e in deck.entries if e.role == "core"}
+    assert core, "the backbone members are in the deck"
+    assert all(not r.startswith("Core card of") for r in core.values()), core
+    outlets = {r for n, r in core.items() if n.startswith("Sac Outlet")}
+    payoffs = {r for n, r in core.items() if n.startswith("Death Payoff")}
+    assert outlets == {"Sacrifices creatures for the Aristocrats plan."}
+    assert payoffs == {"Pays off creatures dying."}
+
+
+def _artifacts_plan(hooks=("artifacts",), name="Artifacts"):
+    bone = Backbone(id="t", hooks=hooks, name=name, members=[], colors=frozenset("U"),
+                    commander_id=None, score=1.0)
+    return BuildPlan(backbone=bone, playstyle="midrange")
+
+
+def test_core_reason_comes_from_the_hooks_then_the_roles(playbook):
+    from backend.forge.builder import core_reason
+    recs = [
+        creature("Treasure Kid", 1, "When this creature enters, create a Treasure token.",
+                 colors=("U",)),
+        make_record("Plain Relic", type_line="Artifact", mana_cost="{1}", cmc=1,
+                    color_identity=()),
+        creature("Relic Fan", 2, "Whenever an artifact you control enters, scry 1.",
+                 colors=("U",)),
+        make_record("Relic Fan Engine", type_line="Artifact Creature — Construct",
+                    oracle_text="Whenever another artifact you control enters, scry 1.",
+                    mana_cost="{2}", cmc=2, color_identity=()),
+        spell("Deep Study", DRAW, colors=("U",), type_line="Sorcery"),
+        creature("Plain Bear", 3, colors=("U",)),
+    ]
+    cards = by_name(tagged(playbook, "modern", recs))
+    plan = _artifacts_plan()
+    assert core_reason(cards["Treasure Kid"], plan) == "Makes Treasure for the Artifacts plan."
+    assert core_reason(cards["Plain Relic"], plan) == "Adds an artifact for the Artifacts plan."
+    assert core_reason(cards["Relic Fan"], plan) == "Pays off artifacts."
+    assert core_reason(cards["Relic Fan Engine"], plan) == (
+        "Adds an artifact and pays off artifacts.")
+    # No hook of the plan: the tagged role says what the card does.
+    assert core_reason(cards["Deep Study"], plan) == "Draws cards for the Artifacts plan."
+    # Nothing better is known: the old text stays.
+    assert core_reason(cards["Plain Bear"], plan) == "Core card of the Artifacts plan."
+
+
+def test_core_reason_of_a_tribal_plan_names_the_tribe(playbook):
+    from backend.forge.builder import core_reason
+    recs = [creature("Elf Scout", 1, colors=("G",), type_line="Creature — Elf Scout"),
+            creature("Elf Lord", 2, "Other Elves you control get +1/+1.", colors=("G",),
+                     type_line="Creature — Human Druid"),
+            spell("Grow Elves", "Create two 1/1 green Elf Warrior creature tokens.",
+                  colors=("G",), type_line="Sorcery")]
+    cards = hydrate(*make_pool(recs), playbook.formats["modern"])
+    tag_cards(cards, playbook, extra_tribes=["Elf"])
+    cards = by_name(cards)
+    plan = _artifacts_plan(hooks=("tribal:Elf",), name="Elf tribal")
+    plurals = playbook.tribal_plurals
+    assert core_reason(cards["Elf Scout"], plan, plurals) == "Is an Elf for the Elf tribal plan."
+    assert core_reason(cards["Elf Lord"], plan, plurals) == "Pays off Elves."
+    assert core_reason(cards["Grow Elves"], plan, plurals) == (
+        "Makes Elf tokens for the Elf tribal plan.")
+
+
+def test_fill_reason_names_the_role_in_plain_words(playbook):
+    # "Adds boardwipe." was the old text of a fill card with a role and no synergy.
+    from types import SimpleNamespace
+    from backend.forge.builder import _fill_reason
+    wrath = by_name(tagged(playbook, "modern", [spell("Wrath", "Destroy all creatures.",
+                                                      colors=("W",), type_line="Sorcery")]))
+    card = wrath["Wrath"]
+    assert "boardwipe" in card.roles
+    no_synergy = SimpleNamespace(synergy={card.id: 0.0})
+    assert _fill_reason(card, no_synergy) == ("boardwipe", "Wipes the board.")
+
+
 def test_an_off_color_fetch_land_is_left_out(playbook):
     strand = land("Flooded Strand", (), text=(
         "{T}, Pay 1 life, Sacrifice Flooded Strand: Search your library for a Plains or "

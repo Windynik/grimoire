@@ -13,6 +13,7 @@ from typing import Dict, FrozenSet, List, Optional, Set, Tuple
 from backend.forge.cards import COLORS, OwnedCard, fits_colors
 from backend.forge.graph import Backbone, SynergyGraph, card_weight
 from backend.forge.playbook import FormatRules, Playbook
+from backend.forge.tagging import TRIBAL_PREFIX as TRIBAL, tribe_plural
 
 BASIC_FOR_COLOR = {"W": "Plains", "U": "Island", "B": "Swamp", "R": "Mountain", "G": "Forest"}
 COLORLESS_BASIC = "Wastes"
@@ -198,6 +199,7 @@ class _State:
     have: Dict[str, int] = field(default_factory=dict)
     buckets: Dict[str, int] = field(default_factory=dict)
     picks: List[_Pick] = field(default_factory=list)
+    plurals: Dict[str, str] = field(default_factory=dict)  # playbook tribal_plurals
 
 
 def _synergy(card: OwnedCard, state: _State) -> float:
@@ -268,12 +270,123 @@ def _open(pool: List[OwnedCard], state: _State) -> List[OwnedCard]:
     return [card for card in pool if card.id not in state.counts]
 
 
+# What a card does for one hook of the plan, as the start of a sentence.
+# A gives text can depend on the card (see _gives_deed); these are the defaults.
+HOOK_GIVES = {
+    "tokens": "Makes creature tokens",
+    "death": "Sacrifices creatures",
+    "lifegain": "Gains life",
+    "counters": "Puts +1/+1 counters on creatures",
+    "graveyard": "Fills the graveyard",
+    "landfall": "Puts extra lands onto the battlefield",
+    "blink": "Blinks creatures",
+    "voltron": "Suits up a creature",
+}
+HOOK_WANTS = {
+    "tokens": "Pays off a wide board",
+    "death": "Pays off creatures dying",
+    "lifegain": "Pays off life gain",
+    "counters": "Pays off +1/+1 counters",
+    "enchantments": "Pays off enchantments",
+    "spells": "Pays off instants and sorceries",
+    "graveyard": "Uses the graveyard",
+    "artifacts": "Pays off artifacts",
+    "landfall": "Pays off lands entering",
+    "blink": "Has an enters ability to reuse",
+    "voltron": "Pays off auras and equipment",
+}
+# What a tagged role does (playbook "roles"), as the start of a sentence.
+ROLE_DEEDS = {
+    "ramp": "Ramps",
+    "draw": "Draws cards",
+    "selection": "Smooths the draws",
+    "removal": "Removes threats",
+    "boardwipe": "Wipes the board",
+    "counterspell": "Counters spells",
+    "protection": "Protects the board",
+    "recursion": "Brings cards back",
+    "tutor": "Finds key cards",
+    "finisher": "Closes the game",
+}
+_ARTIFACT_TOKEN = re.compile(
+    r"\bcreates? [^.]*?\b(treasure|clue|food|blood|map|powerstone|lander|gold|junk|incubator)\b",
+    re.IGNORECASE)
+
+
+def _article(word: str) -> str:
+    return "an" if word[:1].upper() in "AEIOU" else "a"
+
+
+def _gives_deed(card: OwnedCard, hook: str) -> Optional[str]:
+    """What the card adds to a hook of the plan, or None for an unknown hook."""
+    if hook.startswith(TRIBAL):
+        tribe = hook[len(TRIBAL):]
+        if tribe in card.subtypes or "Changeling" in card.keywords:
+            return f"Is {_article(tribe)} {tribe}"
+        return f"Makes {tribe} tokens"
+    if hook == "artifacts":
+        token = _ARTIFACT_TOKEN.search(card.oracle_text or "")
+        if token:
+            return f"Makes {token.group(1).capitalize()}"
+        return "Adds an artifact" if "Artifact" in card.types else "Makes artifact tokens"
+    if hook == "enchantments":
+        return "Adds an enchantment" if "Enchantment" in card.types else "Finds enchantments"
+    if hook == "spells":
+        for kind in ("Instant", "Sorcery"):
+            if kind in card.types:
+                return f"Adds {_article(kind)} {kind.lower()}"
+        return "Copies or casts spells"
+    return HOOK_GIVES.get(hook)
+
+
+def _wants_deed(hook: str, plurals: Dict[str, str]) -> Optional[str]:
+    """What the card pays off for a hook of the plan, or None for an unknown hook."""
+    if hook.startswith(TRIBAL):
+        tribe = hook[len(TRIBAL):]
+        return f"Pays off {tribe_plural(tribe, plurals)}"
+    return HOOK_WANTS.get(hook)
+
+
+def core_reason(card: OwnedCard, plan: BuildPlan,
+                plurals: Optional[Dict[str, str]] = None) -> str:
+    """One short sentence on what a core card does for the plan.
+
+    The hooks of the plan come first: the first one the card gives and the
+    first one it wants. Then the card's first role. The old text "Core card of
+    the <plan> plan." stays when nothing better is known.
+
+    Args:
+        card: A tagged card (gives, wants and roles are set).
+        plan: The build plan; its backbone has the hooks and the name.
+        plurals: Irregular plurals of creature types (playbook tribal_plurals).
+
+    Returns:
+        For example "Makes Treasure for the Artifacts plan." or "Pays off artifacts."
+    """
+    plurals = plurals or {}
+    name = plan.backbone.name
+    gives = next((d for d in (_gives_deed(card, h) for h in plan.backbone.hooks
+                              if h in card.gives) if d), None)
+    wants = next((d for d in (_wants_deed(h, plurals) for h in plan.backbone.hooks
+                              if h in card.wants) if d), None)
+    if gives and wants:
+        return f"{gives} and {wants[:1].lower()}{wants[1:]}."
+    if gives:
+        return f"{gives} for the {name} plan."
+    if wants:
+        return f"{wants}."
+    role = next((r for r in sorted(card.roles) if r in ROLE_DEEDS), None)
+    if role:
+        return f"{ROLE_DEEDS[role]} for the {name} plan."
+    return f"Core card of the {name} plan."
+
+
 def _fill_reason(card: OwnedCard, state: _State) -> Tuple[str, str]:
     if _synergy(card, state) > 0:
         return "synergy", "Synergy with the core."
     if card.roles:
         role = sorted(card.roles)[0]
-        return role, f"Adds {role}."
+        return role, f"{ROLE_DEEDS[role]}." if role in ROLE_DEEDS else f"Adds {role}."
     return "synergy", "Strong card for the curve."
 
 
@@ -297,7 +410,7 @@ def _place_nonland(pool: List[OwnedCard], members: List[OwnedCard],
         card = min(left, key=lambda c: (-_core_pull(c, placed, state), -_card_score(c, state),
                                         -c.quality, c.name))
         left.remove(card)
-        _place(card, "core", f"Core card of the {plan.backbone.name} plan.", state)
+        _place(card, "core", core_reason(card, plan, state.plurals), state)
         placed.add(card.id)
     for key, quota in state.quotas.items():
         while state.have.get(key, 0) < quota and state.filled < state.slots:
@@ -630,7 +743,8 @@ def build_deck(cards: List[OwnedCard], graph: SynergyGraph, playbook: Playbook,
         state = _State(fmt=fmt, weights=playbook.weights, graph=graph, core=core,
                        quotas=playbook.quotas(fmt, plan.playstyle), curve=curve,
                        splash=splash, prefer={n.strip().lower() for n in plan.prefer},
-                       slots=max(0, fmt.deck_size - target - reserved), synergy=synergy)
+                       slots=max(0, fmt.deck_size - target - reserved), synergy=synergy,
+                       plurals=dict(playbook.tribal_plurals or {}))
         _place_nonland(nonland, members, required_nonland, plan, state)
         placed = [(p.card, p.count) for p in state.picks]
         mdfc = sum(count for card, count in placed if card.mdfc_land_back)

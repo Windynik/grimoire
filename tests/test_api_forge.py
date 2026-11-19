@@ -114,6 +114,22 @@ def test_forge_runs_engine_only_to_done(overrides):
         assert decks.get(frames[-1][2]["deck_id"]) is not None
 
 
+def test_a_forged_deck_saves_a_reason_per_core_card(overrides):
+    # Audit: every core row said "Core card of the Aristocrats plan."
+    _, _, decks = overrides
+    with TestClient(app) as client:
+        response = client.post("/api/forge", json={"job_id": "aaa1", "format": "casual",
+                                                   "colors": "B", "ask_mode": "never"})
+        frames = read_events(client, response.json()["forge_id"])
+        assert frames[-1][1] == "done", frames[-1]
+        main = decks.get(frames[-1][2]["deck_id"])["sections"]["main"]
+    core = {line["name"]: line["reason"] for line in main if line.get("role") == "core"}
+    assert core, main
+    assert not [r for r in core.values() if r.startswith("Core card of")], core
+    outlets = {r for n, r in core.items() if n.startswith("Sac Outlet")}
+    assert outlets <= {"Sacrifices creatures for the Aristocrats plan."}, outlets
+
+
 def test_events_replay_after_last_event_id(overrides):
     with TestClient(app) as client:
         forge_id = client.post("/api/forge", json={"job_id": "aaa1", "format": "casual",
