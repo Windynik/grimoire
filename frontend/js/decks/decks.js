@@ -363,6 +363,13 @@ export async function leave() {
 function init() {
   $("decks-new").addEventListener("click", newDeckDialog);
   $("decks-import").addEventListener("click", importDialog);
+  // The empty state names the same two dialogs. Its "forge one" is a plain link to #forge.
+  $("decks-empty").addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-empty]");
+    if (!button) return;
+    if (button.dataset.empty === "new") newDeckDialog();
+    else if (button.dataset.empty === "import") importDialog();
+  });
   $("decks-search").addEventListener("input", (event) => setFilters({ q: event.target.value }));
   $("decks-sort").addEventListener("change", (event) => setFilters({ sort: event.target.value }));
   $("decks-format").addEventListener("change", (event) => setFilters({ format: event.target.value }));

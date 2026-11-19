@@ -43,6 +43,28 @@
     color: var(--text-dim);
 }
 
+/* The actions in the empty state read as links in the sentence. */
+#decks-view .decks-empty-link {
+    padding: 0;
+    border: 0;
+    border-bottom: 1px solid var(--gold-dim);
+    background: none;
+    color: var(--gold);
+    font: inherit;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+#decks-view .decks-empty-link:hover,
+#decks-view .decks-empty-link:focus-visible {
+    color: var(--gold-bright);
+}
+
+#decks-view .decks-empty-link:focus-visible {
+    outline: 2px solid var(--violet);
+    outline-offset: 2px;
+}
+
 #decks-view .decks-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -2191,5 +2213,12 @@
 
     #decks-view .deck-more-item {
         min-height: 2.75rem;
+    }
+
+    /* An inline-block link keeps its place in the sentence and gets a 44 px target. */
+    #decks-view .decks-empty-link {
+        display: inline-block;
+        min-height: 2.75rem;
+        line-height: 2.75rem;
     }
 }

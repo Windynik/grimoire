@@ -439,6 +439,8 @@ test("the deck list tools grow to finger size, and the list fits a phone", () =>
     ["#decks-view .decks-seg button", /min-height:\s*2\.5rem/],
     ["#decks-view .decks-search", /min-height:\s*2\.75rem/],
     ["#decks-view .deck-more-item", /min-height:\s*2\.75rem/],
+    // The links of the empty state sit in a sentence. Each still gets a finger-size target.
+    ["#decks-view .decks-empty-link", /min-height:\s*2\.75rem/],
   ];
   for (const [selector, rule] of wants) {
     assert.match(rulesFor(coarse, selector).join(";"), rule, `touch rule for ${selector}`);
