@@ -74,7 +74,7 @@
                             <h2 class="home-section-title" id="home-collections-title">Collections</h2>
                             <a class="btn btn-secondary btn-compact" id="home-collections-import" href="#import">Import cards</a>
                         </div>
-                        <div id="dashboard-collections" class="home-collections"></div>
+                        <div id="dashboard-collections" class="home-collections"><p class="home-empty" role="status">Loading the collections…</p></div>
                     </section>
 
                     <section class="home-section" aria-labelledby="home-decks-title">
@@ -82,7 +82,7 @@
                             <h2 class="home-section-title" id="home-decks-title">Recent decks</h2>
                             <a class="home-link" href="#decks">All decks</a>
                         </div>
-                        <div id="home-decks" class="home-decks"></div>
+                        <div id="home-decks" class="home-decks"><p class="home-empty" role="status">Loading the decks…</p></div>
                     </section>
 
                     <section class="home-section" aria-labelledby="home-data-title">
@@ -391,6 +391,7 @@
                                 <button type="button" data-view="list" aria-pressed="false">List</button>
                             </div>
                         </div>
+                        <p id="decks-loading" class="decks-empty" role="status">Loading the decks…</p>
                         <p id="decks-empty" class="decks-empty" hidden>No decks yet. <button type="button" class="decks-empty-link" data-empty="new">Create one</button>, <button type="button" class="decks-empty-link" data-empty="import">import a decklist</button>, or <a class="decks-empty-link" href="#forge">forge one</a>.</p>
                         <p id="decks-error" class="decks-empty" role="alert" hidden></p>
                         <div id="decks-none" class="decks-empty decks-none" hidden>
@@ -587,6 +588,24 @@
                 </div>
             </div>
         </main>
+
+        <!-- First paint: show the screen of the address and mark its nav link before
+             the modules load. It follows parseHash and NAV_PARENT in js/app/router.js
+             (tests/js/dom/boot.test.mjs checks that both agree). The router takes over
+             when main.js runs. -->
+        <script>
+            (function () {
+                var screens = ["home", "collection", "import", "forge", "decks", "settings", "welcome"];
+                var hash = location.hash;
+                var screen = /^#deck\/[A-Za-z0-9_-]+$/.test(hash) ? "decks" : hash.replace(/^#/, "");
+                if (screens.indexOf(screen) < 0) screen = "home";
+                var nav = screen === "import" ? "collection" : screen === "welcome" ? "home" : screen;
+                var view = document.getElementById(screen + "-view");
+                var link = document.querySelector('.nav-item[data-screen="' + nav + '"]');
+                if (view) view.classList.add("active");
+                if (link) link.setAttribute("aria-current", "page");
+            })();
+        </script>
 
         <!-- Footer -->
         <footer class="footer">

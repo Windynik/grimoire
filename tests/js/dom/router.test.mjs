@@ -166,8 +166,12 @@ test("the old header whimsy is gone", () => {
   for (const selector of ["#header-orb", ".pip", ".mana-strip", ".tagline", "#consult-grimoire"]) {
     assert.equal(document.querySelector(selector), null, selector);
   }
-  const scripts = [...document.querySelectorAll("script")].map((el) => el.getAttribute("src"));
+  const scripts = [...document.querySelectorAll("script[src]")].map((el) => el.getAttribute("src"));
   assert.deepEqual(scripts, ["/js/app/main.js"]);
+  // One inline script marks the screen of the address at the first paint (boot.test.mjs).
+  const inline = [...document.querySelectorAll("script:not([src])")];
+  assert.equal(inline.length, 1);
+  assert.match(inline[0].textContent, /aria-current/);
 });
 
 test("the page has no decorative background layer", () => {

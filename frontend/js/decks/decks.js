@@ -150,6 +150,8 @@ function renderList() {
   } else {
     shown.forEach((deck) => grid.append(deckTile(deck, actions(deck))));
   }
+  // The page starts with a loading line in place of the list (index.html).
+  $("decks-loading").hidden = true;
   $("decks-empty").hidden = state.decks.length > 0;
   $("decks-none").hidden = !(state.decks.length && !shown.length);
 }
@@ -165,8 +167,8 @@ async function loadList() {
   const errorBox = $("decks-error");
   errorBox.hidden = true;
   try {
-    await loadLookups();
-    const data = await api.listDecks();
+    // The decks go out with the formats and the collections, not after them.
+    const [, data] = await Promise.all([loadLookups(), api.listDecks()]);
     if (request !== state.loadRequest) return;
     state.decks = data.decks || [];
     renderList();

@@ -7,7 +7,7 @@ import * as decksApi from "../decks/api.js";
 import { deckTile } from "../decks/tile.js";
 import { h } from "../shared/dom.js";
 import { formatDate, formatDay } from "../shared/format.js";
-import { request } from "../shared/http.js";
+import { refusalText, request } from "../shared/http.js";
 import { confirmDialog, openDialog } from "../shared/modal.js";
 import {
   activeCollection, setActiveCollection, setViewerSource, viewerSource,
@@ -215,7 +215,11 @@ async function loadCollections() {
 
   try {
     const response = await fetch(`${API_BASE}/collections`);
-    if (!response.ok) return null;
+    if (!response.ok) {
+      const reason = (await refusalText(response, "")).trim();
+      if (request === listRequest) showCollectionsError(reason);
+      return null;
+    }
     const data = await response.json();
     if (request !== listRequest) return null;
 
@@ -229,6 +233,7 @@ async function loadCollections() {
     return data.collections;
   } catch (error) {
     console.error("Error loading dashboard collections:", error);
+    if (request === listRequest) showCollectionsError("");
     return null;
   }
 }
