@@ -407,7 +407,11 @@ function createSession(host, deckId, options) {
       const body = await api.findCombos(deckId);
       if (closed) return;
       state.combos = body.combos || null;
-      if (body.analysis) state.analysis = body.analysis;
+      if (body.analysis) {
+        state.analysis = body.analysis;
+        // This analysis is newer than the one the load still waits for.
+        shownSeq = Math.max(shownSeq, seq);
+      }
       const count = ((state.combos || {}).included || []).length;
       showToast(count ? `${count} ${count === 1 ? "combo" : "combos"} found` : "No combos found", "success");
     } catch (error) {
@@ -573,10 +577,27 @@ function createSession(host, deckId, options) {
   window.addEventListener("pagehide", onPageHide);
   document.addEventListener("visibilitychange", onVisibility);
 
+  // The slow part of a deck (the analysis, with the copies that other decks
+  // use) comes after the record. A save answer carries a newer analysis, so
+  // the load does not replace one, and it leaves the revision of the saves alone.
+  async function loadAnalysis() {
+    try {
+      const body = await api.deckAnalysis(deckId);
+      if (closed || shownSeq >= 0 || !body || !body.analysis) return;
+      state.analysis = body.analysis;
+    } catch (error) {
+      if (closed || shownSeq >= 0) return;
+      state.analysis = { ...state.analysis, partial: false,
+        failed: `Could not check the deck: ${error.message}` };
+    }
+    render();
+  }
+
   async function load() {
     try {
+      // The quick answer has the record and a partial analysis, so the deck shows at once.
       const [record, collections] = await Promise.all([
-        api.getDeck(deckId),
+        api.getDeck(deckId, { analysis: false }),
         api.getCollections().catch(() => ({ collections: [] })),
       ]);
       if (closed) return;
@@ -607,6 +628,7 @@ function createSession(host, deckId, options) {
       view.loading.hidden = true;
       view.shell.hidden = false;
       render();
+      if (state.analysis.partial) loadAnalysis();
       stopPreload = preloadDeck(state);
       if (options.isNew) {
         view.name.focus();

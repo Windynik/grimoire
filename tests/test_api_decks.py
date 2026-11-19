@@ -651,3 +651,87 @@ def test_a_deck_that_cannot_be_analyzed_does_not_break_the_list(overrides, monke
     with TestClient(app) as client:
         assert _summary(client, good)["colors"] == ["B"]
         assert _summary(client, bad)["colors"] is None
+def _shared_card_decks(decks):
+    """A built deck "Other" that uses 3 of the 4 copies of Sac Outlet 0, and a deck that needs 2."""
+    sac = _sac()
+    decks.save({"name": "Other", "format": "modern", "collection_job_id": "aaa1",
+                "commander": None, "built": True, "sections": {"main": [
+                    {"scryfall_id": sac["id"], "name": "Sac Outlet 0", "count": 3}],
+                    "sideboard": [], "maybeboard": []}})
+    return decks.save({"name": "Mine ☆", "format": "commander", "collection_job_id": "aaa1",
+                       "commander": None, "sections": {"main": [
+                           {"scryfall_id": sac["id"], "name": "Sac Outlet 0", "count": 2}],
+                           "sideboard": [], "maybeboard": []}})
+
+
+def test_the_quick_deck_answer_has_the_record_and_no_slow_checks(overrides):
+    _, _, decks = overrides
+    deck_id = _shared_card_decks(decks)
+    with TestClient(app) as client:
+        quick = client.get("/api/decks/%s?analysis=false" % deck_id)
+        assert quick.status_code == 200
+        body = quick.json()
+    assert body["name"] == "Mine ☆" and body["revision"] == 0
+    assert body["sections"]["main"][0]["mana_cost"] == _sac()["mana_cost"]  # hydrated
+    assert "edit" not in body and "changelog" not in body
+    analysis = body["analysis"]
+    assert analysis["partial"] is True
+    assert analysis["format"]["key"] == "commander" and analysis["format"]["commander"] is True
+    assert analysis["format"]["name"] == "Commander"
+    assert analysis["collection"]["job_ids"] == ["aaa1"]
+    assert "cards" not in analysis and "metrics" not in analysis
+    # The list facts come from a full analysis only.
+    assert decks.get(deck_id).get("facts") is None
+
+
+def test_one_deck_answer_reads_each_collection_once(overrides):
+    store, bulk, decks = overrides
+    sac = _sac()
+    store.store_collection("bbb2", [{"Scryfall ID": sac["id"], "Quantity": 3, "Name": sac["name"]}],
+                           bulk.cards, source_name="Trade Box.csv")
+    deck_id = _shared_card_decks(decks)
+    reads = []
+    real = store.get_collection
+
+    def counted(job_id):
+        reads.append(job_id)
+        return real(job_id)
+
+    store.get_collection = counted
+    with TestClient(app) as client:
+        # The analysis and the taken check share the rows: one read per collection.
+        assert client.get("/api/decks/%s" % deck_id).status_code == 200
+        assert sorted(reads) == ["aaa1", "bbb2"]
+        del reads[:]
+        client.get("/api/decks/%s/analysis" % deck_id)
+        assert sorted(reads) == ["aaa1", "bbb2"]
+
+
+def test_the_collection_list_reads_a_file_again_only_after_it_changes(overrides, monkeypatch):
+    from backend.core import collection_store as module
+    store, bulk, _ = overrides
+    loads = []
+    real_load = module.json.load
+
+    def counted(handle, *args, **kwargs):
+        loads.append(handle.name)
+        return real_load(handle, *args, **kwargs)
+
+    monkeypatch.setattr(module.json, "load", counted)
+    first = store.list_collections()
+    assert [m["job_id"] for m in first] == ["aaa1"] and len(loads) == 1
+    assert store.list_collections() == first and len(loads) == 1
+    # A rename writes the file: the list reads it again and shows the new name.
+    store.rename_collection("aaa1", "Binder ☆")
+    assert store.list_collections()[0]["name"] == "Binder ☆"
+    # A new collection shows; a deleted one goes.
+    sac = _sac()
+    store.store_collection("bbb2", [{"Scryfall ID": sac["id"], "Quantity": 1, "Name": sac["name"]}],
+                           bulk.cards, source_name="Trade.csv")
+    assert {m["job_id"] for m in store.list_collections()} == {"aaa1", "bbb2"}
+    store.delete_collection("bbb2")
+    assert [m["job_id"] for m in store.list_collections()] == ["aaa1"]
+    # The caller gets a copy: a change to it does not reach the next list.
+    listed = store.list_collections()
+    listed[0]["name"] = "changed"
+    assert store.list_collections()[0]["name"] == "Binder ☆"

@@ -1018,6 +1018,18 @@
     font-variant-numeric: tabular-nums;
 }
 
+/* The stats panel while the analysis loads, or after it failed. */
+#decks-view .stat-status {
+    margin: 0 0 1rem;
+    font-size: 0.85rem;
+    color: var(--text-dim);
+}
+
+#decks-view .stat-status.is-error {
+    color: var(--error);
+}
+
+/* One metric per row: the label and the value, then a line on what it measures. */
 #decks-view .stat-metrics {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));

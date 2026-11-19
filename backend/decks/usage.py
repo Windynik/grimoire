@@ -105,7 +105,17 @@ def owned_by_card(collections: List[Tuple[dict, List[dict]]], index: Dict[str, d
 class CopiesInUse:
     """The owned and used copies of every card, read once from the stores."""
 
-    def __init__(self, deck_store, collection_store, index: Dict[str, dict]):
+    def __init__(self, deck_store, collection_store, index: Dict[str, dict],
+                 collections: Optional[List[Tuple[dict, List[dict]]]] = None):
+        """Read the decks and the collections.
+
+        Args:
+            deck_store: The saved decks
+            collection_store: The collections; not read when collections is given
+            index: Card index keyed by Scryfall id
+            collections: (metadata, rows) of every collection, newest first, when
+                the caller read them already (a collection file can be large)
+        """
         self.index = index
         decks = []
         for summary in deck_store.list():
@@ -113,8 +123,9 @@ class CopiesInUse:
             if record is not None:
                 decks.append(dict(record, id=summary["id"], name=summary.get("name", "")))
         self.usage = usage_by_card(decks, index)
-        collections = [(meta, collection_store.get_collection(meta["job_id"]) or [])
-                       for meta in collection_store.list_collections()]
+        if collections is None:
+            collections = [(meta, collection_store.get_collection(meta["job_id"]) or [])
+                           for meta in collection_store.list_collections()]
         self.owned = owned_by_card(collections, index)
 
     def key(self, scryfall_id: Optional[str], name: str = "") -> str:

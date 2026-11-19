@@ -62,7 +62,9 @@ function build(root) {
   const price = h("dd", { class: "stat-value" });
   const changers = h("dd", { class: "stat-value" });
   const metrics = h("div", { class: "stat-metrics" });
-  root.replaceChildren(
+  // While the analysis loads (or after it failed), one line says so and the numbers hide.
+  const status = h("p", { class: "stat-status", role: "status", hidden: true });
+  const body = h("div", { class: "stat-body" },
     section("Cards", count, countBar.track),
     section("Curve", curve),
     section("Mana", mana),
@@ -73,8 +75,9 @@ function build(root) {
       h("div", { class: "stat-fact" }, h("dt", { text: "Price" }), price),
       h("div", { class: "stat-fact" }, h("dt", { text: "Game Changers" }), changers)),
     section("Metrics", metrics));
-  return { count, countBar, curve, curveCols, mana, issues, bracket, bracketBlock, combos, price,
-    changers, metrics };
+  root.replaceChildren(status, body);
+  return { status, body, count, countBar, curve, curveCols, mana, issues, bracket, bracketBlock,
+    combos, price, changers, metrics };
 }
 
 function manaRow(row) {
@@ -145,6 +148,12 @@ export function renderStats(root, analysis, names = {}, extra = {}) {
     contexts.set(root, ui);
   }
   const data = analysis || {};
+  // A partial analysis (the quick load) has no numbers yet.
+  const waiting = Boolean(data.partial);
+  ui.status.hidden = !waiting && !data.failed;
+  ui.status.textContent = waiting ? "Checking the deck…" : data.failed || "";
+  ui.status.classList.toggle("is-error", Boolean(data.failed));
+  ui.body.hidden = waiting || Boolean(data.failed);
   const total = (data.count || {}).main || 0;
   const target = (data.count || {}).target || 0;
   ui.count.textContent = target ? `${total} / ${target} cards` : `${total} cards`;

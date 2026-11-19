@@ -20,7 +20,9 @@ from backend.core.net_errors import download_reason
 from backend.core.tls import tls_context
 from backend.core.ollama_client import ModelError, OllamaClient
 from backend.decks.agent import run_agent
-from backend.decks.analysis import analyze, list_facts, owned_counts
+from backend.decks.analysis import (
+    analyze, collection_summary, format_summary, list_facts, owned_counts, rules_for,
+)
 from backend.decks.records import (
     MAX_DECK_COLLECTIONS,
     CreateDeck,
@@ -76,28 +78,61 @@ def collections_label(names: List[str]) -> str:
     return "these %d collections" % len(names)
 
 
-def _collection_for(record: dict, collections: CollectionStore) -> Tuple[Optional[List[dict]],
-                                                                         Optional[dict]]:
-    """Return (rows, metadata) of the deck's collections, else of the newest one, else (None, None).
+class Shelf:
+    """The collections of one answer. Each collection file is read at most once.
 
-    The rows of every chosen collection come one after the other: the copies
-    of a card in two collections add up. A chosen collection that is gone is
-    skipped. The metadata has job_id (the first), job_ids, names and name
-    (see collections_label).
+    A collection file can be many megabytes. The analysis and the "taken"
+    check both need the rows, so they share them through one Shelf.
     """
-    listed = collections.list_collections()
+
+    def __init__(self, collections: CollectionStore):
+        self.store = collections
+        self.listed = collections.list_collections()
+        self._rows = {}  # type: Dict[str, List[dict]]
+
+    def rows(self, job_id: str) -> List[dict]:
+        if job_id not in self._rows:
+            self._rows[job_id] = self.store.get_collection(job_id) or []
+        return self._rows[job_id]
+
+    def every(self) -> List[Tuple[dict, List[dict]]]:
+        """(metadata, rows) of every collection, newest first (see CopiesInUse)."""
+        return [(meta, self.rows(meta["job_id"])) for meta in self.listed]
+
+
+def _collection_meta(record: dict, shelf: Shelf) -> Tuple[List[dict], Optional[dict]]:
+    """Return (chosen metadata, joined metadata) of the deck's collections, without the rows.
+
+    The deck's collections, else the newest one. A chosen collection that is
+    gone is skipped. The joined metadata has job_id (the first), job_ids,
+    names and name (see collections_label), or is None without a collection.
+    """
+    listed = shelf.listed
     known = {m["job_id"]: m for m in listed}
     chosen = [known[j] for j in deck_collections(record) if j in known]
     if not chosen and listed:
         chosen = [listed[0]]
     if not chosen:
+        return [], None
+    names = [m.get("name") or "Collection " + m["job_id"][:8] for m in chosen]
+    return chosen, dict(chosen[0], job_ids=[m["job_id"] for m in chosen], names=names,
+                        name=collections_label(names))
+
+
+def _collection_for(record: dict, collections: CollectionStore,
+                    shelf: Optional[Shelf] = None) -> Tuple[Optional[List[dict]], Optional[dict]]:
+    """Return (rows, metadata) of the deck's collections, else of the newest one, else (None, None).
+
+    The rows of every chosen collection come one after the other: the copies
+    of a card in two collections add up. See _collection_meta for the metadata.
+    """
+    shelf = shelf or Shelf(collections)
+    chosen, meta = _collection_meta(record, shelf)
+    if meta is None:
         return None, None
     rows = []  # type: List[dict]
-    for meta in chosen:
-        rows.extend(collections.get_collection(meta["job_id"]) or [])
-    names = [m.get("name") or "Collection " + m["job_id"][:8] for m in chosen]
-    meta = dict(chosen[0], job_ids=[m["job_id"] for m in chosen], names=names,
-                name=collections_label(names))
+    for item in chosen:
+        rows.extend(shelf.rows(item["job_id"]))
     return rows, meta
 
 
@@ -115,18 +150,41 @@ def deck_response(record: dict, index: Dict[str, dict], collections: CollectionS
     Returns:
         The hydrated record plus the key "analysis" (see backend.decks.analysis.analyze)
     """
-    deck = hydrate_record(record, index)
-    deck.setdefault("revision", 0)
-    deck.pop("edit", None)
-    deck.pop("changelog", None)
-    rows, meta = _collection_for(record, collections)
+    deck = _record_body(record, index)
+    shelf = Shelf(collections)
+    rows, meta = _collection_for(record, collections, shelf)
     deck["analysis"] = analyze(record, index, rows, meta, _PLAYBOOK)
     # Whether the deck changed after its last combo check (None without a check).
     facts = combo_facts(record)
     deck["analysis"]["combos_stale"] = facts["stale"] if facts else None
     if decks is not None:
-        copies = CopiesInUse(decks, collections, index)
+        copies = CopiesInUse(decks, collections, index, shelf.every())
         mark_taken(deck["analysis"], record, taken_cards(record, record.get("id"), copies), index)
+    return deck
+
+
+def _record_body(record: dict, index: Dict[str, dict]) -> dict:
+    """The hydrated record, as every deck route returns it, without the analysis."""
+    deck = hydrate_record(record, index)
+    deck.setdefault("revision", 0)
+    deck.pop("edit", None)
+    deck.pop("changelog", None)
+    return deck
+
+
+def quick_response(record: dict, index: Dict[str, dict], collections: CollectionStore) -> dict:
+    """The deck at once: the record and a partial analysis, without the slow checks.
+
+    The editor shows this first, then asks GET /api/decks/{id}/analysis. The
+    partial analysis has "partial": True, the format and the collections
+    (see backend.decks.analysis.format_summary and collection_summary).
+    """
+    deck = _record_body(record, index)
+    _, meta = _collection_meta(record, Shelf(collections))
+    key = record.get("format") or ""
+    fmt = format_summary(rules_for(record, _PLAYBOOK)) if key in _FORMATS else {
+        "key": key, "name": key, "commander": False}
+    deck["analysis"] = {"partial": True, "format": fmt, "collection": collection_summary(meta)}
     return deck
 
 
@@ -316,16 +374,42 @@ async def deck_pull_list(
     return await asyncio.to_thread(build)
 
 
-@router.get("/decks/{deck_id}")
-async def get_deck(
+@router.get("/decks/{deck_id}/analysis")
+async def get_deck_analysis(
     deck_id: str,
     store: DeckStore = Depends(get_deck_store),
     bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager),
     collections: CollectionStore = Depends(get_collection_store),
 ):
-    """One saved deck. It also keeps the list facts of the deck (see keep_facts)."""
+    """The full analysis of a saved deck, with the "taken" check, and its revision.
+
+    The editor asks for it after the quick GET /api/decks/{id}?analysis=false.
+    It also keeps the list facts of the deck (see keep_facts).
+    """
     record = _stored(store, deck_id)
     index = await bulk_data_manager.load_bulk_data()
+    body = await keep_facts(store, record, await full_response(record, index, collections, store))
+    return {"id": record.get("id"), "revision": body.get("revision", 0),
+            "analysis": body["analysis"]}
+
+
+@router.get("/decks/{deck_id}")
+async def get_deck(
+    deck_id: str,
+    analysis: bool = True,
+    store: DeckStore = Depends(get_deck_store),
+    bulk_data_manager: BulkDataManager = Depends(get_bulk_data_manager),
+    collections: CollectionStore = Depends(get_collection_store),
+):
+    """One saved deck. It also keeps the list facts of the deck (see keep_facts).
+
+    analysis=false answers at once with the record and a partial analysis
+    (see quick_response). The editor then asks for the full analysis.
+    """
+    record = _stored(store, deck_id)
+    index = await bulk_data_manager.load_bulk_data()
+    if not analysis:
+        return await asyncio.to_thread(quick_response, record, index, collections)
     return await keep_facts(store, record, await full_response(record, index, collections, store))
 
 

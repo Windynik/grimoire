@@ -444,3 +444,53 @@ test("the deck reads several collections: the editor saves them and searches the
   await app.until(() => app.fetchLog.some((r) => r.path === "/api/collection/job1/search"
     && r.query.get("also") === "job2"));
 });
+
+// Audit: a Commander deck still showed a Sideboard section and targets.
+const COMMANDER_FORMAT = { key: "commander", name: "Commander", commander: true, deck_size: 100 };
+const searchCard = { scryfall_id: "id-c", name: "Card C", mana_cost: "{2}", type_line: "Artifact" };
+const sectionTitles = () => [...document.querySelectorAll('[data-editor="pane"] .deck-section-title')]
+  .map((el) => el.textContent);
+const menuItems = () => [...document.querySelector('[data-editor="pane"] .deck-row-menu')
+  .querySelectorAll(".deck-row-menu-item")].map((el) => el.textContent);
+
+
+// Audit: opening a deck showed nothing for about 3 seconds. The editor shows the
+// record at once and the analysis (with the "taken" check) when it is ready.
+const quickRecord = (extra = {}) => ({ ...deckRecord(), revision: 3,
+  analysis: { partial: true, format: COMMANDER_FORMAT,
+    collection: { job_id: null, name: "", job_ids: [], names: [] } }, ...extra });
+
+function held() {
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  return { gate, release: (reply) => release(reply) };
+}
+
+test("a save answer that comes before the analysis keeps the newer analysis", async () => {
+  const slow = held();
+  await openEditor({
+    "GET /api/decks/d1": () => ({ json: quickRecord() }),
+    "GET /api/decks/d1/analysis": () => slow.gate,
+  });
+  saveReply = () => ({ json: { revision: 4, analysis: { format: COMMANDER_FORMAT, count: { main: 2, target: 100 } } } });
+  click(document.querySelector('.deck-row [data-action="inc"]'));
+  const stats = document.querySelector('[data-editor="stats"]');
+  await app.until(() => stats.querySelector(".stat-count").textContent === "2 / 100 cards"
+    && !stats.querySelector(".stat-body").hidden, SAVE_WAIT);
+  slow.release({ json: { id: "d1", revision: 3, analysis: { format: COMMANDER_FORMAT, count: { main: 1, target: 100 } } } });
+  await app.settle();
+  assert.equal(stats.querySelector(".stat-count").textContent, "2 / 100 cards");
+});
+
+test("a failed analysis says so in the stats panel and keeps the deck", async () => {
+  await openEditor({
+    "GET /api/decks/d1": () => ({ json: quickRecord() }),
+    "GET /api/decks/d1/analysis": () => ({ status: 503, json: { detail: "The card data is loading." } }),
+  });
+  const status = document.querySelector('[data-editor="stats"] .stat-status');
+  await app.until(() => /Could not check the deck/.test(status.textContent));
+  assert.equal(status.hidden, false);
+  assert.match(status.textContent, /The card data is loading\./);
+  assert.ok(document.querySelector(".deck-row"));
+});
+

@@ -24,6 +24,8 @@ class CollectionStore:
     def __init__(self, storage_dir: Optional[str] = None):
         self.storage_dir = Path(storage_dir) if storage_dir else cache_path("collections")
         self.storage_dir.mkdir(parents=True, exist_ok=True)
+        # The metadata of each file, with the file stamp it came from (see list_collections).
+        self._metas = {}  # type: Dict[str, Tuple[Tuple[int, int, int], Optional[Dict]]]
 
     def store_collection(self, job_id: str, cards: List[Dict], bulk_data: Dict,
                          source_name: str = "",
@@ -269,19 +271,42 @@ class CollectionStore:
         tmp.replace(path)
 
     def list_collections(self) -> List[Dict]:
-        """All stored collections' metadata, newest first."""
-        collections = []
-        for path in self.storage_dir.glob("*.json"):
-            try:
-                with open(path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-            except Exception:
-                continue
+        """All stored collections' metadata, newest first.
 
-            # Older files counted rows. "cards" means copies on every screen.
-            meta = self._meta_of(path.stem, data)
-            if meta.get("job_id"):
-                collections.append(meta)
+        A collection file can be many megabytes, and many screens list the
+        collections. So the metadata of each file stays in memory with the
+        stamp of the file (inode, change time, size). Every write replaces the
+        file (a new inode), so a changed file is read again.
+        """
+        collections = []
+        seen = set()
+        for path in self.storage_dir.glob("*.json"):
+            seen.add(path.name)
+            meta = self._cached_meta(path)
+            if meta is not None and meta.get("job_id"):
+                collections.append(dict(meta))
+        for name in [n for n in self._metas if n not in seen]:
+            self._metas.pop(name, None)
 
         collections.sort(key=lambda m: m.get("created", ""), reverse=True)
         return collections
+
+    def _cached_meta(self, path: Path) -> Optional[Dict]:
+        """The metadata of one collection file, read again only when the file changed."""
+        try:
+            info = path.stat()
+        except OSError:
+            return None
+        stamp = (info.st_ino, info.st_mtime_ns, info.st_size)
+        cached = self._metas.get(path.name)
+        if cached is not None and cached[0] == stamp:
+            return cached[1]
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            # Older files counted rows. "cards" means copies on every screen.
+            meta = self._meta_of(path.stem, data)  # type: Optional[Dict]
+        except Exception:
+            meta = None
+        self._metas[path.name] = (stamp, meta)
+        return meta

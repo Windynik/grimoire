@@ -348,6 +348,22 @@ def _totals(record: dict, index: Dict[str, dict]):
     return round(price, 2), changers
 
 
+def format_summary(fmt: FormatRules) -> dict:
+    """The format of a deck as the analysis gives it: key, name, size and copy rules."""
+    return {"key": fmt.key, "name": fmt.name, "deck_size": fmt.deck_size,
+            "commander": fmt.commander, "singleton": fmt.singleton,
+            "max_copies": fmt.max_copies}
+
+
+def collection_summary(meta: Optional[dict]) -> dict:
+    """The collections of a deck as the analysis gives them: job_id, name, job_ids, names."""
+    meta = meta or {}
+    return {"job_id": meta.get("job_id"), "name": meta.get("name") or "",
+            "job_ids": list(meta.get("job_ids") or
+                            ([meta["job_id"]] if meta.get("job_id") else [])),
+            "names": list(meta.get("names") or ([meta["name"]] if meta.get("name") else []))}
+
+
 def analyze(record: dict, index: Dict[str, dict], collection: Optional[List[dict]],
             collection_meta: Optional[dict], playbook: Playbook) -> dict:
     """Analyze a deck record against the card index and a collection.
@@ -400,14 +416,8 @@ def analyze(record: dict, index: Dict[str, dict], collection: Optional[List[dict
     price, changers = _totals(record, index)
     meta = collection_meta or {}
     return {
-        "collection": {"job_id": meta.get("job_id"), "name": meta.get("name") or "",
-                       "job_ids": list(meta.get("job_ids") or
-                                       ([meta["job_id"]] if meta.get("job_id") else [])),
-                       "names": list(meta.get("names") or
-                                     ([meta["name"]] if meta.get("name") else []))},
-        "format": {"key": fmt.key, "name": fmt.name, "deck_size": fmt.deck_size,
-                   "commander": fmt.commander, "singleton": fmt.singleton,
-                   "max_copies": fmt.max_copies},
+        "collection": collection_summary(meta),
+        "format": format_summary(fmt),
         "count": count,
         "curve": display_curve(deck),
         "colors": sorted(colors, key=COLOR_ORDER.index),

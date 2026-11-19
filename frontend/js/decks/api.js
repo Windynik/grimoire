@@ -17,8 +17,18 @@ export function listDecks() {
   return getJSON("/decks");
 }
 
-export function getDeck(id) {
-  return getJSON(`/decks/${enc(id)}`);
+/**
+ * One saved deck. With {analysis: false} the server answers at once with the
+ * record and a partial analysis ({partial: true, format, collection}); then
+ * deckAnalysis gives the rest.
+ */
+export function getDeck(id, { analysis = true } = {}) {
+  return getJSON(`/decks/${enc(id)}${analysis ? "" : query({ analysis: "false" })}`);
+}
+
+/** The full analysis of a saved deck, with the copies that other decks use: {revision, analysis}. */
+export function deckAnalysis(id) {
+  return getJSON(`/decks/${enc(id)}/analysis`);
 }
 
 export function createDeck({ name, format, collection_job_id, collection_job_ids }) {
