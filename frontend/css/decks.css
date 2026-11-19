@@ -1458,6 +1458,28 @@
     font-size: 0.88rem;
 }
 
+/* Before the first message the intro fills the panel, so the log takes no room. */
+#decks-view .agent-log:empty {
+    min-height: 0;
+}
+
+#decks-view .agent-intro {
+    margin: 0 0 0.6rem;
+}
+
+#decks-view .agent-intro-text {
+    margin: 0 0 0.5rem;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    color: var(--text-dim);
+}
+
+#decks-view .agent-examples {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
 #decks-view .agent-msg {
     padding: 0.45rem 0.6rem;
     border-radius: var(--radius-sm);

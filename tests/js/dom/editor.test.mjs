@@ -444,6 +444,7 @@ test("the deck reads several collections: the editor saves them and searches the
   await app.until(() => app.fetchLog.some((r) => r.path === "/api/collection/job1/search"
     && r.query.get("also") === "job2"));
 });
+
 // Audit: "Quality 21%" and "Synergy 7.32" had no scale and no meaning.
 test("each metric says what it measures and its scale in visible text", async () => {
   const analysis = {
@@ -624,6 +625,50 @@ test("the card pool shows one row per card name and adds the deck's own printing
     SAVE_WAIT);
   const islands = puts.at(-1).sections.main.filter((e) => e.name === "Island");
   assert.deepEqual(islands.map((e) => [e.scryfall_id, e.count]), [["isl-a", 2]]);
+});
+
+// Audit: the agent panel was an empty box before the first message.
+test("the agent panel says what it does and offers examples that only fill the box", async () => {
+  await openEditor({
+    "POST /api/decks/d1/agent": () => ({ json: { reply: "Fine.", swaps: [], cuts: [], sections: deckRecord().sections } }),
+  });
+  click(document.querySelector('[data-editor="side-tab"][data-side="agent"]'));
+  const input = document.querySelector(".agent-input");
+  await app.until(() => !input.disabled);
+  const intro = document.querySelector(".agent-intro");
+  assert.ok(intro && !intro.hidden);
+  assert.match(intro.querySelector(".agent-intro-text").textContent, /swaps and cuts/);
+  assert.match(intro.querySelector(".agent-intro-text").textContent, /Undo reverts/);
+  const examples = [...intro.querySelectorAll(".agent-example")];
+  assert.ok(examples.length >= 2 && examples.length <= 3, "two or three examples");
+  assert.ok(examples.every((b) => b.tagName === "BUTTON" && b.type === "button" && !b.disabled));
+  click(examples[1]);
+  assert.equal(input.value, examples[1].textContent);
+  assert.equal(document.activeElement, input);
+  await app.settle();
+  assert.ok(!app.fetchLog.some((req) => req.path === "/api/decks/d1/agent"), "an example does not send");
+  click(document.querySelector(".agent-send"));
+  await app.until(() => app.fetchLog.some((req) => req.path === "/api/decks/d1/agent"));
+  assert.equal(app.fetchLog.find((req) => req.path === "/api/decks/d1/agent").body.message,
+    examples[1].textContent);
+  assert.equal(intro.hidden, true, "the intro goes after the first message");
+});
+
+test("engine-only mode keeps the notice and turns the examples off", async () => {
+  window.localStorage.setItem("grimoire.settings", JSON.stringify({ model: "none" }));
+  try {
+    let asked = 0;
+    await openEditor({ "GET /api/ai/status": () => { asked += 1; return { json: AI_UP }; } });
+    click(document.querySelector('[data-editor="side-tab"][data-side="agent"]'));
+    await app.until(() => asked > 0);
+    await app.settle();
+    assert.equal(document.querySelector(".agent-notice").textContent, "Start Ollama to chat with the deck agent.");
+    assert.equal(document.querySelector(".agent-notice").hidden, false);
+    const examples = [...document.querySelectorAll(".agent-example")];
+    assert.ok(examples.length >= 2 && examples.every((b) => b.disabled));
+  } finally {
+    window.localStorage.removeItem("grimoire.settings");
+  }
 });
 
 test("a deck of a format without a commander shows the empty Sideboard", async () => {

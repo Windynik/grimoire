@@ -17,6 +17,10 @@ const STEP_MS = 150; // Delay between two swaps.
 const FLIP_MS = 700; // Time the last swap needs to finish.
 const NO_MODEL = "Start Ollama to chat with the deck agent.";
 const PLACEHOLDER = "Ask for swaps or cuts";
+const INTRO = "The agent suggests swaps and cuts from the cards you own. "
+  + "The engine checks each change first. Undo reverts the agent's change.";
+// Example requests. A click fills the box; the owner still sends.
+const EXAMPLES = ["Cut 5 expensive cards", "More card draw", "Lower the curve"];
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -52,6 +56,13 @@ export function renderAgent(root, state) {
   });
   const send = h("button", { type: "button", class: "btn btn-secondary btn-compact agent-send", text: "Send" });
   const notice = h("p", { class: "agent-notice", text: NO_MODEL, hidden: true });
+  const examples = EXAMPLES.map((text) => h("button", {
+    type: "button", class: "btn btn-secondary btn-compact agent-example", text,
+  }));
+  // The intro shows until the first message.
+  const intro = h("div", { class: "agent-intro" },
+    h("p", { class: "agent-intro-text", text: INTRO }),
+    h("div", { class: "agent-examples", role: "group", "aria-label": "Example requests" }, examples));
   let model = null;
   let busy = false;
 
@@ -59,6 +70,7 @@ export function renderAgent(root, state) {
     const off = !model || busy;
     input.disabled = off;
     send.disabled = off;
+    examples.forEach((button) => { button.disabled = off; });
     notice.hidden = Boolean(model);
     input.placeholder = model ? PLACEHOLDER : "No local model";
   };
@@ -96,6 +108,7 @@ export function renderAgent(root, state) {
     if (!message || busy || !model) return;
     input.value = "";
     busy = true;
+    intro.hidden = true;
     setEnabled();
     add("agent-user", message);
     const thinking = add("agent-thinking", "Thinking…");
@@ -122,7 +135,11 @@ export function renderAgent(root, state) {
     }
   });
   send.addEventListener("click", submit);
-  root.replaceChildren(log, notice, h("div", { class: "agent-form" }, input, send));
+  examples.forEach((button) => button.addEventListener("click", () => {
+    input.value = button.textContent;
+    input.focus();
+  }));
+  root.replaceChildren(intro, log, notice, h("div", { class: "agent-form" }, input, send));
   setEnabled();
 
   api.getAiStatus().then((ai) => {
